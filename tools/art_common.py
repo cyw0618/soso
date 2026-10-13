@@ -12,7 +12,7 @@ OUT = os.path.join(HERE, '..', 'build', 'art')
 
 # 폰트: 처음 한 번 `npm i @fontsource/black-han-sans @fontsource/do-hyeon @fontsource/nanum-gothic`
 # 로 받은 woff 를 쓴다. 경로는 FONT_DIR 환경변수로 지정.
-FONT_DIR = os.environ.get('FONT_DIR', os.path.join(HERE, 'fonts'))
+FONT_DIR = os.environ.get('FONT_DIR', os.path.join(HERE, 'fonts'))  # 저장소에 포함된 폰트 (OFL/MIT)
 
 
 def _font_path(name):
@@ -21,6 +21,9 @@ def _font_path(name):
         'dohyeon': 'do-hyeon/files/do-hyeon-korean-400-normal.woff',
         'nanum': 'nanum-gothic/files/nanum-gothic-korean-700-normal.woff',
         'nanumx': 'nanum-gothic/files/nanum-gothic-korean-800-normal.woff',
+        'jalnan': 'yg-jalnan/yg-jalnan-normal.woff',
+        'nsr': 'nanum-square-round/NanumSquareRoundEB.ttf',
+        'nsrb': 'nanum-square-round/NanumSquareRoundB.ttf',
     }
     return os.path.join(FONT_DIR, cands[name])
 
