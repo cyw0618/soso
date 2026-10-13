@@ -96,6 +96,7 @@ def scene_title():
                                   ('게임 방법', -6, 'blue', 'map', go(S_HOWTO)),
                                   ('랭킹', -46, 'purple', 'trophy', go(S_RANK))]:
         button(P, sc, '버튼' + lbl, lbl, 170, yy, 120, 32, col, icon=ic, actions=act, first_scene=True)
+    G.sound_hub(P, sc, 'bgm_title', first_scene=True)
     G.fader(P, sc, BLACK, first_scene=True)
 
 
@@ -143,6 +144,7 @@ def scene_story():
     body.on(on_mouse_down(), *adv)
     body.on(on_key(K_SPACE), *adv)
     button(P, sc, '건너뛰기', '건너뛰기', 200, 116, 70, 24, 'gray', actions=go(S_MAP))
+    G.sound_hub(P, sc, 'bgm_title')
     G.fader(P, sc, BLACK)
 
 
@@ -164,6 +166,7 @@ def scene_howto():
         sprite(P, sc, '방법아이콘%d' % i, K.icon_img(ic, 20), -196, yy)
         text(P, sc, '방법글%d' % i, t, 20, yy, 11, '#FFFFFF', F_BODY, True, 1, w=396, h=20)
     button(P, sc, '돌아가기', '돌아가기', 0, -118, 110, 28, 'blue', icon='back', actions=go(S_TITLE))
+    G.sound_hub(P, sc, 'bgm_title')
     G.fader(P, sc, BLACK)
 
 
@@ -234,6 +237,7 @@ def scene_map():
     chk = text(P, sc, '진행검사', '', -300, -300, 8, visible=False)
     chk.on(on_scene(), wait(0.4), *ST.assets_blocks(), if_(ge(V('유세횟수'), 15), *go(S_VOTE)),
            if_(le(V('총자산'), 0), *go(S_BANKRUPT)))
+    G.sound_hub(P, sc, 'bgm_map')
     G.fader(P, sc, BLACK)
 
 
@@ -311,6 +315,10 @@ def scene_result():
                  ifelse(ge(V('점수'), 55), [write(D.GP_GRADE['B'])], [ifelse(ge(V('점수'), 35), [write(D.GP_GRADE['C'])], [write(D.GP_GRADE['D'])])])])]))
     G.confetti(P, sc, '축하', CONF)
     hud(P, sc, PORT)
+    hub = G.sound_hub(P, sc)
+    hub.on(on_msg('도장'), play('stamp'))
+    hub.on(on_msg('축하'), play('fanfare'))
+    hub.on(on_msg('결과줄'), wait(0.5), play('coin'))
     G.fader(P, sc, BLACK)
     # 주가 변동 담당 (밤사이 시세, 장 시간, 큰아버지 지분 매수)
     ST.overnight_object(P, sc)

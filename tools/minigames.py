@@ -27,8 +27,10 @@ def need_vars(P):
 
 # ================================================================== 공통 틀
 class MG:
-    def __init__(self, P, idx, ctx, time_limit=None, status='', dim=0):
+    def __init__(self, P, idx, ctx, time_limit=None, status='', dim=0, music='bgm_game'):
         need_vars(P)
+        self.music = music
+        self.snd_map = []
         self.P, self.idx, self.ctx = P, idx, ctx
         self.sc = ctx['S_GAME'][idx - 1]
         self.p = D.PLACES[idx - 1]
@@ -45,6 +47,10 @@ class MG:
 
     def T(self, base, txt, x, y, size=10, color=C_WHITE, font=F_BODY, bold=True, align=0, w=None, h=None, visible=True, bg=None):
         return text(self.P, self.sc, base, txt, x, y, size, color, font, bold, align, w=w, h=h, visible=visible, bg=bg)
+
+    def snd(self, msg, *blocks):
+        """msg 신호를 받으면 소리 담당이 실행할 블록 (play('pop') 등)."""
+        self.snd_map.append((msg, flat(*blocks)))
 
     def on_start(self, *blocks):
         """장면이 시작될 때(소개 창 전) 초기화할 블록."""
@@ -100,6 +106,19 @@ class MG:
             mgr.on(on_msg('게임시작'), reset_timer(), start_timer(),
                    until(or_(ge(timer(), T_), eq(V('게임중'), 0)), setv('남은시간', sub(T_, timer())), wait(0.05)),
                    if_(eq(V('게임중'), 1), setv('남은시간', 0), cast('시간끝')))
+        # 소리: 카운트다운, 게임 음악, 종료 호루라기, 게임별 효과음
+        hub = G.sound_hub(P, sc, extra_bgm=[self.music])
+        for msg_ in ('cd3', 'cd2', 'cd1'):
+            hub.on(on_msg(msg_), play('beep'))
+        hub.on(on_msg('cdgo'), play('go'))
+        if self.music == 'bgm_rhythm':
+            hub.on(on_msg('게임시작'), play(self.music))
+        else:
+            hub.on(on_msg('게임시작'), until(eq(V('게임중'), 0), play_wait(self.music)))
+        hub.on(on_msg('게임종료'), stop_sounds())
+        hub.on(on_msg('끝팝'), play('whistle'))
+        for msg_, blocks in self.snd_map:
+            hub.on(on_msg(msg_), *blocks)
         mgr.on(on_msg('게임종료'), setv('게임중', 0),
                setv('점수', rounded(V('점수'))), if_(gt(V('점수'), 100), setv('점수', 100)), if_(lt(V('점수'), 0), setv('점수', 0)),
                wait(0.3), cast('끝팝'), wait(1.9), setv('결과처리됨', 0), *go(ctx['S_RESULT']))
@@ -112,7 +131,7 @@ def clamp_blocks(var, lo, hi):
 
 # ================================================================== 1. 댄스배틀 (리듬게임)
 def g01(P, ctx):
-    m = MG(P, 1, ctx, status='콤보 0', dim=120)
+    m = MG(P, 1, ctx, status='콤보 0', dim=120, music='bgm_rhythm')
     rng = random.Random(1)
     beat = 0.5
     times, lanes = [], []
@@ -210,6 +229,7 @@ def g02(P, ctx):
     fx_.on(on_msg('잎효과'), shape(V('_mv')), xy(V('_mx'), -70), fx('transparency', 0), show(),
            rep(10, mvy(2), fx_add('transparency', 10), wait(0.02)), hide())
     m.on_start(setv('합계', 0))
+    m.snd('잎효과', ifelse(eq(V('_mv'), 3), [play('bad')], [play('pop')]))
     mgr = m.T('잎담당', '', -300, -300, 8, visible=False)
     mgr.on(on_msg('시간끝'), wait(0.2), *m.end_blocks(mul(V('합계'), 3)))
     m.finish('떨어지는 은행잎을 바구니로 받으세요!\n반짝이는 황금잎은 +3, 마른 잎은 -2',
@@ -251,6 +271,7 @@ def g03(P, ctx):
     shake.on(on_msg('밀기'), xy(rnd(-90, -40), rnd(10, 40)), shake.pct(80), fx('transparency', 0), show(),
              rep(6, shake.grow_pct(6), fx_add('transparency', 16), wait(0.016)), hide())
     m.on_start(setv('위치', 0), setv('상대힘', 0), setv('마지막키', 0))
+    m.snd('밀기', play('tick'))
     m.finish('첫째 큰아버지와 팔씨름 한 판!\n← → 키를 번갈아 빠르게 눌러 팔을 넘기세요!',
              '조작: ← → 번갈아 연타 (한 키만 누르면 힘이 안 들어가요)')
     return True
@@ -289,6 +310,7 @@ def g04(P, ctx):
     for o, ch in zip(cr, (1, 3, 2)):
         o.on(on_msg('선별판정'), if_(eq(V('선택'), ch), o.pct(112), wait(0.1), o.pct(100)))
     m.on_start(setv('맞춤', 0), setv('틀림', 0), setv('대기', 0))
+    m.snd('선별판정', ifelse(eq(V('_mv'), 1), [play('good')], [play('bad')]))
     m.finish('컨베이어로 오는 복숭아를 알맞은 상자로!\n초록=덜 익음, 분홍=잘 익음, 점박이 갈색=상함',
              '조작: ← 덜 익음 · → 잘 익음 · ↓ 상함  (점점 빨라져요)')
     return True
@@ -309,7 +331,7 @@ def g05(P, ctx):
         # 판정은 기다림 없이 바로 (같은 메뉴를 빠르게 두 번 눌러도 놓치지 않게), 반짝임은 따로
         c.on(on_click(), if_(and_(eq(V('입력가능'), 1), eq(V('게임중'), 1)),
                              ifelse(eq(LGET('주문순서', V('입력순서')), k), [chg('입력순서', 1)], [setv('실패', 1)])))
-        c.on(on_click(), if_(eq(V('입력가능'), 1), shape('on'), c.pct(108), wait(0.12), shape('off'), c.pct(100)))
+        c.on(on_click(), if_(eq(V('입력가능'), 1), G.sfx('tone%d' % k), shape('on'), c.pct(108), wait(0.12), shape('off'), c.pct(100)))
     mgr = m.T('주문담당', '', -300, -300, 8, visible=False)
     mgr.on(on_msg('게임시작'),
            *[lst_set('주문순서', k, rnd(1, 4)) for k in range(1, 9)],
@@ -332,6 +354,9 @@ def g05(P, ctx):
     bub.on(on_msg('말:성공'), write('완벽해요! 단골 할게요~'), text_color(C_ACC))
     bub.on(on_msg('말:실패'), write('어... 그거 아닌데요?'), text_color(C_RED))
     m.on_start(setv('맞춤', 0), setv('입력가능', 0), setv('켜짐', 0))
+    m.snd('카드켜기', *[if_(eq(V('켜짐'), k), play('tone%d' % k)) for k in range(1, 5)])
+    m.snd('말:성공', play('good'))
+    m.snd('말:실패', play('bad'))
     m.finish('손님의 주문 순서를 잘 보고 기억했다가\n같은 순서로 메뉴를 눌러 주세요! (5라운드)',
              '조작: 마우스로 메뉴 클릭  ·  라운드마다 주문이 1잔씩 늘어나요')
     return True
@@ -361,6 +386,7 @@ def g06(P, ctx):
                                setv('맞음', 1),
                                ifelse(eq(V('종'), 6), [chg('합계', -3), chg('틀림', 1)],
                                       [ifelse(eq(V('종'), 5), [chg('합계', 3)], [chg('합계', 1)])]),
+                               setv('_mv', V('종')), cast('풍선펑'),
                                setv('미니표시', join('점수 ', V('합계')))))
     ch = m.S('조준', A.crosshair(), 0, 0, visible=False)
     ch.on(on_msg('게임시작'), show(), until(eq(V('게임중'), 0), xy(mouse_x(), mouse_y())), hide())
@@ -368,6 +394,7 @@ def g06(P, ctx):
     mgr = m.T('풍선담당', '', -300, -300, 8, visible=False)
     mgr.on(on_msg('시간끝'), wait(0.2), *m.end_blocks(mul(V('합계'), 3.4)))
     m.on_start(setv('합계', 0), setv('틀림', 0))
+    m.snd('풍선펑', ifelse(eq(V('_mv'), 6), [play('bad')], [play('pop')]))
     m.finish('올라오는 풍선을 클릭해서 터뜨리세요!\n황금 풍선은 +3, 해골 "꽝" 풍선은 -3',
              '조작: 마우스로 조준하고 클릭')
     return True
@@ -415,6 +442,7 @@ def g07(P, ctx):
     qn.on(on_msg('새문제'), write(join('Q', V('문제'), '.')))
     qt.on(on_msg('새문제'), write(LGET('퀴즈문제', V('문제'))))
     m.on_start(setv('맞춤', 0), setv('대기', 0), setv('_mt', 10), setv('문제', 1))
+    m.snd('정답공개', ifelse(eq(V('선택'), V('정답')), [play('good')], [play('bad')]))
     m.finish('조치원에 대한 퀴즈 5문제!\n문제마다 10초 안에 정답을 고르세요.',
              '조작: 보기를 클릭하거나 숫자키 1 · 2 · 3')
     return True
@@ -446,13 +474,14 @@ def g08(P, ctx):
         bx, by = cell(cx, cy)
         b = m.S('투표지%d' % k, A.ballot_paper(), bx, by)
         b.on(on_scene(), show(), forever(rep(10, mvy(0.3), wait(0.04)), rep(10, mvy(-0.3), wait(0.04))))
-        b.on(on_msg('게임시작'), until(eq(V('게임중'), 0), if_(touch(me.name), chg('진행', 1),
+        b.on(on_msg('게임시작'), until(eq(V('게임중'), 0), if_(touch(me.name), chg('진행', 1), G.sfx('coin'),
                                                              setv('미니표시', join('투표지 ', V('진행'), '/5')), hide(), stop_thread()),
                                     wait(0.03)))
     mgr = m.T('미로담당', '', -300, -300, 8, visible=False)
     mgr.on(on_msg('시간끝'), *m.end_blocks(add(10, mul(V('진행'), 6))))
     G.big_pop(P, m.sc, '탈출글', K.big_text('탈출 성공!', 30, 'royal'), 0, 40, '탈출', hold=0.6)
     m.on_start(setv('진행', 0))
+    m.snd('탈출', play('good'))
     m.finish('1927아트센터 미로에서 출구(EXIT)를 찾아 탈출!\n가는 길에 투표지(최대 5장)를 주우면 보너스!',
              '조작: ← ↑ → ↓ 방향키  ·  빨리 나올수록 점수 UP')
     return True
@@ -485,7 +514,7 @@ def g09(P, ctx):
                             rep(6, mvy(-6), wait(0.016)), hide(), setv('올라옴', 0))))
             mo.on(on_mouse_down(), if_(and_(and_(eq(V('맞음'), 0), eq(V('게임중'), 1)), and_(eq(V('올라옴'), 1), touch('mouse'))),
                                        setv('맞음', 1),
-                                       ifelse(eq(V('종'), 3), [chg('합계', -2), chg('틀림', 1)],
+                                       ifelse(eq(V('종'), 3), [chg('합계', -2), chg('틀림', 1), G.sfx('bad')],
                                               [chg('합계', 1), shape('h'), setv('_mx', obj_x()), setv('_my', obj_y()), cast('쾅')]),
                                        setv('미니표시', join('점수 ', V('합계')))))
             m.S('흙%d' % k, A.hole_front(), x, y - 26)
@@ -498,6 +527,7 @@ def g09(P, ctx):
     mgr = m.T('두더지담당', '', -300, -300, 8, visible=False)
     mgr.on(on_msg('시간끝'), wait(0.3), *m.end_blocks(mul(V('합계'), 4.6)))
     m.on_start(setv('합계', 0), setv('틀림', 0))
+    m.snd('쾅', play('hit'))
     m.finish('구멍에서 튀어나오는 "반대" 두더지를 때리세요!\n복숭아를 때리면 감점! 점점 빨라져요.',
              '조작: 마우스 클릭')
     return True
@@ -512,7 +542,7 @@ def g10(P, ctx):
     rn = m.S('선수', [('run1', A.runner('run1')), ('run2', A.runner('run2')), ('jump', A.runner('jump')), ('fall', A.runner('fall'))],
              -150, GY, scale=1.2)
     rn.on(on_scene(), xy(-150, GY), shape('run1'))
-    jump = [if_(and_(eq(V('점프중'), 0), eq(V('게임중'), 1)), setv('점프중', 1), setv('vy', 8.0))]
+    jump = [if_(and_(eq(V('점프중'), 0), eq(V('게임중'), 1)), setv('점프중', 1), setv('vy', 8.0), G.sfx('jump'))]
     rn.on(on_key(K_SPACE), *jump)
     rn.on(on_key(K_UP), *jump)
     rn.on(on_msg('게임시작'),
@@ -547,6 +577,8 @@ def g10(P, ctx):
     nice.on(on_msg('넘음'), nice.pct(120), fx('transparency', 0), show(), rep(8, mvy(1.5), fx_add('transparency', 12), wait(0.02)),
             ly(0), hide())
     m.on_start(setv('넘은수', 0), setv('점프중', 0), setv('vy', 0), setv('넘어짐', 0), setv('틀림', 0))
+    m.snd('꽈당', play('bad'))
+    m.snd('넘음', play('tick'))
     m.finish('세종시민운동장 허들 경기! 허들 14개를\n타이밍 맞춰 뛰어넘으세요. 점점 빨라져요!',
              '조작: SPACE 또는 ↑ 로 점프')
     return True
@@ -588,6 +620,7 @@ def g11(P, ctx):
     P.list('구간폭', HW)
     m.T('촬영안내', '바늘이 분홍 구간 한가운데 올 때 찰칵!', 0, -76, 9, C_WHITE, F_BODY, True, 0, w=260, h=14, bg=C_BOX)
     m.on_start(setv('합계', 0), setv('대기', 0), setv('사진수', 0))
+    m.snd('찰칵', play('shutter'))
     m.finish('조천 벚꽃길에서 인생샷 5장!\n바늘이 분홍 구간 한가운데 왔을 때 셔터를 누르세요.',
              '조작: SPACE 셔터  ·  갈수록 구간이 좁아지고 바늘이 빨라져요')
     return True
@@ -609,7 +642,7 @@ def g12(P, ctx):
                xy(add(LGET('자리X', LGET('연잎자리', n)), rnd(-26, 26)), add(LGET('자리Y', LGET('연잎자리', n)), rnd(-12, 12))))
         pad.on(on_click(), if_(eq(V('게임중'), 1),
                                ifelse(eq(V('다음번호'), n),
-                                      [shape('d'), pad.pct(115), chg('다음번호', 1), setv('미니표시', join('다음 ', V('다음번호'))),
+                                      [shape('d'), pad.pct(115), chg('다음번호', 1), setv('미니표시', join('다음 ', V('다음번호'))), G.sfx('tick'),
                                        wait(0.08), pad.pct(100)],
                                       [if_(gt(V('다음번호'), n), stop_thread()),
                                        chg('벌점', 1), cast('땡'), rep(3, mvx(4), wait(0.02), mvx(-4), wait(0.02))])))
@@ -634,6 +667,8 @@ def g12(P, ctx):
                *m.end_blocks(sub(100, mul(sub(V('_mt'), 14), 2.5)))))
     mgr.on(on_msg('시간끝'), *m.end_blocks(add(mul(sub(V('라운드'), 1), 30), mul(V('다음번호'), 2))))
     m.on_start(setv('다음번호', 1), setv('벌점', 0))
+    m.snd('땡', play('bad'))
+    m.snd('라운드2', play('good'))
     m.finish('연잎에 적힌 숫자를 1부터 9까지\n순서대로 빠르게 눌러 주세요! (연못 2개)',
              '조작: 마우스 클릭  ·  틀리면 1초 벌점')
     return True
@@ -681,6 +716,7 @@ def g13(P, ctx):
     sub_.on(on_msg('채점'), ifelse(eq(V('_mv'), 1), [write(join('정답! ', V('정답'), '  (', round1(V('_mt')), '초)'))],
                                  [write(join('정답은 ', V('정답')))]))
     m.on_start(setv('맞춤', 0), setv('합계', 0), setv('문제', 1))
+    m.snd('채점', ifelse(eq(V('_mv'), 1), [play('good')], [play('bad')]))
     m.finish('홍익대 수학 교수님의 암산 대결!\n문제 5개, 답을 숫자로 입력하고 Enter.',
              '조작: 숫자 입력 + Enter  ·  빨리 맞힐수록 보너스')
     return True
@@ -743,6 +779,8 @@ def g14(P, ctx):
     chant.on(on_msg('구호3'), write('보!'))
     chant.on(on_msg('새판'), write(''))
     m.on_start(setv('맞춤', 0), setv('비김', 0), setv('대기', 0), setv('내손', 1), setv('상대손', 1))
+    m.snd('공개', play('hit'))
+    m.snd('판정', ifelse(eq(V('_mv'), 1), [play('good')], [if_(eq(V('_mv'), 3), play('bad'))]))
     m.finish('응원단장 둘째 큰아버지와 가위바위보 5판!\n상대의 말은 60%만 진짜... 심리전으로 이기세요!',
              '조작: 버튼 클릭 또는 1 바위 · 2 보 · 3 가위  (이기면 20, 비기면 8점)')
     return True
@@ -787,6 +825,8 @@ def g15(P, ctx):
     mgr = m.T('낚시담당', '', -300, -300, 8, visible=False)
     mgr.on(on_msg('시간끝'), *m.end_blocks(add(mul(V('잡은수'), 30), mul(V('진행도'), 0.1))))
     m.on_start(setv('진행도', 30), setv('잡은수', 0), setv('놓침', 0), setv('바y', -60), setv('물고기y', 0))
+    m.snd('월척', play('splash'))
+    m.snd('놓침', play('bad'))
     m.finish('신안저수지 낚시 대회! 파란 막대를 물고기에 겹쳐\n오른쪽 게이지를 가득 채우면 한 마리!',
              '조작: SPACE 를 누르고 있으면 막대가 올라가요 (떼면 내려감)')
     return True

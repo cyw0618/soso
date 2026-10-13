@@ -27,7 +27,7 @@ FLOORS = [max(0.5, round(p / 20.0, 1)) for p in PRICES[:-1]] + [40]
 STOCK_VARS = dict(장시간=D.MARKET_START, 기록위치=1, 채움=1, 첫째주=D.CONTROL_UNCLES[0], 둘째주=D.CONTROL_UNCLES[1],
                   유통주=0, 평가금=0, 지배달성=0, 주문방향=1, 주문수량=1, 매매수량=0, 이번차단=0,
                   뉴스글='', 뉴스종목=0, 뉴스호재=1, 뉴스루머=3, 뉴스진짜=1, 뉴스세기=0, 변동률=0,
-                  _s=1, _p=0, _b=0, _k0=0, _mn=0, _mx=0, _v=0, _rg=1, _c=0, _q='', _m='', _a=0, _bb=0, 체결글='')
+                  체결성공=0, _s=1, _p=0, _b=0, _k0=0, _mn=0, _mx=0, _v=0, _rg=1, _c=0, _q='', _m='', _a=0, _bb=0, 체결글='')
 
 
 def setup(P):
@@ -358,8 +358,8 @@ def build(P, ctx):
                 chg('돈', mul(mul(V('_p'), V('매매수량')), -1)),
                 if_(eq(s_, CTL), lst_set('주가', CTL, round1(mul(LGET('주가', CTL),
                                                                add(1, mul(div(V('매매수량'), D.CONTROL_SHARES), D.CONTROL_IMPACT)))))),
-                *fmt_comma(V('매매수량'), '_q'), setv('체결글', join('매수 체결!  +', V('_q'), '주'))],
-               [setv('체결글', '현금이 부족하거나 살 수 있는 주식이 없어요')])]
+                *fmt_comma(V('매매수량'), '_q'), setv('체결글', join('매수 체결!  +', V('_q'), '주')), setv('체결성공', 1)],
+               [setv('체결글', '현금이 부족하거나 살 수 있는 주식이 없어요'), setv('체결성공', 0)])]
     sell = [
         setv('매매수량', LGET('보유', s_)),
         ifelse(eq(s_, CTL), [if_(gt(V('매매수량'), mul(V('주문수량'), 100)), setv('매매수량', mul(V('주문수량'), 100)))],
@@ -370,8 +370,8 @@ def build(P, ctx):
                 if_(eq(LGET('보유', s_), 0), lst_set('평단', s_, 0)),
                 if_(eq(s_, CTL), lst_set('주가', CTL, round1(mul(LGET('주가', CTL),
                                                                sub(1, mul(div(V('매매수량'), D.CONTROL_SHARES), D.CONTROL_IMPACT)))))),
-                *fmt_comma(V('매매수량'), '_q'), setv('체결글', join('매도 체결!  -', V('_q'), '주'))],
-               [setv('체결글', '팔 주식이 없어요')])]
+                *fmt_comma(V('매매수량'), '_q'), setv('체결글', join('매도 체결!  -', V('_q'), '주')), setv('체결성공', 1)],
+               [setv('체결글', '팔 주식이 없어요'), setv('체결성공', 0)])]
     mgr.on(on_msg('주문'),
            setv('_s', V('선택종목')), setv('_p', LGET('주가', V('_s'))),
            ifelse(eq(V('주문방향'), 1), buy, sell),
@@ -381,4 +381,7 @@ def build(P, ctx):
     mgr.on(on_scene(), *assets_blocks(), if_(or_(lt(V('선택종목'), 1), gt(V('선택종목'), N)), setv('선택종목', 1)),
            cast('시세갱신'), cast('선택변경'),
            forever(wait(1), if_(gt(V('장시간'), 0), *tick_blocks(), cast('시세갱신'))))
+    hub = G.sound_hub(P, sc, 'bgm_map')
+    hub.on(on_msg('뉴스'), play('news'))
+    hub.on(on_msg('체결'), ifelse(eq(V('체결성공'), 1), [play('cash')], [play('bad')]))
     G.fader(P, sc, ctx['BLACK'])

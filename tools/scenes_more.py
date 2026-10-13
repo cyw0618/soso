@@ -257,6 +257,10 @@ def scene_event(P, ctx):
            cast('사건결과'),
            ifelse(eq(V('사건성공'), 1), [cast('사건성공팝')], [cast('사건실패팝')]))
     G.hud(P, sc, ctx['PORT'])
+    hub = G.sound_hub(P, sc)
+    hub.on(on_msg('사건표시'), play('alarm'))
+    hub.on(on_msg('사건성공팝'), play('good'))
+    hub.on(on_msg('사건실패팝'), play('bad'))
     G.fader(P, sc, ctx['BLACK'])
 
 
@@ -313,8 +317,8 @@ def scene_shop(P, ctx):
                                              add(LGET('보유', ST.CTL), 1000))),
                   lst_set('보유', ST.CTL, add(LGET('보유', ST.CTL), 1000)),
                   setv('상점알림', join(msg, ' 내 지분 ', ST.pct2(LGET('보유', ST.CTL)), '%'))]
-        buy = [ifelse(cond, [*ok, cast('구매반짝')],
-                      [setv('상점알림', '재화가 부족해요!' if price > 0 else '재화가 부족하거나 빼올 지분이 없어요!')]),
+        buy = [ifelse(cond, [*ok, cast('구매반짝'), G.sfx('coin')],
+                      [setv('상점알림', '재화가 부족해요!' if price > 0 else '재화가 부족하거나 빼올 지분이 없어요!'), G.sfx('bad')]),
                cast('상점알림'),
                *([if_(ge(LGET('보유', ST.CTL), D.CONTROL_GOAL), setv('지배달성', 1), wait(0.8), *go(ctx['S_CONTROL']))]
                  if price < 0 else [])]
@@ -323,6 +327,7 @@ def scene_shop(P, ctx):
     button(P, sc, '지도로', '지도로', -196, -121, 76, 22, 'navy', icon='back', actions=go(ctx['S_MAP']))
     button(P, sc, '주식으로', '주식', -112, -121, 70, 22, 'blue', icon='chart', actions=go(ctx['S_STOCK']))
     G.hud(P, sc, ctx['PORT'])
+    G.sound_hub(P, sc, 'bgm_map')
     G.fader(P, sc, ctx['BLACK'])
 
 
@@ -351,7 +356,7 @@ def scene_vote(P, ctx):
     rate.on(on_scene(), forever(write(join('개표율 ', V('개표율'), '%')), wait(0.05)))
     mgr = text(P, sc, '개표담당', '', -300, -300, 8, visible=False)
     noise = lambda: mul(div(rnd(-30, 30), 10), sub(1, div(V('개표율'), 100)))
-    mgr.on(on_scene(), setv('개표율', 0), setv('당선', 0), wait(1.0),
+    mgr.on(on_scene(), setv('개표율', 0), setv('당선', 0), wait(1.0), G.sfx('drumroll'),
            until(ge(V('개표율'), 100), chg('개표율', 2),
                  setv('표시나', round1(add(mul(V('내지지율'), div(V('개표율'), 100)), noise()))),
                  setv('표시A', round1(add(mul(V('큰A'), div(V('개표율'), 100)), noise()))),
@@ -374,6 +379,9 @@ def scene_vote(P, ctx):
                 [ifelse(eq(V('당선'), 1), [write(D.GP_WIN)], [write(D.GP_LOSE)])], scale=0.6, bx=40, by=30, bw=220)
     ending_buttons(P, sc, ctx)
     name_asker(P, sc)
+    hub = G.sound_hub(P, sc)
+    hub.on(on_msg('당선'), play('fanfare'))
+    hub.on(on_msg('낙선'), play('fail_big'))
     G.fader(P, sc, ctx['BLACK'])
 
 
@@ -412,6 +420,8 @@ def scene_control(P, ctx):
            wait(0.4), cast('장악'), cast('축하'), wait(2.0), cast('엔딩대사'), wait(1.8), *finish_blocks(ctx))
     ending_buttons(P, sc, ctx)
     name_asker(P, sc)
+    hub = G.sound_hub(P, sc)
+    hub.on(on_msg('장악'), play('fanfare'))
     G.fader(P, sc, ctx['BLACK'])
 
 
@@ -435,6 +445,7 @@ def scene_rank(P, ctx):
     text(P, sc, '랭킹안내', '점수 = 지지율 + 재산 + 지배 자본 지분 (+당선/장악 보너스)', 0, -104, 8, C_DIM, F_BODY, True, 0,
          w=320, h=12)
     button(P, sc, '처음으로', '처음으로', 0, -122, 110, 24, 'royal', icon='back', actions=go(ctx['S_TITLE']))
+    G.sound_hub(P, sc, 'bgm_title')
     G.fader(P, sc, ctx['BLACK'])
 
 
@@ -452,6 +463,8 @@ def scene_bankrupt(P, ctx):
     mgr = text(P, sc, '파산담당', '', -300, -300, 8, visible=False)
     mgr.on(on_scene(), wait(0.4), cast('파산'), wait(1.4), cast('엔딩대사'))
     button(P, sc, '처음으로', '처음으로', 120, -112, 110, 28, 'royal', icon='back', actions=go(ctx['S_TITLE']))
+    hub = G.sound_hub(P, sc)
+    hub.on(on_msg('파산'), play('fail_big'))
     G.fader(P, sc, ctx['BLACK'])
 
 

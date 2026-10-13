@@ -552,6 +552,16 @@ class Picture:
         self.id = new_id()
 
 
+class Sound:
+    def __init__(self, name, path, duration):
+        self.name = name
+        with open(path, 'rb') as f:
+            self.data = f.read()
+        self.file = hashlib.md5(self.data).hexdigest()
+        self.duration = float(duration)
+        self.id = new_id()
+
+
 class Obj:
     def __init__(self, project, name, scene, kind='sprite', pictures=None, x=0, y=0,
                  scale=1.0, visible=True, text=None, font='20px Nanum Gothic',
@@ -574,6 +584,7 @@ class Obj:
         self.line_break = line_break
         self.scripts = []
         self.locals = {}
+        self.sounds = []
         self.id = new_id()
 
     def on(self, *blocks):
@@ -605,6 +616,9 @@ class Obj:
     def local(self, name, value=0):
         self.locals[name] = value
 
+    def add_sound(self, name, path, duration):
+        self.sounds.append(Sound(name, path, duration))
+
 
 class Project:
     def __init__(self, name):
@@ -615,6 +629,7 @@ class Project:
         self.lists = {}         # name -> dict
         self.msgs = {}          # name -> id
         self.pics = {}          # file md5 -> Picture (for packaging)
+        self.snds = {}          # file md5 -> Sound
 
     # ---- 선언
     def scene(self, name):
@@ -683,6 +698,11 @@ class Project:
                     if pic.name == name:
                         return pic.id
                 raise KeyError('undefined picture %r in %s' % (name, obj.name))
+            if kind == 'snd':
+                for sd in obj.sounds:
+                    if sd.name == name:
+                        return sd.id
+                raise KeyError('undefined sound %r in %s' % (name, obj.name))
             raise KeyError(kind)
         return v
 
@@ -773,9 +793,14 @@ class Project:
                                               scaleY=pic.scale * o.scale),
                     filename=pic.file, name=pic.name, imageType='png',
                     fileurl='temp/%s/%s/image/%s.png' % (pic.file[:2], pic.file[2:4], pic.file)))
+            sounds = []
+            for sd in o.sounds:
+                self.snds[sd.file] = sd
+                sounds.append(dict(duration=sd.duration, id=sd.id, filename=sd.file, name=sd.name,
+                                   fileurl='temp/%s/%s/sound/%s.mp3' % (sd.file[:2], sd.file[2:4], sd.file), ext='.mp3'))
             od = dict(id=o.id, name=o.name, script=self._script_json(o), objectType=o.kind,
                       rotateMethod='free', scene=sid_of[o.scene],
-                      sprite=dict(pictures=pictures, sounds=[]),
+                      sprite=dict(pictures=pictures, sounds=sounds),
                       selectedPictureId=(o.pictures[0].id if o.pictures else None),
                       lock=False, entity=self._entity(o))
             if o.kind == 'textBox':
@@ -798,6 +823,8 @@ class Project:
         proj = self.to_json()
         pj = json.dumps(proj, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
         files = {'temp/project.json': pj}
+        for fh, sd in self.snds.items():
+            files['temp/%s/%s/sound/%s.mp3' % (fh[:2], fh[2:4], fh)] = sd.data
         for fh, pic in self.pics.items():
             rel = 'temp/%s/%s/' % (fh[:2], fh[2:4])
             files[rel + 'image/%s.png' % fh] = pic.data
@@ -887,3 +914,16 @@ def remove_all_clones():
 
 def flip_x():
     return B('flip_x')
+
+
+# ---- 소리
+def play(name):
+    return B('sound_something_with_block', VALUE={'type': 'get_sounds', 'params': [ref('snd', name)]})
+
+
+def play_wait(name):
+    return B('sound_something_wait_with_block', VALUE={'type': 'get_sounds', 'params': [ref('snd', name)]})
+
+
+def stop_sounds():
+    return B('sound_silent_all', TARGET='all')

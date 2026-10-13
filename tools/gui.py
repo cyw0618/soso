@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 """엔트리 오브젝트로 만드는 UI 부품 (버튼, 패널, 글자, HUD, 화면 전환, 팝업, 효과)."""
+import os
+import json
 from entrygen import *
 import ui_kit as K
 
@@ -68,7 +70,7 @@ def button(P, scene, base, label, x, y, w, h, color='royal', icon=None, actions=
     if hover:
         hover_scripts(o, first_scene=first_scene)
     # 누름 효과와 동작을 따로 (빠르게 여러 번 눌러도 동작은 매번 실행)
-    o.on(on_click(), o.pct(92), *flat(actions))
+    o.on(on_click(), o.pct(92), cast('snd:click'), *flat(actions))
     o.on(on_click(), wait(0.07), o.pct(100))
     return o
 
@@ -194,4 +196,42 @@ def sparkles(P, scene, msg, path, x, y, count=14, spread=60):
     o.on(on_clone(), xy(x, y), o.pct(rnd(50, 140)), setv('vx', div(rnd(-spread, spread), 10)),
          setv('vy', div(rnd(-spread, spread), 10)), fx('transparency', 0), to_front(), show(),
          rep(25, mvx(V('vx')), mvy(V('vy')), fx_add('transparency', 4), rot_by(12), wait(0.016)), del_clone())
+    return o
+
+
+# ------------------------------------------------------------------ 소리 (효과음 · 배경음)
+SND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets_src', 'sounds')
+SND_META = json.load(open(os.path.join(SND_DIR, 'sounds.json')))
+SFX_NAMES = [k for k in SND_META if not k.startswith('bgm_')]
+
+
+def _snd_path(name):
+    return os.path.join(SND_DIR, ('sfx_' + name if not name.startswith('bgm_') else name) + '.mp3')
+
+
+def _clear_dot():
+    p = os.path.join(K.ensure_out(), 'clear_dot_snd.png')
+    if not os.path.exists(p):
+        from PIL import Image
+        Image.new('RGBA', (8, 8), (0, 0, 0, 1)).save(p)
+    return p
+
+
+def sfx(name):
+    """효과음 신호 (그 장면의 '소리' 담당이 재생)."""
+    return cast('snd:' + name)
+
+
+def sound_hub(P, scene, bgm=None, first_scene=False, extra_bgm=()):
+    """장면마다 하나: 모든 효과음을 갖고 'snd:이름' 신호에 재생. bgm 이 있으면 장면 시작 때 반복 재생."""
+    o = sprite(P, scene, '소리', _clear_dot(), -300, -300)
+    for k in SFX_NAMES:
+        o.add_sound(k, _snd_path(k), SND_META[k])
+        o.on(on_msg('snd:' + k), play(k))
+    for b in ([bgm] if bgm else []) + list(extra_bgm):
+        o.add_sound(b, _snd_path(b), SND_META[b])
+    start = [stop_sounds()] + ([forever(play_wait(bgm))] if bgm else [])
+    o.on(on_scene(), *start)
+    if first_scene:
+        o.on(on_run(), *start)
     return o
