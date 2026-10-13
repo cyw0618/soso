@@ -67,7 +67,9 @@ def button(P, scene, base, label, x, y, w, h, color='royal', icon=None, actions=
     o = sprite(P, scene, base, K.button(label, w, h, color, icon=icon), x, y, visible=visible)
     if hover:
         hover_scripts(o, first_scene=first_scene)
-    o.on(on_click(), o.pct(92), wait(0.06), o.pct(100), *flat(actions))
+    # 누름 효과와 동작을 따로 (빠르게 여러 번 눌러도 동작은 매번 실행)
+    o.on(on_click(), o.pct(92), *flat(actions))
+    o.on(on_click(), wait(0.07), o.pct(100))
     return o
 
 

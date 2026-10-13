@@ -866,3 +866,24 @@ def pen_clear():
 
 def append_text(v):
     return B('text_append', VALUE=v)
+
+
+# ---- 수학/복제 보조
+def sin_(deg):
+    return fn('sin', deg)
+
+
+def cos_(deg):
+    return fn('cos', deg)
+
+
+def ceil_(a):
+    return fn('ceil', a)
+
+
+def remove_all_clones():
+    return B('remove_all_clones')
+
+
+def flip_x():
+    return B('flip_x')
