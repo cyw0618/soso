@@ -51,8 +51,8 @@ P.list('지역게임', [p['game'] for p in D.PLACES])
 P.list('지역설명', [p['help'] for p in D.PLACES])
 P.list('지역비중', [p['weight'] for p in D.PLACES])
 P.list('이야기', D.INTRO_STORY)
-P.list('랭킹이름', [n for n, s in D.SEED_RANK] + ['-'] * (10 - len(D.SEED_RANK)) + ['끝'])
-P.list('랭킹점수', [s for n, s in D.SEED_RANK] + [0] * (10 - len(D.SEED_RANK)) + [-1])
+P.list('랭킹이름', [n for n, s in D.SEED_RANK] + ['-'] * (10 - len(D.SEED_RANK)) + ['끝'], cloud=True)
+P.list('랭킹점수', [s for n, s in D.SEED_RANK] + [0] * (10 - len(D.SEED_RANK)) + [-1], cloud=True)
 
 # ------------------------------------------------------------------ 공통 그림
 ensure_out()

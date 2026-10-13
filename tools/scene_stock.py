@@ -253,7 +253,8 @@ def build(P, ctx):
            pen_color('#d42a46'), pen_down(), xy(seg(add(V('_a'), V('첫째주'))), by), pen_up(),
            pen_color('#7a46e6'), pen_down(), xy(seg(add(add(V('_a'), V('첫째주')), V('둘째주'))), by), pen_up(),
            xy(-300, -300))
-    sprite(P, sc, '목표선', SA.goal_marker(16), bx0 + bw / 2, by)
+    gm = sprite(P, sc, '목표선', SA.goal_marker(16), bx0 + bw / 2, by)
+    gm.on(on_click(), *select_actions(CTL))
 
     # ---- 오른쪽: 선택 종목 상세
     px = 133
