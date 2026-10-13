@@ -646,9 +646,9 @@ class Project:
     def var(self, name, value=0, visible=False, x=0, y=0):
         self.vars[name] = dict(id=new_id(), value=value, visible=visible, x=x, y=y)
 
-    def list(self, name, items=(), visible=False, x=0, y=0, w=100, h=120, cloud=False):
-        """cloud=True 면 엔트리 '공유 리스트'(작품을 공유했을 때 모든 사람이 같은 리스트를 씀)."""
-        self.lists[name] = dict(id=new_id(), items=list(items), visible=visible, x=x, y=y, w=w, h=h, cloud=cloud)
+    def list(self, name, items=(), visible=False, x=0, y=0, w=100, h=120, cloud=False, lid=None):
+        """cloud=True 면 엔트리 '공유 리스트'(작품을 공유했을 때 모든 사람이 같은 리스트를 씀). lid: 리스트 id 를 직접 지정."""
+        self.lists[name] = dict(id=lid or new_id(), items=list(items), visible=visible, x=x, y=y, w=w, h=h, cloud=cloud)
 
     def msg(self, name):
         if name not in self.msgs:
@@ -937,3 +937,8 @@ def play_wait(name):
 
 def stop_sounds():
     return B('sound_silent_all', TARGET='all')
+
+
+def substr(s, a, b):
+    """s 의 a번째 글자부터 b번째 글자까지."""
+    return B('substring', STRING=s, START=a, END=b)

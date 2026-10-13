@@ -39,6 +39,9 @@ VARS = dict(돈=D.START_MONEY, 내지지율=12, 큰A=44, 큰B=44, 유세횟수=0
             tmp=0, tmp2=0, 호버지역=0, 페이지=1, 타자중=0, 최종점수=0, 당선=0, 총자산=0, 선택종목=1,
             콤보=0, 판정=0, 결과처리됨=0, 돈표시='', _n=0, _hi=0, _lo=0, _mid=0, _p3='', _m3='', 표시글='',
             다음장면=0, 게임중=0, 카운트=0, 목표=0, 맞춤=0, 틀림=0, 진행=0, 플레이어이름='')
+P.var('내순위', 0)
+P.var('방금등록', 0)
+P.var('랭킹쪽', 1)
 import scene_stock as ST
 VARS.update(ST.STOCK_VARS)
 for k_, v_ in VARS.items():
@@ -51,8 +54,9 @@ P.list('지역게임', [p['game'] for p in D.PLACES])
 P.list('지역설명', [p['help'] for p in D.PLACES])
 P.list('지역비중', [p['weight'] for p in D.PLACES])
 P.list('이야기', D.INTRO_STORY)
-P.list('랭킹이름', [n for n, s in D.SEED_RANK] + ['-'] * (10 - len(D.SEED_RANK)) + ['끝'], cloud=True)
-P.list('랭킹점수', [s for n, s in D.SEED_RANK] + [0] * (10 - len(D.SEED_RANK)) + [-1], cloud=True)
+# 랭킹: 공유 리스트(작품을 공유하면 모든 플레이어의 기록이 계속 쌓임). 처음에는 비어 있고 끝에 표시용 항목('끝', -1)만 있다.
+P.list('랭킹이름', ['끝'], cloud=True, lid='rk2n')
+P.list('랭킹점수', [-1], cloud=True, lid='rk2s')
 
 # ------------------------------------------------------------------ 공통 그림
 ensure_out()

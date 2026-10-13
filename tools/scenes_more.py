@@ -85,28 +85,31 @@ def score_blocks():
 
 
 def name_asker(P, sc, x=200, y=-64):
-    """이름 입력 담당: 엔트리 질문 말풍선이 이 (투명한) 오브젝트 위에 뜬다. '이름입력' 신호로 시작."""
+    """이름 입력 담당 (승리했을 때만): 엔트리 질문 말풍선이 이 (투명한) 오브젝트 위에 뜬다. '이름입력' 신호로 시작.
+    랭킹은 지우지 않고 계속 쌓는다 (점수 순서대로 끼워 넣음)."""
     p = os.path.join(ensure_out(), 'fx_clear_dot.png')
     if not os.path.exists(p):
         Image.new('RGBA', (8, 8), (0, 0, 0, 1)).save(p)
     o = sprite(P, sc, '이름입력', p, x, y)
     o.on(on_msg('이름입력'),
-         ask('이름을 입력하세요!'),
+         ask('랭킹에 올릴 이름을 입력!'),
          setv('플레이어이름', answer()),
          if_(eq(slen(V('플레이어이름')), 0), setv('플레이어이름', '막내')),
+         if_(gt(slen(V('플레이어이름')), 12), setv('플레이어이름', substr(V('플레이어이름'), 1, 12))),
          setv('i', 1),
          until(lt(LGET('랭킹점수', V('i')), V('최종점수')), chg('i', 1)),
-         setv('내순위', V('i')),
-         if_(le(V('i'), 10),
-             lst_ins('랭킹이름', V('i'), V('플레이어이름')), lst_ins('랭킹점수', V('i'), V('최종점수')),
-             lst_del('랭킹이름', 11), lst_del('랭킹점수', 11)),
+         lst_ins('랭킹이름', V('i'), V('플레이어이름')), lst_ins('랭킹점수', V('i'), V('최종점수')),
+         setv('내순위', V('i')), setv('방금등록', 1),
          cast('랭킹등록'))
     return o
 
 
-def finish_blocks(ctx):
-    """점수 계산 후 이름 입력 시작."""
-    return [*score_blocks(), cast('이름입력')]
+def finish_blocks(ctx, always=False):
+    """점수 계산 후, 승리했으면 이름 입력 → 랭킹 등록. 졌으면 등록 없이 끝."""
+    if always:
+        return [*score_blocks(), cast('이름입력')]
+    return [*score_blocks(),
+            ifelse(eq(V('당선'), 1), [cast('이름입력')], [setv('내순위', 0), cast('랭킹등록')])]
 
 
 def ending_dim(P, sc):
@@ -125,8 +128,8 @@ def ending_buttons(P, sc, ctx, y=-112):
         b.on(on_msg('랭킹등록'), show())
     rk = text(P, sc, '내순위', '', 0, y + 24, 11, C_ACC, F_NUM, False, 0, w=300, h=16, visible=False)
     rk.on(on_msg('랭킹등록'), *fmt_comma(V('최종점수'), '_q'),
-          ifelse(le(V('내순위'), 10), [write(join('최종 점수 ', V('_q'), '점 · 랭킹 ', V('내순위'), '위!'))],
-                 [write(join('최종 점수 ', V('_q'), '점 · 아쉽게 10위 밖'))]), show())
+          ifelse(gt(V('내순위'), 0), [write(join('최종 점수 ', V('_q'), '점 · 명예의 전당 ', V('내순위'), '위 등록!')), text_color(C_ACC)],
+                 [write(join('최종 점수 ', V('_q'), '점 · 당선해야 랭킹에 오를 수 있어요')), text_color(C_DIM)]), show())
 
 
 # ================================================================== 돌발상황
@@ -333,7 +336,7 @@ def scene_shop(P, ctx):
 # ================================================================== 개표
 def scene_vote(P, ctx):
     sc = ctx['S_VOTE']
-    for v in ('개표율', '표시나', '표시A', '표시B', '내순위'):
+    for v in ('개표율', '표시나', '표시A', '표시B'):
         P.var(v, 0)
     G.bg(P, sc, ctx['ART']('story_bg'))
     sprite(P, sc, '청색빛', _edge_glow('fx_edge_blue', (20, 50, 200), 170), 0, 0)
@@ -416,7 +419,7 @@ def scene_control(P, ctx):
     mgr = text(P, sc, '장악담당', '', -300, -300, 8, visible=False)
     mgr.on(on_scene(), setv('지배달성', 1), setv('당선', 0),
            if_(and_(gt(V('내지지율'), V('큰A')), gt(V('내지지율'), V('큰B'))), setv('당선', 1)),
-           wait(0.4), cast('장악'), cast('축하'), wait(2.0), cast('엔딩대사'), wait(1.8), *finish_blocks(ctx))
+           wait(0.4), cast('장악'), cast('축하'), wait(2.0), cast('엔딩대사'), wait(1.8), *finish_blocks(ctx, always=True))
     ending_buttons(P, sc, ctx)
     name_asker(P, sc)
     hub = G.sound_hub(P, sc)
@@ -431,18 +434,37 @@ def scene_rank(P, ctx):
     sprite(P, sc, '청색빛', _edge_glow('fx_edge_blue', (20, 50, 200), 170), 0, 0)
     sprite(P, sc, '랭킹제목', K.banner('명예의 전당', 170, 34, 'royal'), 0, 114)
     panel(P, sc, '랭킹판', 0, -6, 320, 204, 'glass')
-    medal = {1: 'royal', 2: 'silver', 3: 'purple'}
+    N = sub(LLEN('랭킹이름'), 1)            # 마지막은 표시용 '끝'
+    badge_pics = [('1', K.badge('', 40, 16, 'royal')), ('2', K.badge('', 40, 16, 'silver')),
+                  ('3', K.badge('', 40, 16, 'purple')), ('n', K.badge('', 40, 16, 'navy'))]
     for r in range(1, 11):
         y = 78 - (r - 1) * 18
-        sprite(P, sc, '순위%d' % r, K.badge('%d위' % r, 34, 16, medal.get(r, 'navy')), -128, y)
+        idx = add(V('랭킹쪽'), r - 1)
+        bd = sprite(P, sc, '순위판%d' % r, badge_pics, -126, y)
+        rn = text(P, sc, '순위글%d' % r, '', -126, y + 1, 9, C_WHITE, F_NUM, False, 0, w=40, h=13)
         nm = text(P, sc, '랭킹이름%d' % r, '', -30, y, 10, C_WHITE, F_BODY, True, 1, w=150, h=15)
         scr = text(P, sc, '랭킹점수%d' % r, '', 108, y, 10, C_ACC, F_NUM, False, 2, w=110, h=15)
-        nm.on(on_scene(), write(LGET('랭킹이름', r)),
-              ifelse(and_(eq(V('내순위'), r), gt(V('최종점수'), 0)), [text_color(C_ACC)], [text_color(C_WHITE)]))
-        scr.on(on_scene(), ifelse(gt(LGET('랭킹점수', r), 0), [*fmt_comma(LGET('랭킹점수', r), '_q'), write(join(V('_q'), '점'))],
-                                 [write('-')]))
-    text(P, sc, '랭킹안내', '점수 = 지지율 + 재산 + 지배 자본 지분 (+당선/장악 보너스)', 0, -104, 8, C_DIM, F_BODY, True, 0,
-         w=320, h=12)
+        bd.on(on_msg('쪽갱신'), ifelse(le(idx, 3), [shape(idx)], [shape('n')]), ifelse(le(idx, N), [show()], [hide()]))
+        rn.on(on_msg('쪽갱신'), ifelse(le(idx, N), [write(join(idx, '위'))], [write('')]))
+        nm.on(on_msg('쪽갱신'), ifelse(le(idx, N), [write(LGET('랭킹이름', idx))], [write('')]),
+              ifelse(and_(eq(V('내순위'), idx), gt(V('내순위'), 0)), [text_color(C_ACC)], [text_color(C_WHITE)]))
+        scr.on(on_msg('쪽갱신'), ifelse(le(idx, N), [*fmt_comma(LGET('랭킹점수', idx), '_q'), write(join(V('_q'), '점'))],
+                                       [write('')]))
+    pg = text(P, sc, '쪽표시', '', 0, -104, 9, C_DIM, F_BODY, True, 0, w=220, h=13)
+    pg.on(on_msg('쪽갱신'), ifelse(gt(N, 0), [write(join(V('랭킹쪽'), '~', add(V('랭킹쪽'), 9), '위  ·  지금까지 ', N, '명 기록'))],
+                                  [write('')]))
+    empty = text(P, sc, '빈랭킹', '아직 기록이 없어요.\n당선하거나 조치원을 장악하면\n원하는 이름으로 랭킹에 오를 수 있어요!', 0, -6, 12,
+                 C_DIM, F_BODY, True, 0, w=280, h=60, visible=False)
+    empty.on(on_msg('쪽갱신'), ifelse(eq(N, 0), [show()], [hide()]))
+    button(P, sc, '이전쪽', '이전 쪽', -132, -104, 56, 18, 'navy',
+           actions=[if_(gt(V('랭킹쪽'), 1), chg('랭킹쪽', -10), cast('쪽갱신'))])
+    button(P, sc, '다음쪽', '다음 쪽', 132, -104, 56, 18, 'navy',
+           actions=[if_(le(add(V('랭킹쪽'), 10), N), chg('랭킹쪽', 10), cast('쪽갱신'))])
+    mgr = text(P, sc, '랭킹담당', '', -300, -300, 8, visible=False)
+    mgr.on(on_scene(),
+           ifelse(and_(eq(V('방금등록'), 1), gt(V('내순위'), 0)),
+                  [setv('랭킹쪽', add(mul(floor(div(sub(V('내순위'), 1), 10)), 10), 1))], [setv('랭킹쪽', 1)]),
+           setv('방금등록', 0), cast('쪽갱신'))
     button(P, sc, '처음으로', '처음으로', 0, -122, 110, 24, 'royal', icon='back', actions=go(ctx['S_TITLE']))
     G.sound_hub(P, sc, 'bgm_title')
     G.fader(P, sc, ctx['BLACK'])
