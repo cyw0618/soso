@@ -1,0 +1,94 @@
+<!doctype html><html><head><meta charset="utf-8"><title>glb render</title>
+<script type="importmap">{"imports":{"three":"/three/build/three.module.js","three/addons/":"/three/examples/jsm/"}}</script>
+<style>body{margin:0;background:transparent}</style></head><body>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+const W = 512, H = 512;
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setSize(W, H); renderer.setPixelRatio(1);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NoToneMapping;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
+window.__ready = false;
+window.loadModel = (url) => new Promise((res, rej) => loader.load(url, (g) => {
+  if (window.__model) scene.remove(window.__model);
+  const m = g.scene; scene.add(m); window.__model = m;
+  const box = new THREE.Box3().setFromObject(m); const c = box.getCenter(new THREE.Vector3()); const s = box.getSize(new THREE.Vector3());
+  m.position.sub(c); window.__size = [s.x, s.y, s.z];
+  m.traverse(o => { if (o.isMesh) { o.material.side = THREE.DoubleSide; } });
+  res([s.x, s.y, s.z]);
+}, undefined, rej));
+window.shot = (opts) => {
+  const { yaw = 0, pitch = 0, roll = 0, dist = 2.2, fov = 28, key = [1, 1, 1.5], keyColor = 0xffffff, keyInt = 2.4, amb = 0.9, ambColor = 0xffffff, fill = 0.5, fillDir = [-1, 0, 1], fillColor = 0xaaccff, bg = null, w = W, h = H, shiftY = 0, shiftX = 0, zoom = 1 } = opts;
+  renderer.setSize(w, h);
+  const cam = new THREE.PerspectiveCamera(fov, w / h, 0.01, 50);
+  const pivot = new THREE.Group(); scene.add(pivot);
+  // 모델을 회전(머리 방향). yaw>0: 얼굴이 화면 오른쪽으로 돌아감
+  window.__model.rotation.set(THREE.MathUtils.degToRad(pitch), THREE.MathUtils.degToRad(yaw), THREE.MathUtils.degToRad(roll), 'YXZ');
+  cam.position.set(shiftX, shiftY, dist / zoom); cam.lookAt(shiftX, shiftY, 0);
+  scene.children.filter(o => o.isLight).forEach(l => scene.remove(l));
+  const kl = new THREE.DirectionalLight(keyColor, keyInt); kl.position.set(...key); scene.add(kl);
+  const fl = new THREE.DirectionalLight(fillColor, fill); fl.position.set(...fillDir); scene.add(fl);
+  scene.add(new THREE.AmbientLight(ambColor, amb));
+  scene.background = bg === null ? null : new THREE.Color(bg);
+  renderer.setClearColor(0x000000, bg === null ? 0 : 1);
+  renderer.render(scene, cam);
+  scene.remove(pivot);
+  return renderer.domElement.toDataURL('image/png');
+};
+
+// ---- 3패스 렌더: albedo(조명 없는 색), shade(흰 재질 램버트), normal(법선)
+const origMats = new Map();
+function setMats(kind, keyDir, keyInt, amb) {
+  window.__model.traverse(o => {
+    if (!o.isMesh) return;
+    if (!origMats.has(o)) origMats.set(o, o.material);
+    const om = origMats.get(o);
+    if (kind === 'albedo') { const m = new THREE.MeshBasicMaterial({ map: om.map, side: THREE.DoubleSide }); m.clippingPlanes = om.clippingPlanes; o.material = m; }
+    else if (kind === 'shade') { o.material = new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide }); }
+    else if (kind === 'normal') { o.material = new THREE.MeshNormalMaterial({ side: THREE.DoubleSide }); }
+  });
+}
+let backMesh = null;
+function ensureBack(color, kind) {
+  if (backMesh) { backMesh.parent.remove(backMesh); backMesh = null; }
+  let src = null; window.__model.traverse(o => { if (o.isMesh && !o.userData.isBack) src = o; });
+  const bm = new THREE.Mesh(src.geometry, kind === 'shade' ? new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.BackSide })
+    : new THREE.MeshBasicMaterial({ color, side: THREE.BackSide }));
+  bm.userData.isBack = true; src.parent.add(bm); backMesh = bm; return bm;
+}
+window.shot3 = (opts) => {
+  const { yaw = -75, nod = 0, roll = 0, dist = 2.2, fov = 24, w = 1024, h = 1024, shiftX = 0, shiftY = 0, zoom = 1,
+          key = [-1.0, 1.2, 1.6], clipY = null, skin = 0xd9a07f } = opts;
+  renderer.setSize(w, h);
+  const cam = new THREE.PerspectiveCamera(fov, w / h, 0.01, 50);
+  const Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1);
+  const q = new THREE.Quaternion().setFromAxisAngle(Z, THREE.MathUtils.degToRad(roll));
+  q.multiply(new THREE.Quaternion().setFromAxisAngle(Y, THREE.MathUtils.degToRad(yaw)));
+  q.multiply(new THREE.Quaternion().setFromAxisAngle(Z, THREE.MathUtils.degToRad(-nod)));
+  window.__model.quaternion.copy(q);
+  cam.position.set(shiftX, shiftY, dist / zoom); cam.lookAt(shiftX, shiftY, 0);
+  renderer.clippingPlanes = clipY === null ? [] : [new THREE.Plane(new THREE.Vector3(0, 1, 0), -clipY)];
+  const out = {};
+  for (const kind of ['albedo', 'shade', 'normal']) {
+    setMats(kind);
+    const bm = ensureBack(skin, kind); bm.visible = (kind !== 'normal');
+    window.__model.traverse(o => { if (o.isMesh && !o.userData.isBack) o.material.side = THREE.FrontSide; });
+    scene.children.filter(o => o.isLight).forEach(l => scene.remove(l));
+    if (kind === 'shade') {
+      const kl = new THREE.DirectionalLight(0xffffff, 2.6); kl.position.set(...key); scene.add(kl);
+      scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+    }
+    scene.background = null; renderer.setClearColor(0x000000, 0);
+    renderer.render(scene, cam);
+    out[kind] = renderer.domElement.toDataURL('image/png');
+  }
+  return out;
+};
+
+window.__ready = true;
+</script></body></html>

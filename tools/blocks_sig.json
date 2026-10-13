@@ -3358,5 +3358,271 @@
   "cls": "ask",
   "skeleton": "basic",
   "statements": 0
+ },
+ "stretch_scale_size": {
+  "params": [
+   {
+    "type": "Dropdown",
+    "value": "WIDTH",
+    "options": [
+     "WIDTH",
+     "HEIGHT"
+    ]
+   },
+   {
+    "type": "Block"
+   },
+   {
+    "type": "Indicator"
+   }
+  ],
+  "def": {
+   "params": [
+    null,
+    {
+     "type": "number",
+     "params": [
+      "10"
+     ]
+    },
+    null
+   ],
+   "type": "stretch_scale_size"
+  },
+  "paramsKeyMap": {
+   "DIMENSION": 0,
+   "VALUE": 1
+  },
+  "cls": "scale",
+  "skeleton": "basic",
+  "statements": 0
+ },
+ "set_scale_percent": {
+  "params": [
+   {
+    "type": "Block"
+   },
+   {
+    "type": "Indicator"
+   }
+  ],
+  "def": {
+   "params": [
+    {
+     "type": "number",
+     "params": [
+      "100"
+     ]
+    },
+    null
+   ],
+   "type": "set_scale_percent"
+  },
+  "paramsKeyMap": {
+   "VALUE": 0
+  },
+  "cls": "scale",
+  "skeleton": "basic",
+  "statements": 0
+ },
+ "change_scale_percent": {
+  "params": [
+   {
+    "type": "Block"
+   },
+   {
+    "type": "Indicator"
+   }
+  ],
+  "def": {
+   "params": [
+    {
+     "type": "number",
+     "params": [
+      "10"
+     ]
+    },
+    null
+   ],
+   "type": "change_scale_percent"
+  },
+  "paramsKeyMap": {
+   "VALUE": 0
+  },
+  "cls": "scale",
+  "skeleton": "basic",
+  "statements": 0
+ },
+ "set_thickness": {
+  "params": [
+   {
+    "type": "Block"
+   },
+   {
+    "type": "Indicator"
+   }
+  ],
+  "def": {
+   "params": [
+    {
+     "type": "number",
+     "params": [
+      "1"
+     ]
+    },
+    null
+   ],
+   "type": "set_thickness"
+  },
+  "paramsKeyMap": {
+   "VALUE": 0
+  },
+  "cls": "brush_control",
+  "skeleton": "basic",
+  "statements": 0
+ },
+ "change_thickness": {
+  "params": [
+   {
+    "type": "Block"
+   },
+   {
+    "type": "Indicator"
+   }
+  ],
+  "def": {
+   "params": [
+    {
+     "type": "number",
+     "params": [
+      "1"
+     ]
+    },
+    null
+   ],
+   "type": "change_thickness"
+  },
+  "paramsKeyMap": {
+   "VALUE": 0
+  },
+  "cls": "brush_control",
+  "skeleton": "basic",
+  "statements": 0
+ },
+ "get_sounds": {
+  "params": [
+   {
+    "type": "DropdownDynamic",
+    "value": null,
+    "menuName": "sounds"
+   }
+  ],
+  "def": {
+   "params": [
+    null
+   ],
+   "type": "get_sounds"
+  },
+  "paramsKeyMap": {
+   "VALUE": 0
+  },
+  "skeleton": "basic_string_field",
+  "statements": 0
+ },
+ "set_effect_amount": {
+  "params": [
+   {
+    "type": "Dropdown",
+    "value": "color",
+    "options": [
+     "color",
+     "brightness",
+     "transparency"
+    ]
+   },
+   {
+    "type": "Block"
+   },
+   {
+    "type": "Indicator"
+   }
+  ],
+  "def": {
+   "params": [
+    null,
+    {
+     "type": "number",
+     "params": [
+      "10"
+     ]
+    },
+    null
+   ],
+   "type": "set_effect_amount"
+  },
+  "paramsKeyMap": {
+   "EFFECT": 0,
+   "VALUE": 1
+  },
+  "cls": "effect",
+  "skeleton": "basic",
+  "statements": 0
+ },
+ "set_effect": {
+  "params": [
+   {
+    "type": "Dropdown",
+    "value": "color",
+    "options": [
+     "color",
+     "brightness",
+     "opacity"
+    ]
+   },
+   {
+    "type": "Block"
+   },
+   {
+    "type": "Indicator"
+   }
+  ],
+  "def": {
+   "params": [
+    null,
+    {
+     "type": "number",
+     "params": [
+      "100"
+     ]
+    },
+    null
+   ],
+   "type": "set_effect"
+  },
+  "paramsKeyMap": {
+   "EFFECT": 0,
+   "VALUE": 1
+  },
+  "cls": "effect",
+  "skeleton": "basic",
+  "statements": 0
+ },
+ "color": {
+  "params": [
+   {
+    "type": "Color"
+   }
+  ],
+  "def": {
+   "params": [
+    null
+   ],
+   "type": "color"
+  },
+  "paramsKeyMap": {
+   "VALUE": 0
+  },
+  "skeleton": "basic_string_field",
+  "statements": 0
  }
 }

@@ -427,7 +427,10 @@ def grow(pct):
 
 
 def shape(name):
-    return B('change_to_some_shape', VALUE={'type': 'get_pictures', 'params': [ref('pic', name)]})
+    """모양 바꾸기. name 이 문자열이면 그 이름의 모양, 숫자/블록이면 그 값(번호)으로 바꾼다."""
+    if isinstance(name, str):
+        return B('change_to_some_shape', VALUE={'type': 'get_pictures', 'params': [ref('pic', name)]})
+    return B('change_to_some_shape', VALUE=name)
 
 
 def next_shape():
