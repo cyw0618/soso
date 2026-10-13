@@ -6,6 +6,15 @@ import ui_kit as K
 F_BODY = 'NanumSquareRound'
 F_NUM = 'yg-jalnan'
 
+# 글자색 (검정+청색 테마)
+C_WHITE = '#FFFFFF'
+C_ACC = '#7D97FF'      # 청색 강조
+C_DIM = '#AEB8D6'
+C_RED = '#FF5C70'      # 오름(한국 증시 관례: 빨강)
+C_BLUE = '#5E8BFF'     # 내림(파랑)
+C_VIOLET = '#B094FF'
+C_BOX = '#0A0F24'      # 글상자 배경
+
 _names = {}
 
 
@@ -53,7 +62,7 @@ def hover_scripts(o, big=108, normal=100, first_scene=False):
         o.on(on_run(), loop)
 
 
-def button(P, scene, base, label, x, y, w, h, color='gold', icon=None, actions=(), hover=True, visible=True,
+def button(P, scene, base, label, x, y, w, h, color='royal', icon=None, actions=(), hover=True, visible=True,
            first_scene=False):
     o = sprite(P, scene, base, K.button(label, w, h, color, icon=icon), x, y, visible=visible)
     if hover:
@@ -109,6 +118,23 @@ def fmt_comma(src, dst):
     ]
 
 
+def fmt_money(src, dst):
+    """src(만원 단위 숫자)를 '1억 2,500만원' / '8,500만원' / '3억원' 형태의 문자열로 변수 dst 에 넣는 블록들."""
+    pad3 = lambda v: ifelse(lt(v, 10), [setv('_p3', join('00', v))],
+                            [ifelse(lt(v, 100), [setv('_p3', join('0', v))], [setv('_p3', v)])])
+    return [
+        setv('_n', floor(abs_(src))),
+        setv('_hi', floor(div(V('_n'), 10000))),
+        setv('_lo', mod(V('_n'), 10000)),
+        ifelse(lt(V('_lo'), 1000), [setv('_m3', V('_lo'))],
+               [pad3(mod(V('_lo'), 1000)), setv('_m3', join(floor(div(V('_lo'), 1000)), ',', V('_p3')))]),
+        ifelse(eq(V('_hi'), 0), [setv(dst, join(V('_m3'), '만원'))],
+               [ifelse(eq(V('_lo'), 0), [setv(dst, join(V('_hi'), '억원'))],
+                       [setv(dst, join(V('_hi'), '억 ', V('_m3'), '만원'))])]),
+        if_(lt(src, 0), setv(dst, join('-', V(dst)))),
+    ]
+
+
 def round1(e):
     """소수 첫째 자리 반올림."""
     return div(rounded(mul(e, 10)), 10)
@@ -119,10 +145,10 @@ def hud(P, scene, portraits, first_scene=False):
     """portraits: {'me':path,'u1':path,'u2':path} (원형 초상 그림)"""
     objs = []
     # 재산 (왼쪽 위 구석)
-    panel(P, scene, 'HUD재산판', -176, 118, 120, 24, 'glass')
+    panel(P, scene, 'HUD재산판', -172, 118, 128, 24, 'glass')
     sprite(P, scene, 'HUD동전', K.icon_img('coin', 16), -224, 118)
-    t = text(P, scene, 'HUD재산', '1,000만원', -166, 118, 12, '#FFE27A', F_NUM, False, 1, w=92, h=18)
-    t.on(on_scene(), forever(*fmt_comma(V('돈'), '돈표시'), write(join(V('돈표시'), '만원')), wait(0.1)))
+    t = text(P, scene, 'HUD재산', '1억원', -160, 118, 12, C_WHITE, F_NUM, False, 1, w=100, h=18)
+    t.on(on_scene(), forever(*fmt_money(V('돈'), '돈표시'), write(V('돈표시')), wait(0.1)))
     # 유세 진행 (재산 아래)
     panel(P, scene, 'HUD유세판', -196, 95, 80, 22, 'glass')
     sprite(P, scene, 'HUD투표함', K.icon_img('ballot', 14), -224, 96)
@@ -130,8 +156,8 @@ def hud(P, scene, portraits, first_scene=False):
     t2.on(on_scene(), forever(write(join('유세 ', V('유세횟수'), '/15')), wait(0.2)))
     # 지지율 (3줄)
     panel(P, scene, 'HUD지지판', 160, 106, 152, 52, 'glass')
-    rows = [('me', '나', '내지지율', 'gold', '#FFE27A'), ('u1', '첫째', '큰A', 'red', '#FF8C96'),
-            ('u2', '둘째', '큰B', 'purple', '#C9A6FF')]
+    rows = [('me', '나', '내지지율', 'royal', C_ACC), ('u1', '첫째', '큰A', 'red', C_RED),
+            ('u2', '둘째', '큰B', 'purple', C_VIOLET)]
     for i, (pk, nm, var, col, hexc) in enumerate(rows):
         yy = 122 - i * 15
         sprite(P, scene, 'HUD얼굴' + pk, portraits[pk], 96, yy, scale=0.62)

@@ -69,7 +69,7 @@ def ImageChops_sub(a, b):
 
 
 def grade_stamp(g):
-    cols = {'S': 'gold', 'A': 'pink', 'B': 'cyan', 'C': 'green', 'D': 'gray'}
+    cols = {'S': 'royal', 'A': 'white', 'B': 'purple', 'C': 'gray', 'D': 'red'}
     return K.big_text(g, 44, cols[g])
 
 
@@ -110,14 +110,13 @@ def number_card(text, w, h, color):
 
 
 def arrow_marker(n, state='on'):
-    """지도 화살표: 번호 원 + 아래를 가리키는 화살표 (끝이 장소를 가리킴). 크기 22x32."""
+    """지도 화살표: 번호 원 + 아래를 가리키는 화살표 (끝이 장소를 가리킴). 크기 22x32. 검정+청색 테마."""
     w, h = 22, 32
     im = _cv(w, h)
     W, H = im.size
     s = R2 * SS
-    cols = {'on': ((255, 232, 120), (240, 150, 26), (110, 52, 2)),
-            'hot': ((255, 170, 170), (232, 50, 72), (110, 10, 24))}[state]
-    # 화살표 몸통
+    cols = {'on': ((60, 100, 236), (10, 18, 70), (0, 2, 12), (40, 90, 255)),
+            'hot': ((230, 64, 86), (110, 8, 28), (16, 0, 4), (255, 60, 90))}[state]
     body = Image.new('L', im.size, 0)
     bd = ImageDraw.Draw(body)
     cx = W / 2
@@ -127,10 +126,14 @@ def arrow_marker(n, state='on'):
     r = W * 0.40
     cy = r + 1.2 * s
     bd.ellipse((cx - r, cy - r, cx + r, cy + r), fill=255)
-    # 그림자
+    # 청색 빛 번짐 + 그림자
+    gl = body.filter(ImageFilter.MaxFilter(int(2.2 * s) | 1)).filter(ImageFilter.GaussianBlur(1.8 * s))
+    glow = Image.new('RGBA', im.size, cols[3] + (255,))
+    glow.putalpha(gl.point(lambda v: v * 200 // 255))
+    im.alpha_composite(glow)
     sh = body.filter(ImageFilter.GaussianBlur(1.6 * s))
     shd = Image.new('RGBA', im.size, (0, 0, 0, 255))
-    shd.putalpha(sh.point(lambda v: v * 150 // 255))
+    shd.putalpha(sh.point(lambda v: v * 170 // 255))
     im.alpha_composite(shd, (0, int(1.2 * s)))
     g = K._grad(im.size, cols[0], cols[1])
     g.putalpha(body)
@@ -140,8 +143,9 @@ def arrow_marker(n, state='on'):
     olay.putalpha(ImageChops_sub(ol, body))
     im.alpha_composite(olay)
     d = ImageDraw.Draw(im)
-    d.ellipse((cx - r * 0.72, cy - r * 0.72, cx + r * 0.72, cy + r * 0.72), fill=(255, 255, 255, 240))
+    d.ellipse((cx - r * 0.74, cy - r * 0.74, cx + r * 0.74, cy + r * 0.74), fill=(4, 6, 16, 250),
+              outline=(200, 214, 255, 255), width=int(0.8 * s))
     f = font('jalnan', int(r * (1.05 if n < 10 else 0.86)))
-    d.text((cx, cy + 0.5 * s), str(n), font=f, fill=cols[2] + (255,), anchor='mm')
-    d.polygon([(cx - W * 0.12, ay0 + 2 * s), (cx - W * 0.04, ay0 + 2 * s), (cx - W * 0.04, H * 0.62)], fill=(255, 255, 255, 90))
-    return _fin(im, w, h, 'arrow_%s_%02d' % (state, n))
+    d.text((cx, cy + 0.5 * s), str(n), font=f, fill=(255, 255, 255, 255), anchor='mm')
+    d.polygon([(cx - W * 0.12, ay0 + 2 * s), (cx - W * 0.04, ay0 + 2 * s), (cx - W * 0.04, H * 0.62)], fill=(255, 255, 255, 70))
+    return _fin(im, w, h, 'arrow2_%s_%02d' % (state, n))

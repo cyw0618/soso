@@ -5,9 +5,9 @@ import gui as G
 
 
 def build_all(P, ctx):
-    for key in ('S_EVENT', 'S_SHOP', 'S_STOCK', 'S_VOTE', 'S_RANK', 'S_BANKRUPT'):
+    for key in ('S_EVENT', 'S_SHOP', 'S_VOTE', 'S_CONTROL', 'S_RANK', 'S_BANKRUPT'):
         sc = ctx[key]
         G.bg(P, sc, ctx['ART']('story_bg'))
-        t = G.text(P, sc, '임시', sc + ' (준비 중) - 클릭하면 지도로', 0, 0, 14, '#FFFFFF', w=320, h=30, bg='#16224d')
+        t = G.text(P, sc, '임시', sc + ' (준비 중) - 클릭하면 지도로', 0, 0, 14, '#FFFFFF', w=320, h=30, bg=G.C_BOX)
         t.on(on_click(), *G.go(ctx['S_MAP']))
         G.fader(P, sc, ctx['BLACK'])

@@ -128,6 +128,7 @@ def map_art():
     base = _night(_clean_map(src))
     crop = base.crop(MAP_CROP).resize((W, H), Image.LANCZOS)
     crop = ImageEnhance.Contrast(crop).enhance(1.1)
+    crop = ImageEnhance.Brightness(crop).enhance(0.86)
     # 도로 빛번짐
     glow = crop.filter(ImageFilter.GaussianBlur(6))
     crop = ImageChops.screen(crop, ImageEnhance.Brightness(glow).enhance(0.35))
@@ -143,7 +144,7 @@ def map_art():
     cx, cy, r = (dx0 + dx1) / 2, (dy0 + dy1) / 2, (dx1 - dx0) / 2
     for k in range(0, 360, 12):
         a0, a1 = math.radians(k), math.radians(k + 7)
-        d.line([(cx + r * math.cos(a0), cy + r * math.sin(a0)), (cx + r * math.cos(a1), cy + r * math.sin(a1))], fill=(255, 214, 90), width=3)
+        d.line([(cx + r * math.cos(a0), cy + r * math.sin(a0)), (cx + r * math.cos(a1), cy + r * math.sin(a1))], fill=(70, 110, 255), width=3)
     # 출처 표기
     d.text((W - 8, H - 6), '지도: Google 지도 캡처를 게임용으로 편집', font=font('nsrb', 11), fill=(150, 170, 220), anchor='rd')
     save(crop, 'map_bg')
@@ -152,6 +153,7 @@ def map_art():
     D = 240
     inset = inset_src.resize((D, D), Image.LANCZOS).filter(ImageFilter.UnsharpMask(1.5, 70, 2))
     inset = ImageEnhance.Contrast(inset).enhance(1.12)
+    inset = ImageEnhance.Brightness(inset).enhance(0.9)
     ring = Image.new('RGBA', (D + 24, D + 24), (0, 0, 0, 0))
     m = Image.new('L', (D, D), 0)
     ImageDraw.Draw(m).ellipse((0, 0, D - 1, D - 1), fill=255)
@@ -164,7 +166,7 @@ def map_art():
     ii.putalpha(m)
     ring.alpha_composite(ii, (12, 12))
     rd = ImageDraw.Draw(ring)
-    rd.ellipse((10, 10, D + 13, D + 13), outline=(255, 214, 90, 255), width=4)
+    rd.ellipse((10, 10, D + 13, D + 13), outline=(60, 100, 240, 255), width=4)
     rd.ellipse((15, 15, D + 8, D + 8), outline=(255, 255, 255, 60), width=1)
     save(ring, 'map_inset')
     ipos = {k: (12 + (MAP_POS[k][0] - DOWNTOWN[0]) * D / (DOWNTOWN[2] - DOWNTOWN[0]),
