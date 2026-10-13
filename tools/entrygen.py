@@ -285,6 +285,9 @@ def answer():
     return {'type': 'get_canvas_input_value', 'params': [None]}
 
 
+COMPACT = True    # 블록 JSON 을 짧게 (False 면 엔트리 저장 형식 그대로)
+
+
 # ---- 키 코드
 K_LEFT, K_UP, K_RIGHT, K_DOWN = 37, 38, 39, 40
 K_SPACE, K_ENTER = 32, 13
@@ -717,9 +720,16 @@ class Project:
             'id': new_id(), 'x': x, 'y': y, 'type': b['type'],
             'params': [self._finalize_block(p, obj) if isinstance(p, (dict, Ref)) else p for p in b.get('params', [])],
             'statements': [[self._finalize_block(s, obj) for s in st] for st in b.get('statements', [])],
-            'movable': None, 'deletable': 1, 'emphasized': False, 'readOnly': None,
-            'copyable': True, 'assemble': True, 'extensions': [],
         }
+        if COMPACT:
+            # 엔트리가 기본값으로 채우는 필드는 생략 (project.json 크기를 절반 가까이 줄임)
+            if not out['statements']:
+                del out['statements']
+            if x == 0 and y == 0:
+                del out['x'], out['y']
+        else:
+            out.update({'movable': None, 'deletable': 1, 'emphasized': False, 'readOnly': None,
+                        'copyable': True, 'assemble': True, 'extensions': []})
         return out
 
     def _count(self, b):
