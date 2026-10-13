@@ -3624,5 +3624,240 @@
   },
   "skeleton": "basic_string_field",
   "statements": 0
+ },
+ "text_change_font_color": {
+  "params": [
+   {
+    "type": "Block"
+   },
+   {
+    "type": "Indicator"
+   }
+  ],
+  "def": {
+   "params": [
+    {
+     "type": "text_color"
+    },
+    null
+   ],
+   "type": "text_change_font_color"
+  },
+  "paramsKeyMap": {
+   "VALUE": 0
+  },
+  "cls": "text",
+  "skeleton": "basic",
+  "statements": 0
+ },
+ "text_change_bg_color": {
+  "params": [
+   {
+    "type": "Block"
+   },
+   {
+    "type": "Indicator"
+   }
+  ],
+  "def": {
+   "params": [
+    {
+     "type": "text_color"
+    },
+    null
+   ],
+   "type": "text_change_bg_color"
+  },
+  "paramsKeyMap": {
+   "VALUE": 0
+  },
+  "cls": "text",
+  "skeleton": "basic",
+  "statements": 0
+ },
+ "text_change_font": {
+  "params": [
+   {
+    "type": "DropdownDynamic",
+    "value": null,
+    "menuName": "fonts"
+   },
+   {
+    "type": "Indicator"
+   }
+  ],
+  "def": {
+   "params": [
+    null
+   ],
+   "type": "text_change_font"
+  },
+  "paramsKeyMap": {
+   "FONT": 0
+  },
+  "cls": "text",
+  "skeleton": "basic",
+  "statements": 0
+ },
+ "text_change_effect": {
+  "params": [
+   {
+    "type": "Dropdown",
+    "value": "strike",
+    "options": [
+     "strike",
+     "underLine",
+     "fontItalic",
+     "fontBold"
+    ]
+   },
+   {
+    "type": "Dropdown",
+    "value": "on",
+    "options": [
+     "on",
+     "off"
+    ]
+   },
+   {
+    "type": "Indicator"
+   }
+  ],
+  "def": {
+   "params": [
+    null
+   ],
+   "type": "text_change_effect"
+  },
+  "paramsKeyMap": {
+   "EFFECT": 0,
+   "MODE": 1
+  },
+  "cls": "text",
+  "skeleton": "basic",
+  "statements": 0
+ },
+ "set_brush_tranparency": {
+  "params": [
+   {
+    "type": "Block"
+   },
+   {
+    "type": "Indicator"
+   }
+  ],
+  "def": {
+   "params": [
+    {
+     "type": "number",
+     "params": [
+      "50"
+     ]
+    },
+    null
+   ],
+   "type": "set_brush_tranparency"
+  },
+  "paramsKeyMap": {
+   "VALUE": 0
+  },
+  "cls": "brush_color",
+  "skeleton": "basic",
+  "statements": 0
+ },
+ "sound_silent_all": {
+  "params": [
+   {
+    "type": "Dropdown",
+    "value": "all",
+    "options": [
+     "all",
+     "thisOnly",
+     "other_objects"
+    ]
+   },
+   {
+    "type": "Indicator"
+   }
+  ],
+  "def": {
+   "params": [
+    null
+   ],
+   "type": "sound_silent_all"
+  },
+  "paramsKeyMap": {
+   "TARGET": 0
+  },
+  "cls": "sound_stop",
+  "skeleton": "basic",
+  "statements": 0
+ },
+ "get_date": {
+  "params": [
+   {
+    "type": "Text",
+    "text": " 현재"
+   },
+   {
+    "type": "Dropdown",
+    "value": "YEAR",
+    "options": [
+     "YEAR",
+     "MONTH",
+     "DAY",
+     "DAY_OF_WEEK",
+     "HOUR",
+     "MINUTE",
+     "SECOND"
+    ]
+   },
+   {
+    "type": "Text",
+    "text": ""
+   }
+  ],
+  "def": {
+   "params": [
+    null,
+    "YEAR",
+    null
+   ],
+   "type": "get_date"
+  },
+  "paramsKeyMap": {
+   "VALUE": 1
+  },
+  "cls": "calc_date",
+  "skeleton": "basic_string_field",
+  "statements": 0
+ },
+ "get_user_name": {
+  "params": [],
+  "def": {
+   "params": [],
+   "type": "get_user_name"
+  },
+  "cls": "calc_user",
+  "skeleton": "basic_string_field",
+  "statements": 0
+ },
+ "text_color": {
+  "params": [
+   {
+    "type": "Color"
+   }
+  ],
+  "def": {
+   "params": [
+    null
+   ],
+   "type": "text_color"
+  },
+  "paramsKeyMap": {
+   "VALUE": 0
+  },
+  "skeleton": "basic_string_field",
+  "statements": 0
  }
 }

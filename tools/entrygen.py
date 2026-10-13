@@ -580,6 +580,28 @@ class Obj:
         self.scripts.append(flat(*blocks))
         return self
 
+    @property
+    def base_size(self):
+        """엔트리 '크기'(픽셀, 가로·세로 평균) 기준의 원래 크기."""
+        if self.kind != 'sprite' or not self.pictures:
+            return 100.0
+        pic = self.pictures[0]
+        k = pic.scale * self.scale
+        return (pic.w * k + pic.h * k) / 2.0
+
+    def pct(self, p):
+        """크기를 원래의 p% 로 (엔트리 크기 블록은 픽셀 단위라 환산)."""
+        b = self.base_size
+        if isinstance(p, (int, float)):
+            return B('set_scale_size', VALUE=round(b * p / 100.0, 2))
+        return B('set_scale_size', VALUE=mul(p, round(b / 100.0, 4)))
+
+    def grow_pct(self, p):
+        b = self.base_size
+        if isinstance(p, (int, float)):
+            return B('change_scale_size', VALUE=round(b * p / 100.0, 2))
+        return B('change_scale_size', VALUE=mul(p, round(b / 100.0, 4)))
+
     def local(self, name, value=0):
         self.locals[name] = value
 
@@ -814,3 +836,32 @@ class Project:
                 with open(full, 'wb') as f:
                     f.write(data)
         return proj
+
+
+# ---- 글상자/붓 보조
+def text_color(hexcol):
+    return B('text_change_font_color', VALUE={'type': 'text_color', 'params': [hexcol]})
+
+
+def pen_color(hexcol):
+    return B('set_color', VALUE={'type': 'color', 'params': [hexcol]})
+
+
+def pen_size(n):
+    return B('set_thickness', VALUE=n)
+
+
+def pen_down():
+    return B('start_drawing')
+
+
+def pen_up():
+    return B('stop_drawing')
+
+
+def pen_clear():
+    return B('brush_erase_all')
+
+
+def append_text(v):
+    return B('text_append', VALUE=v)

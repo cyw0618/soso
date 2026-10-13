@@ -56,7 +56,11 @@ def push_pull(img, known, levels=7):
     fill = None
     for lvl in range(levels, -1, -1):
         v, w = vs[lvl], ws[lvl]
-        cur = np.where(w[..., None] > 1e-4, v / np.maximum(w[..., None], 1e-4), 0.0)
+        if fill is None:   # 가장 거친 단계: 비어 있는 칸은 알려진 픽셀 전체 평균색으로
+            gmean = (img * w0[..., None]).sum((0, 1)) / max(w0.sum(), 1e-4)
+            cur = np.where(w[..., None] > 1e-4, v / np.maximum(w[..., None], 1e-4), gmean[None, None, :])
+        else:
+            cur = np.where(w[..., None] > 1e-4, v / np.maximum(w[..., None], 1e-4), 0.0)
         if fill is not None:
             up = _up(fill, v.shape[:2])
             conf = np.clip(w[..., None] * 2.0, 0, 1)
