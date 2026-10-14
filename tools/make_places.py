@@ -84,54 +84,66 @@ def place_bg(i):
 
 
 def _night(im):
-    """밝은 지도 → 야간 테마 (반전 + 색상 180도 회전 + 남색 톤)."""
+    """밝은 지도 → 야간 테마. 바탕은 남색, 도로는 밝은 청백색, 물은 청색, 글자는 흰색으로 다시 칠한다."""
     a = np.asarray(im.convert('RGB'), np.float32) / 255.0
-    inv = 1.0 - a
-    # 색상 180도 회전(반전으로 뒤집힌 색을 되돌림): YIQ 공간에서 I,Q 부호 반전
-    Y = 0.299 * inv[..., 0] + 0.587 * inv[..., 1] + 0.114 * inv[..., 2]
-    I = 0.596 * inv[..., 0] - 0.274 * inv[..., 1] - 0.322 * inv[..., 2]
-    Q = 0.211 * inv[..., 0] - 0.523 * inv[..., 1] + 0.312 * inv[..., 2]
-    I, Q = -I, -Q
-    r = Y + 0.956 * I + 0.621 * Q
-    g = Y - 0.272 * I - 0.647 * Q
-    b = Y - 1.106 * I + 1.703 * Q
-    out = np.clip(np.stack([r, g, b], -1), 0, 1)
-    # 남색 톤 입히기 (어두운 바탕을 남색으로)
-    navy = np.array([0.07, 0.10, 0.24])
-    lum = out.mean(-1, keepdims=True)
-    out = out * 0.85 + navy * (1 - lum) * 0.9
-    # 도로/하천을 살짝 빛나게
-    out = np.clip(out * 1.08, 0, 1)
-    return Image.fromarray((out * 255).astype(np.uint8))
+    r, g, b = a[..., 0], a[..., 1], a[..., 2]
+    L = 0.299 * r + 0.587 * g + 0.114 * b
+    sat = a.max(-1) - a.min(-1)
+
+    def C(*c):
+        return np.array(c, np.float32) / 255.0
+
+    def put(out, m, col, k=1.0):
+        m = np.clip(m * k, 0, 1)[..., None]
+        return out * (1 - m) + m * col
+
+    out = np.ones_like(a) * C(24, 38, 86)
+    water = np.clip((g - r - 0.08) * 8, 0, 1) * np.clip((b - r - 0.15) * 8, 0, 1)
+    terrain = np.clip(np.clip((g - b) * 5, 0, 1) + np.clip((r - b - 0.03) * 6, 0, 1), 0, 1) * (1 - water)
+    out = put(out, terrain, C(30, 52, 92), 0.8)
+    out = put(out, water, C(38, 105, 235))
+    # 도로: 바탕보다 어둡고 푸른 기가 있는 선 (진할수록 큰 도로 → 더 밝게)
+    d = np.clip((0.955 - L) / 0.33, 0, 1)
+    bl = np.clip((b - r) / 0.09, 0, 1)
+    text = np.clip((0.56 - L) * 4, 0, 1) * np.clip((0.2 - sat) * 8, 0, 1)
+    road = np.clip(d * 3.2, 0, 1) * bl * (1 - water) * (1 - text)
+    t = np.clip(d * 1.7, 0, 1)[..., None]
+    out = put(out, road, C(78, 108, 190) * (1 - t) + C(185, 212, 255) * t)
+    img = Image.fromarray((np.clip(out, 0, 1) * 255).astype(np.uint8))
+    glow = img.filter(ImageFilter.GaussianBlur(5))
+    img = ImageChops.screen(img, ImageEnhance.Brightness(glow).enhance(0.35))
+    out = np.asarray(img, np.float32) / 255.0
+    # 글자: 어두운 테두리 + 흰 글씨
+    tm = Image.fromarray((np.clip(text * 2, 0, 1) * 255).astype(np.uint8))
+    halo = np.asarray(tm.filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.GaussianBlur(1)), np.float32) / 255.0
+    out = put(out, halo, C(10, 16, 40), 0.7)
+    out = put(out, text, C(240, 245, 255))
+    return Image.fromarray((np.clip(out, 0, 1) * 255).astype(np.uint8))
 
 
 # 지도 캡처에서 지울 부분: 개인 저장 장소 핀/문구, 호텔 광고 핀
 MAP_ERASE = [(508, 456, 652, 499), (762, 170, 852, 230)]
 
 
-def _clean_map(src):
+def _clean_map(src, night):
+    """개인 저장 장소/광고 핀(주황·분홍 글자와 아이콘)만 골라 지우고 주변 골목 무늬로 메운다."""
     from make_cover import push_pull
-    arr = np.asarray(src, np.float32)
+    a = np.asarray(src, np.float32) / 255.0
+    mark = ((a[..., 0] - a[..., 1]) > 0.18) & ((a.max(-1) - a.min(-1)) > 0.22)
+    zone = np.zeros(mark.shape, bool)
     for x0, y0, x1, y1 in MAP_ERASE:
-        m = 30
-        X0, Y0, X1, Y1 = max(0, x0 - m), max(0, y0 - m), min(src.width, x1 + m), min(src.height, y1 + m)
-        sub = arr[Y0:Y1, X0:X1].copy()
-        hole = np.zeros(sub.shape[:2], bool)
-        hole[y0 - Y0:y1 - Y0, x0 - X0:x1 - X0] = True
-        filled = push_pull(sub, ~hole, levels=5)
-        arr[Y0:Y1, X0:X1] = np.where(hole[..., None], filled, sub)
-    return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
+        zone[y0 - 6:y1 + 6, x0 - 6:x1 + 6] = True
+    hole = Image.fromarray(((mark & zone) * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(7))
+    hole = np.asarray(hole) > 0
+    arr = np.asarray(night, np.float32)
+    filled = push_pull(arr, ~hole, levels=4)
+    return Image.fromarray(np.clip(filled, 0, 255).astype(np.uint8))
 
 
 def map_art():
     src = Image.open(os.path.join(SRC, 'places', '16_지도_확대.png')).convert('RGB')
-    base = _night(_clean_map(src))
+    base = _clean_map(src, _night(src))
     crop = base.crop(MAP_CROP).resize((W, H), Image.LANCZOS)
-    crop = ImageEnhance.Contrast(crop).enhance(1.1)
-    crop = ImageEnhance.Brightness(crop).enhance(0.86)
-    # 도로 빛번짐
-    glow = crop.filter(ImageFilter.GaussianBlur(6))
-    crop = ImageChops.screen(crop, ImageEnhance.Brightness(glow).enhance(0.35))
     sx = W / (MAP_CROP[2] - MAP_CROP[0])
     sy = H / (MAP_CROP[3] - MAP_CROP[1])
     pos = {k: ((x - MAP_CROP[0]) * sx, (y - MAP_CROP[1]) * sy) for k, (x, y) in MAP_POS.items()}
@@ -152,8 +164,7 @@ def map_art():
     inset_src = base.crop(DOWNTOWN)
     D = 240
     inset = inset_src.resize((D, D), Image.LANCZOS).filter(ImageFilter.UnsharpMask(1.5, 70, 2))
-    inset = ImageEnhance.Contrast(inset).enhance(1.12)
-    inset = ImageEnhance.Brightness(inset).enhance(0.9)
+    inset = ImageEnhance.Contrast(inset).enhance(1.08)
     ring = Image.new('RGBA', (D + 24, D + 24), (0, 0, 0, 0))
     m = Image.new('L', (D, D), 0)
     ImageDraw.Draw(m).ellipse((0, 0, D - 1, D - 1), fill=255)

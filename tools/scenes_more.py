@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """돌발상황 / 작전 본부 / 개표 / 조치원 장악 / 랭킹 / 파산 장면."""
+import re
 import os
 from PIL import Image, ImageDraw, ImageFilter
 from entrygen import *
@@ -147,9 +148,14 @@ def scene_event(P, ctx):
     P.list('성공돈', [o[2] for e in E for o in e[3]])
     P.list('성공지지', [o[3] for e in E for o in e[3]])
     P.list('실패돈', [o[4] for e in E for o in e[3]])
-    P.list('성공문', [o[5] for e in E for o in e[3]])
-    P.list('실패문', [o[6] or '-' for e in E for o in e[3]])
-    for v in ('사건금액', '사건손익', '사건순익', '사건성공', '사건지지', '결정됨', '반대매매', '_i', '_g', '결과글'):
+    # 결과 문장 속 괄호(돈 이야기)는 뺀다: 돈 결과는 매번 달라지기 때문
+    P.list('성공문', [re.sub(r'\s*\([^)]*\)', '', o[5]) for e in E for o in e[3]])
+    P.list('실패문', [re.sub(r'\s*\([^)]*\)', '', o[6] or '-') for e in E for o in e[3]])
+    # 사건마다 선택지 순서를 섞고(순열 6가지), 확률·손익도 새로 굴린다
+    P.list('순열', [x for pm in ((1, 2, 3), (1, 3, 2), (2, 1, 3), (2, 3, 1), (3, 1, 2), (3, 2, 1)) for x in pm])
+    for v in ('카드옵션', '카드확률', '카드돈', '카드반전', '카드지지', '카드실패'):
+        P.list(v, [0, 0, 0])
+    for v in ('사건금액', '사건손익', '사건순익', '사건성공', '사건지지', '사건반전', '결정됨', '반대매매', '_i', '_g', '_p', '결과글'):
         P.var(v, 0)
 
     bg = G.bg(P, sc, ctx['PLACE_PICS'])
@@ -175,7 +181,7 @@ def scene_event(P, ctx):
     cards = []
     for k in (1, 2, 3):
         x = -146 + (k - 1) * 146
-        idx = add(mul(sub(V('이벤트'), 1), 3), k)
+        idx = add(mul(sub(V('이벤트'), 1), 3), LGET('카드옵션', k))
         c = panel(P, sc, '선택카드%d' % k, x, -42, 138, 86, 'card')
         G.hover_scripts(c, 104)
         num = sprite(P, sc, '선택번호%d' % k, K.badge('선택 %d' % k, 46, 16, 'royal'), x, -10)
@@ -193,7 +199,7 @@ def scene_event(P, ctx):
     tb = sprite(P, sc, '결정시간', bars, 0, 8)
     tb.on(on_scene(), show(), forever(shape(add(floor(mul(div(V('남은시간'), 12), 40)), 1)), wait(0.05)))
     tb.on(on_msg('사건결과'), hide())
-    hint = text(P, sc, '결정안내', '12초 안에 고르세요! (클릭 또는 1·2·3)  돈을 벌지 잃을지는 고른 뒤에야 알 수 있어요', 0, -98, 8,
+    hint = text(P, sc, '결정안내', '12초 안에 고르세요! (클릭 또는 1·2·3)  같은 사건이라도 결과는 매번 달라요', 0, -98, 8,
                 C_DIM, F_BODY, True, 0, w=420, h=12)
     hint.on(on_msg('사건결과'), hide())
 
@@ -216,7 +222,10 @@ def scene_event(P, ctx):
                     [ifelse(lt(V('사건지지'), 0), [write(join('지지율 ', round1(V('사건지지')), '%p')), text_color(C_RED)],
                             [write('지지율 변화 없음'), text_color(C_DIM)])]),
              wait(1.2), show())
-    r_ext.on(on_msg('사건결과'), if_(eq(V('반대매매'), 1), write('현금이 바닥나서 갖고 있던 주식이 강제로 팔렸다 (반대매매)'), wait(1.3), show()))
+    r_ext.on(on_msg('사건결과'),
+             ifelse(eq(V('반대매매'), 1), [write('현금이 바닥나서 갖고 있던 주식이 강제로 팔렸다 (반대매매)'), text_color(C_RED), wait(1.3), show()],
+                    [if_(gt(V('사건반전'), 0), write('반전! 뜻밖의 후원금이 따라 들어왔다'), text_color(C_ACC), wait(1.3), show()),
+                     if_(lt(V('사건반전'), 0), write('반전! 생각지 못한 비용이 새어 나갔다'), text_color(C_RED), wait(1.3), show())]))
     nxt = button(P, sc, '계속버튼', '계속', 150, -112, 96, 26, 'royal', icon='star', visible=False,
                  actions=[*ST.assets_blocks(), if_(le(V('총자산'), 0), *go(ctx['S_BANKRUPT'])),
                           if_(ge(V('유세횟수'), 15), *go(ctx['S_VOTE'])), *go(ctx['S_MAP'])])
@@ -226,12 +235,29 @@ def scene_event(P, ctx):
                                    [ifelse(lt(V('사건순익'), 0), [write('돈 좀 썼군.\n사람을 얻었으면 남는 장사다.')],
                                            [write('그래, 그거다.\n위기는 기회야.')])],
                                    [write('지금 뭐 하는 거냐!\n판을 읽어.')])], scale=0.45, bx=-178, by=-2, bw=116)
+    # 선택지 섞기 + 확률·손익 다시 굴리기 (함정: 25% 확률로 성공률이 크게 떨어짐, 반전: 30% 확률로 돈이 더 붙거나 빠짐)
+    shuffle_cards = [setv('_g', rnd(1, 6))]
+    for k in (1, 2, 3):
+        shuffle_cards += [
+            lst_set('카드옵션', k, LGET('순열', add(mul(sub(V('_g'), 1), 3), k))),
+            setv('_i', add(mul(sub(V('이벤트'), 1), 3), LGET('카드옵션', k))),
+            setv('_p', add(LGET('선택확률', V('_i')), rnd(-35, 25))),
+            if_(le(rnd(1, 100), 25), chg('_p', -40)),
+            if_(lt(V('_p'), 5), setv('_p', 5)), if_(gt(V('_p'), 92), setv('_p', 92)),
+            lst_set('카드확률', k, V('_p')),
+            lst_set('카드돈', k, rounded(div(mul(LGET('성공돈', V('_i')), rnd(30, 170)), 100))),
+            lst_set('카드반전', k, 0),
+            if_(le(rnd(1, 100), 30), lst_set('카드반전', k, rnd(-60, 50))),
+            lst_set('카드지지', k, div(rounded(mul(LGET('성공지지', V('_i')), rnd(4, 16))), 10)),
+            lst_set('카드실패', k, rounded(div(mul(LGET('실패돈', V('_i')), rnd(60, 160)), 100))),
+        ]
     # 담당 (계산)
     mgr = text(P, sc, '사건담당', '', -300, -300, 8, visible=False)
     mgr.on(on_scene(),
            setv('결정됨', 0), setv('이벤트', rnd(1, len(E))), *ST.assets_blocks(),
            setv('_v', mul(V('총자산'), D.EVENT_RATE)), if_(lt(V('_v'), D.EVENT_MIN), setv('_v', D.EVENT_MIN)),
            setv('사건금액', mul(rounded(div(mul(V('_v'), LGET('사건크기', V('이벤트'))), 100)), 100)),
+           *shuffle_cards,
            cast('사건표시'),
            setv('남은시간', 12),
            until(or_(le(V('남은시간'), 0), eq(V('결정됨'), 1)), wait(0.1), chg('남은시간', -0.1)),
@@ -242,17 +268,19 @@ def scene_event(P, ctx):
         liquidate.append(if_(gt(LGET('보유', i), 0), chg('돈', mul(LGET('보유', i), LGET('주가', i))),
                              lst_set('보유', i, 0), lst_set('평단', i, 0)))
     mgr.on(on_msg('사건선택'),
-           setv('_i', add(mul(sub(V('이벤트'), 1), 3), V('선택'))),
-           ifelse(le(rnd(1, 100), LGET('선택확률', V('_i'))),
-                  # 성공: 돈은 선택지에 따라 늘 수도, 줄 수도 있다
-                  [setv('사건성공', 1), setv('사건손익', rounded(div(mul(V('사건금액'), LGET('성공돈', V('_i'))), 100))),
-                   chg('돈', V('사건손익')), setv('사건지지', LGET('성공지지', V('_i'))), *support_gain(V('사건지지')),
+           setv('_i', add(mul(sub(V('이벤트'), 1), 3), LGET('카드옵션', V('선택')))),
+           setv('사건반전', 0),
+           ifelse(le(rnd(1, 100), LGET('카드확률', V('선택'))),
+                  # 성공: 돈은 선택지에 따라 늘 수도, 줄 수도 있고, 가끔 반전이 붙는다
+                  [setv('사건성공', 1), setv('사건반전', LGET('카드반전', V('선택'))),
+                   setv('사건손익', rounded(div(mul(V('사건금액'), add(LGET('카드돈', V('선택')), V('사건반전'))), 100))),
+                   chg('돈', V('사건손익')), setv('사건지지', LGET('카드지지', V('선택'))), *support_gain(V('사건지지')),
                    setv('결과글', LGET('성공문', V('_i')))],
                   [setv('사건성공', 0),
                    ifelse(gt(V('방어권'), 0),
                           [chg('방어권', -1), setv('사건손익', 0), setv('사건지지', 0),
                            setv('결과글', join(LGET('실패문', V('_i')), ' 그래도 위기관리팀이 막아냈다!'))],
-                          [setv('사건손익', mul(rounded(div(mul(V('사건금액'), LGET('실패돈', V('_i'))), 100)), -1)),
+                          [setv('사건손익', mul(rounded(div(mul(V('사건금액'), LGET('카드실패', V('선택'))), 100)), -1)),
                            chg('돈', V('사건손익')), setv('사건지지', mul(add(0.4, mul(0.4, sz)), -1)), *support_gain(V('사건지지')),
                            setv('결과글', LGET('실패문', V('_i')))])]),
            setv('사건순익', V('사건손익')),
