@@ -37,7 +37,7 @@ for s in [S_TITLE, S_STORY, S_HOWTO, S_MAP] + S_GAME + [S_RESULT, S_EVENT, S_SHO
 # ------------------------------------------------------------------ 변수/리스트
 VARS = dict(돈=D.START_MONEY, 내지지율=12, 큰A=44, 큰B=44, 유세횟수=0, 현재지역=0, 점수=0, 방어권=0, 차단턴=0,
             획득지지=0, 반격A=0, 반격B=0, 획득재화=0, 등급=0, 선택=0, 이벤트=0, 남은시간=0, i=0, j=0, k=0,
-            tmp=0, tmp2=0, 호버지역=0, 페이지=1, 타자중=0, 최종점수=0, 당선=0, 총자산=0, 선택종목=1,
+            tmp=0, tmp2=0, 호버지역=0, 지도모드=0, 개표창=0, 페이지=1, 타자중=0, 최종점수=0, 당선=0, 총자산=0, 선택종목=1,
             콤보=0, 판정=0, 결과처리됨=0, 돈표시='', _n=0, _hi=0, _lo=0, _mid=0, _p3='', _m3='', 표시글='',
             다음장면=0, 게임중=0, 카운트=0, 목표=0, 맞춤=0, 틀림=0, 진행=0, 플레이어이름='')
 P.var('내순위', 0)
@@ -50,8 +50,9 @@ VARS.update(E.EMPIRE_VARS)
 for k_, v_ in VARS.items():
     P.var(k_, v_)
 
-P.list('지역완료', [0] * 15)
-P.list('지역점수', [0] * 15)
+N_PL = D.N_PLACES
+P.list('지역완료', [0] * N_PL)
+P.list('지역점수', [0] * N_PL)
 P.list('지역이름', [p['name'] for p in D.PLACES])
 P.list('지역게임', [p['game'] for p in D.PLACES])
 P.list('지역설명', [p['help'] for p in D.PLACES])
@@ -73,14 +74,15 @@ TITLE_BG = make_title.title_bg(COVER)
 save(TITLE_BG, 'title_bg')
 story = ImageEnhance.Brightness(TITLE_BG.filter(ImageFilter.GaussianBlur(10))).enhance(0.42)
 save(story, 'story_bg')
-PIN_POS, DT_CIRCLE, INSET_POS, INSET_SIZE = make_places.build_all()
+PIN_POS, DT_CIRCLE = make_places.build_all()
+DT_IDS = make_places.DOWNTOWN_IDS
 ART = lambda n: os.path.join(OUT, n + '.png')
 BLACK = SP.plain(480, 270, (0, 0, 0, 255), 'black_full')
 DIM = SP.plain(480, 270, (4, 8, 24, 150), 'dim_full')
 PORT = {k: K.portrait_ring(SP.portrait_crop(COVER, k), 24, {'me': 'royal', 'gp': 'silver', 'u1': 'red', 'u2': 'purple'}[k], name=k)
         for k in ('me', 'gp', 'u1', 'u2')}
 BUST = {k: SP.bust(COVER, k) for k in ('gp', 'me', 'u1', 'u2')}
-PLACE_PICS = [('%02d' % i, ART('place_%02d' % i)) for i in range(1, 16)]
+PLACE_PICS = [('%02d' % i, ART('place_%02d' % i)) for i in range(1, D.N_PLACES + 1)]
 CONF = [('c%d' % i, K.confetti(i, 8)) for i in range(6)]
 SPARK = K.sparkle(16)
 
@@ -96,7 +98,7 @@ def scene_title():
     # 초기화 담당 (보이지 않는 오브젝트)
     mgr = text(P, sc, '초기화담당', '', -300, -300, 8, visible=False)
     init = [setv(k_, v_) for k_, v_ in VARS.items() if k_ not in ('돈표시', '_p3', '_m3', '표시글', '플레이어이름', '_q', '_m')]
-    init += [setv('i', 1), rep(15, lst_set('지역완료', V('i'), 0), lst_set('지역점수', V('i'), 0), chg('i', 1))]
+    init += [setv('i', 1), rep(N_PL, lst_set('지역완료', V('i'), 0), lst_set('지역점수', V('i'), 0), chg('i', 1))]
     init += STOCK_RESET
     init += E.reset_blocks()
     mgr.on(on_msg('초기화'), *init)
@@ -162,13 +164,13 @@ def scene_howto():
     G.bg(P, sc, ART('story_bg'))
     panel(P, sc, '방법판', 0, -6, 440, 228, 'glass', header='royal')
     sprite(P, sc, '방법제목', K.banner('게임 방법', 180, 34, 'royal'), 0, 112)
-    rows = [('map', '지도의 화살표를 눌러 선거유세! 지역마다 단 한 번뿐'),
+    rows = [('map', '지도의 화살표 40곳을 눌러 선거유세! 지역마다 단 한 번뿐'),
             ('star', '지역마다 종목이 다른 미니게임. 잘할수록 지지율과 재화 UP'),
             ('bolt', '돌발상황 64종! 셋 중 하나는 반드시 안전하지만 어느 것인지는 몰라요'),
             ('shop', '작전 본부에서 재화로 사건을 만들거나 위기를 막을 수 있어요'),
             ('chart', '시작 자금 10억. 주식·코인으로 불리세요. 재산 0원이면 파산!'),
             ('trophy', '「조치원 지배 자본」 지분과 계열사를 큰아버지들과 다퉈요'),
-            ('ballot', '개표 때 지지율 50% 초과 + 지배 자본 50% 초과면 당선!')]
+            ('ballot', '개표는 언제든! 지지율 50% 초과 + 지배 자본 50% 초과면 당선')]
     for i, (ic, t) in enumerate(rows):
         yy = 70 - i * 26
         sprite(P, sc, '방법아이콘%d' % i, K.icon_img(ic, 20), -196, yy)
@@ -179,48 +181,67 @@ def scene_howto():
 
 
 # ================================================================== 지도
+def _dt_ring(r):
+    """전체 지도 위 '시내' 원 (누르면 시내 확대 지도로)."""
+    from PIL import ImageDraw as _D
+    k = 4
+    sz = int(r * 2 + 8)
+    im = Image.new('RGBA', (sz * k, sz * k), (0, 0, 0, 0))
+    d = _D.Draw(im)
+    c = sz * k / 2
+    d.ellipse((c - r * k, c - r * k, c + r * k, c + r * k), fill=(60, 110, 255, 46), outline=(130, 170, 255, 230), width=3 * k)
+    im = im.resize((sz * 2, sz * 2), Image.LANCZOS)
+    return save(im, 'map_dt_ring_%d' % r)
+
+
 def scene_map():
     sc = S_MAP
-    G.bg(P, sc, ART('map_bg'))
-    # 시내 확대 창
-    ix, iy = 960 - INSET_SIZE[0] - 10, 160
-    icx, icy = art2stage(ix + INSET_SIZE[0] / 2, iy + INSET_SIZE[1] / 2)
-    sprite(P, sc, '시내확대', ART('map_inset'), icx, icy)
-    sprite(P, sc, '시내제목', K.badge('조치원 시내 확대', 92, 18, 'royal'), icx, icy - INSET_SIZE[1] / 4 + 6)
-    # 핀 위치(무대 좌표)
-    pin_xy = {}
-    for k_ in range(1, 16):
-        if k_ in INSET_POS:
-            ax, ay = ix + INSET_POS[k_][0], iy + INSET_POS[k_][1]
-        else:
-            ax, ay = PIN_POS[k_]
-        sx, sy = art2stage(ax, ay)
-        pin_xy[k_] = (sx, sy + 15)         # 화살표 끝이 장소를 가리키도록
-    P.list('핀X', [round(pin_xy[k_][0], 1) for k_ in range(1, 16)])
-    P.list('핀Y', [round(pin_xy[k_][1], 1) for k_ in range(1, 16)])
-    # 장소 이름표 (유세를 마치면 숨김)
-    for k_ in range(1, 16):
-        x_, y_ = pin_xy[k_]
-        nm = D.PLACES[k_ - 1]['short']
-        lb = text(P, sc, '이름표%02d' % k_, nm, x_, y_ - 21, 8, '#FFFFFF', F_BODY, True, 0, w=max(36, len(nm) * 9), h=12,
-                  bg=C_BOX)
-        lb.on(on_scene(), forever(ifelse(eq(LGET('지역완료', k_), 1), [hide()], [show()]), wait(0.1)))
+    bgo = G.bg(P, sc, [('whole', ART('map_whole')), ('dt', ART('map_dt'))])
+    bgo.on(on_scene(), ifelse(eq(V('지도모드'), 1), [shape('dt')], [shape('whole')]))
+    bgo.on(on_msg('지도바꿈'), ifelse(eq(V('지도모드'), 1), [shape('dt')], [shape('whole')]))
+    # 핀 위치(무대 좌표). 시내 15곳은 시내 확대 지도에서만 보인다.
+    pin_xy, pin_mode = {}, {}
+    for k_ in range(1, N_PL + 1):
+        sx, sy = art2stage(*PIN_POS[k_])
+        pin_xy[k_] = (round(sx, 1), round(sy + 15, 1))         # 화살표 끝이 장소를 가리키도록
+        pin_mode[k_] = 1 if k_ in DT_IDS else 0
+    P.list('핀X', [pin_xy[k_][0] for k_ in range(1, N_PL + 1)])
+    P.list('핀Y', [pin_xy[k_][1] for k_ in range(1, N_PL + 1)])
+    # 시내 원 (전체 지도에서만)
+    rcx, rcy = art2stage(DT_CIRCLE[0], DT_CIRCLE[1])
+    rr = int(DT_CIRCLE[2] / 2)
+    ring = sprite(P, sc, '시내원', _dt_ring(rr), rcx, rcy)
+    ring.on(on_scene(), forever(ifelse(eq(V('지도모드'), 0), [show()], [hide()]),
+                                ifelse(and_(touch('mouse'), eq(V('개표창'), 0)), [fx('brightness', 25), ring.pct(106)],
+                                       [fx('brightness', 0), ring.pct(100)]), wait(0.05)))
+    ring.on(on_click(), if_(and_(eq(V('지도모드'), 0), eq(V('개표창'), 0)), setv('지도모드', 1), cast('지도바꿈'), G.sfx('click')))
+    ring_t = text(P, sc, '시내원글', '', rcx, rcy, 9, C_WHITE, F_NUM, False, 0, w=70, h=28)
+    dt_list = DT_IDS
+
+    def remain_blocks(ids, var):
+        b = [setv(var, 0)]
+        for k_ in ids:
+            b.append(if_(eq(LGET('지역완료', k_), 0), chg(var, 1)))
+        return b
+    ring_t.on(on_scene(), forever(ifelse(eq(V('지도모드'), 0), [show()], [hide()]),
+                                  *remain_blocks(dt_list, 'tmp'), write(join('조치원 시내\n', V('tmp'), '곳 (클릭)')), wait(0.3)))
     # 화살표 (유세를 마치면 사라짐)
-    for k_ in range(1, 16):
+    for k_ in range(1, N_PL + 1):
         x_, y_ = pin_xy[k_]
+        m_ = pin_mode[k_]
         pics = [('on', SP.arrow_marker(k_, 'on')), ('hot', SP.arrow_marker(k_, 'hot'))]
-        o = sprite(P, sc, '화살표%02d' % k_, pics, x_, y_)
+        o = sprite(P, sc, '화살표%02d' % k_, pics, x_, y_, scale=0.9)
+        vis = and_(eq(LGET('지역완료', k_), 0), eq(V('지도모드'), m_))
         o.on(on_scene(), xy(x_, y_),
-             forever(ifelse(eq(LGET('지역완료', k_), 1), [hide(), if_(eq(V('호버지역'), k_), setv('호버지역', 0))],
-                            [show(), ifelse(touch('mouse'), [shape('hot'), o.pct(125), setv('호버지역', k_)],
+             forever(ifelse(not_(vis), [hide(), if_(eq(V('호버지역'), k_), setv('호버지역', 0))],
+                            [show(), ifelse(and_(touch('mouse'), eq(V('개표창'), 0)), [shape('hot'), o.pct(125), setv('호버지역', k_)],
                                             [shape('on'), o.pct(100), if_(eq(V('호버지역'), k_), setv('호버지역', 0))])]),
-                     wait(0.03)))
-        o.on(on_scene(), forever(rep(8, mvy(0.6), wait(0.03)), rep(8, mvy(-0.6), wait(0.03)), wait(0.05)))
-        o.on(on_click(), if_(eq(LGET('지역완료', k_), 0), setv('현재지역', k_), *go(S_GAME[k_ - 1])))
+                     wait(0.04)))
+        o.on(on_click(), if_(and_(vis, eq(V('개표창'), 0)), setv('현재지역', k_), *go(S_GAME[k_ - 1])))
     # 툴팁
     tip = panel(P, sc, '툴팁판', 0, 0, 150, 52, 'card', visible=False)
-    tip_t = text(P, sc, '툴팁제목', '', 0, 0, 11, C_ACC, F_NUM, False, 0, w=140, h=16, visible=False)
-    tip_d = text(P, sc, '툴팁설명', '', 0, 0, 9, '#FFFFFF', F_BODY, True, 0, w=140, h=26, visible=False)
+    tip_t = text(P, sc, '툴팁제목', '', 0, 0, 10, C_ACC, F_NUM, False, 0, w=144, h=16, visible=False)
+    tip_d = text(P, sc, '툴팁설명', '', 0, 0, 8, '#FFFFFF', F_BODY, True, 0, w=140, h=26, visible=False)
     for o, dy in ((tip, 0), (tip_t, 12), (tip_d, -8)):
         o.on(on_scene(), forever(
             ifelse(gt(V('호버지역'), 0),
@@ -231,25 +252,53 @@ def scene_map():
                     xy(V('tmp'), add(V('tmp2'), dy)), show()],
                    [hide()]),
             wait(0.03)))
-    tip_t.on(on_scene(), forever(if_(gt(V('호버지역'), 0), write(join(LGET('지역이름', V('호버지역')), ' · ', LGET('지역게임', V('호버지역'))))), wait(0.05)))
-    tip_d.on(on_scene(), forever(if_(gt(V('호버지역'), 0),
-                                     ifelse(eq(LGET('지역완료', V('호버지역')), 1),
-                                            [write(join('유세 완료! 점수 ', LGET('지역점수', V('호버지역')), '점'))],
-                                            [write(LGET('지역설명', V('호버지역')))])), wait(0.05)))
-    # 아래 버튼
-    # 왼쪽 아래 세로 메뉴 (화살표를 가리지 않게)
+    tip_t.on(on_scene(), forever(if_(gt(V('호버지역'), 0), write(join(V('호버지역'), '. ', LGET('지역이름', V('호버지역'))))), wait(0.05)))
+    tip_d.on(on_scene(), forever(if_(gt(V('호버지역'), 0), write(join('[', LGET('지역게임', V('호버지역')), '] ', LGET('지역설명', V('호버지역'))))),
+                                 wait(0.05)))
+    # 왼쪽 메뉴
     for k_, (nm_, lbl_, col_, ic_, to_) in enumerate((('주식버튼', '거래소', 'blue', 'chart', S_STOCK),
                                                       ('작전버튼', '작전 본부', 'purple', 'bolt', S_SHOP),
                                                       ('계열사버튼', '계열사', 'royal', 'shop', S_GROUP),
                                                       ('협상버튼', '협상 테이블', 'red', 'trophy', S_NEGO))):
-        button(P, sc, nm_, lbl_, -192, -36 - k_ * 26, 88, 24, col_, icon=ic_, actions=go(to_))
-    sprite(P, sc, '지도안내', K.badge('화살표를 눌러 유세 시작!', 130, 18, 'navy'), 6, 118)
-    hud(P, sc, PORT, empire=True)
+        button(P, sc, nm_, lbl_, -186, -36 - k_ * 26, 96, 24, col_, icon=ic_,
+               actions=[if_(eq(V('개표창'), 0), *go(to_))])
+    # 오른쪽: 지도 모드, 안내, 개표
+    mode_b = sprite(P, sc, '지도이름', [('whole', K.badge('조치원 전체 지도', 100, 18, 'navy')),
+                                       ('dt', K.badge('조치원 시내', 100, 18, 'royal'))], 186, 52)
+    mode_b.on(on_scene(), forever(ifelse(eq(V('지도모드'), 1), [shape('dt')], [shape('whole')]), wait(0.1)))
+    back_b = button(P, sc, '전체지도버튼', '전체 지도', 186, 28, 96, 22, 'navy', icon='back',
+                    actions=[if_(eq(V('개표창'), 0), setv('지도모드', 0), cast('지도바꿈'))])
+    back_b.on(on_scene(), forever(ifelse(eq(V('지도모드'), 1), [show()], [hide()]), wait(0.1)))
+    dt_b = button(P, sc, '시내버튼', '시내 확대', 186, 28, 96, 22, 'royal', icon='map',
+                  actions=[if_(eq(V('개표창'), 0), setv('지도모드', 1), cast('지도바꿈'))])
+    dt_b.on(on_scene(), forever(ifelse(eq(V('지도모드'), 0), [show()], [hide()]), wait(0.1)))
+    text(P, sc, '지도안내', '화살표를 눌러\n유세 시작!', 186, 0, 9, C_DIM, F_BODY, True, 0, w=100, h=26)
+    left_t = text(P, sc, '남은곳', '', 186, -24, 9, C_WHITE, F_NUM, False, 0, w=100, h=14)
+    left_t.on(on_scene(), forever(write(join('남은 유세지 ', sub(N_PL, V('유세횟수')), '곳')), wait(0.3)))
+    vote_b = button(P, sc, '개표버튼', '개표하기', 186, -56, 96, 26, 'red', icon='ballot',
+                    actions=[if_(eq(V('개표창'), 0), setv('개표창', 1), cast('개표묻기'))])
+    hud(P, sc, PORT, empire=True, empire_xy=(186, -98), empire_w=104)
+    # 개표 확인 창
+    dim_ = sprite(P, sc, '개표어둡게', DIM, 0, 0, visible=False)
+    box_ = panel(P, sc, '개표판', 0, 0, 280, 150, 'glass', header='red', visible=False)
+    q_t = text(P, sc, '개표질문', '지금 개표할까요?', 0, 52, 16, C_WHITE, F_NUM, False, 0, w=260, h=24, visible=False)
+    s_t = text(P, sc, '개표상황', '', 0, 14, 10, C_WHITE, F_BODY, True, 0, w=260, h=44, visible=False)
+    s_t.on(on_msg('개표묻기'),
+           write(join('지지율 ', round1(V('내지지율')), '%  ·  지배 자본 ', div(rounded(div(LGET('보유', 16), 100)), 10), '%\n',
+                      '둘 다 50%를 넘어야 당선! 개표하면 게임이 끝나요.\n(유세 ', V('유세횟수'), '/', N_PL, '곳)')))
+    yes_b = button(P, sc, '개표시작', '개표 시작', -62, -42, 104, 26, 'red', icon='ballot', visible=False,
+                   actions=[if_(eq(V('개표창'), 1), setv('개표창', 2), *go(S_VOTE))])
+    no_b = button(P, sc, '개표취소', '더 유세하기', 62, -42, 104, 26, 'navy', icon='back', visible=False,
+                  actions=[if_(eq(V('개표창'), 1), setv('개표창', 0), cast('개표닫기'))])
+    for o in (dim_, box_, q_t, s_t, yes_b, no_b):
+        o.on(on_msg('개표묻기'), show())
+        o.on(on_msg('개표닫기'), hide())
+        o.on(on_scene(), hide())
     E.majority_pop(P, sc)
     # 모든 지역을 돌았으면 개표로
     chk = text(P, sc, '진행검사', '', -300, -300, 8, visible=False)
-    chk.on(on_scene(), *E.stats_blocks(), wait(0.4), *ST.assets_blocks(), if_(ge(V('유세횟수'), 15), *go(S_VOTE)),
-           if_(le(V('총자산'), 0), *go(S_BANKRUPT)))
+    chk.on(on_scene(), setv('개표창', 0), setv('호버지역', 0), *E.stats_blocks(), wait(0.4), *ST.assets_blocks(),
+           if_(ge(V('유세횟수'), N_PL), *go(S_VOTE)), if_(le(V('총자산'), 0), *go(S_BANKRUPT)))
     G.sound_hub(P, sc, 'bgm_map')
     G.fader(P, sc, BLACK)
 
@@ -276,7 +325,7 @@ def scene_result():
         rows.append(text(P, sc, '결과값%d' % i, '', 110, yy, 13, col, F_NUM, False, 2, w=150, h=18, visible=False))
     nxt = button(P, sc, '다음버튼', '다음', 40, -100, 100, 28, 'royal', icon='star', visible=False,
                  actions=[*ST.assets_blocks(), if_(le(V('총자산'), 0), *go(S_BANKRUPT)),
-                          if_(ge(V('유세횟수'), 15), *go(S_VOTE)),
+                          if_(ge(V('유세횟수'), N_PL), *go(S_VOTE)),
                           ifelse(le(rnd(1, 100), 70), go(S_EVENT), go(S_MAP))])
     # ---- 계산 (한 번만)
     calc = text(P, sc, '결과계산', '', -300, -300, 8, visible=False)
@@ -367,7 +416,7 @@ def build(dev_dir=None, out=None):
     scene_howto()
     scene_map()
     import minigames
-    for i in range(1, 16):
+    for i in range(1, N_PL + 1):
         if not minigames.build_minigame(P, i, globals()):
             scene_minigame_stub(i)
     scene_result()

@@ -162,7 +162,7 @@ def round1(e):
 
 
 # ------------------------------------------------------------------ 공통 HUD (재산 · 유세 진행 · 지지율)
-def hud(P, scene, portraits, first_scene=False, empire=False):
+def hud(P, scene, portraits, first_scene=False, empire=False, empire_xy=(176, -98), empire_w=124):
     """portraits: {'me':path,'u1':path,'u2':path} (원형 초상 그림)"""
     objs = []
     # 재산 (왼쪽 위 구석)
@@ -173,8 +173,9 @@ def hud(P, scene, portraits, first_scene=False, empire=False):
     # 유세 진행 (재산 아래)
     panel(P, scene, 'HUD유세판', -196, 95, 80, 22, 'glass')
     sprite(P, scene, 'HUD투표함', K.icon_img('ballot', 14), -224, 96)
-    t2 = text(P, scene, 'HUD유세', '유세 0/15', -188, 95, 11, '#FFFFFF', F_NUM, False, 1, w=56, h=16)
-    t2.on(on_scene(), forever(write(join('유세 ', V('유세횟수'), '/15')), wait(0.2)))
+    import data as _D
+    t2 = text(P, scene, 'HUD유세', '유세 0/%d' % _D.N_PLACES, -188, 95, 11, '#FFFFFF', F_NUM, False, 1, w=56, h=16)
+    t2.on(on_scene(), forever(write(join('유세 ', V('유세횟수'), '/%d' % _D.N_PLACES)), wait(0.2)))
     # 지지율 (3줄, 합계 100%) + 조치원 지배 자본 지분 (1줄)
     panel(P, scene, 'HUD지지판', 160, 99, 152, 68, 'glass')
     rows = [('me', '나', '내지지율', 'royal', C_ACC), ('u1', '첫째', '큰A', 'red', C_RED),
@@ -200,9 +201,11 @@ def hud(P, scene, portraits, first_scene=False, empire=False):
     tv.on(on_scene(), forever(write(join(div(rounded(div(LGET('보유', 16), 100)), 10), '%')), wait(0.1)))
     if empire:
         # 지도: 오른쪽 아래 '재벌 현황' (계열사 수, 유세마다 버는 돈)
-        panel(P, scene, 'HUD계열사판', 176, -98, 124, 34, 'glass')
-        sprite(P, scene, 'HUD계열사아이콘', K.icon_img('shop', 16), 126, -98)
-        t3 = text(P, scene, 'HUD계열사', '', 184, -98, 9, '#FFFFFF', F_NUM, False, 1, w=96, h=26)
+        ex, ey = empire_xy
+        panel(P, scene, 'HUD계열사판', ex, ey, empire_w, 34, 'glass')
+        sprite(P, scene, 'HUD계열사아이콘', K.icon_img('shop', 16), ex - empire_w / 2 + 12, ey)
+        t3 = text(P, scene, 'HUD계열사', '', ex + 10, ey, 8 if empire_w < 120 else 9, '#FFFFFF', F_NUM, False, 1,
+                  w=empire_w - 26, h=26)
         t3.on(on_scene(), forever(*fmt_money(V('계열사수입'), '_m'),
                                   write(join('계열사 ', V('계열사수'), '/15개\n유세마다 +', V('_m'))), wait(0.2)))
     return objs

@@ -261,6 +261,11 @@ def touch(target):
     return B('reach_something', VALUE=ref('obj', target))
 
 
+def mouse_down():
+    """마우스를 누르고 있는가?"""
+    return B('is_clicked')
+
+
 def mouse_x():
     return B('coordinate_mouse', VALUE='x')
 
@@ -534,6 +539,10 @@ def on_clone():
 
 def on_mouse_down():
     return B('mouse_clicked')
+
+
+def on_mouse_up():
+    return B('mouse_click_cancled')
 
 
 def script(*blocks):
