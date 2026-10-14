@@ -279,7 +279,6 @@ def g30(P, ctx):
     m = MG(P, 30, ctx, status='승리 0/%d' % R, dim=60)
     me = m.S('결투나', ctx['BUST']['me'], -160, -36, scale=0.55)
     foe = m.S('결투상대', ctx['BUST']['u2'], 160, -36, scale=0.55)
-    foe.on(on_scene(), flip_x())
     sig = m.S('결투신호', [('ready', K.big_text('준비...', 30, 'white')), ('fire', K.big_text('쏴!', 64, 'royal')),
                           ('fake1', K.big_text('쏘지 마!', 36, 'red')), ('fake2', K.big_text('잠깐!', 36, 'red'))],
               0, 40, visible=False)
@@ -1676,7 +1675,7 @@ def g40(P, ctx):
         sp, face, col = lanes[k]
         car.on(on_msg('게임시작'), wait(div(rnd(0, 80), 100)),
                until(eq(V('게임중'), 0), if_(eq(V('복제'), 0), setv('차선', i + 1), clone_self()),
-                     wait(div(rnd(int(110 / abs(sp)), int(260 / abs(sp))), 100))))
+                     wait(div(rnd(int(190 / abs(sp)), int(420 / abs(sp))), 100))))
     spd = [lanes[k][0] for k in lane_keys]
     ys = [RY(k) for k in lane_keys]
     car.on(on_clone(), setv('복제', 1), shape(V('차선')),

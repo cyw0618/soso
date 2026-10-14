@@ -55,8 +55,8 @@ def build(P, ctx):
     G.bg(P, sc, ctx['ART']('story_bg'))
     sprite(P, sc, '어둡게', ctx['DIM'], 0, 0)
     sprite(P, sc, '회의제목', K.banner('회의실 · 해외 투자자', 168, 30, 'royal'), -4, 116)
-    info = text(P, sc, '회의안내', '투자금은 바로 들어오지만, 유세 %d번 뒤에 원금 + 약속한 수익을 갚아야 해요' % DUE,
-                0, 92, 9, C_DIM, F_BODY, True, 0, w=420, h=13)
+    info = text(P, sc, '회의안내', '투자금은 바로 들어오지만 유세 %d번 뒤 원금 + 수익을 갚아야 해요' % DUE,
+                -40, 94, 8, C_DIM, F_BODY, True, 0, w=250, h=13)
     # ---- 1단계: 투자자 고르기
     cards = []
     for k, (nm, ctry, amts, base, pat, like) in enumerate(INVESTORS, 1):
@@ -66,8 +66,8 @@ def build(P, ctx):
         t1 = text(P, sc, '투자자이름%d' % k, '%s (%s)' % (nm, ctry), x, 64, 11, C_WHITE, F_NUM, False, 0, w=130, h=16)
         t2 = text(P, sc, '투자자성향%d' % k, LIKE_TEXT[like], x, 36, 8, C_DIM, F_BODY, True, 0, w=126, h=24)
         t3 = text(P, sc, '투자자금액%d' % k, '', x, 8, 9, C_ACC, F_NUM, False, 0, w=126, h=26)
-        t3.on(on_scene(), *fmt_money(amts[0], '_m'), setv('_m3', V('_m')), *fmt_money(amts[2], '_m'),
-              write(join(V('_m3'), ' ~\n', V('_m'))))
+        t3.on(on_scene(), *fmt_money(amts[0], '_m'), setv('투자글', V('_m')), *fmt_money(amts[2], '_m'),
+              write(join(V('투자글'), ' ~\n', V('_m'))), setv('투자글', ''))
         t4 = text(P, sc, '투자자상태%d' % k, '', x, -26, 9, C_WHITE, F_NUM, False, 0, w=126, h=24)
         t4.on(on_msg('회의갱신'),
               ifelse(gt(LGET('투자부채', k), 0), [write(join('계약 중\n유세 ', sub(LGET('투자만기', k), V('유세횟수')), '번 뒤 상환')),
@@ -86,14 +86,14 @@ def build(P, ctx):
     neg = []
     neg.append(panel(P, sc, '협상판', 0, 10, 440, 150, 'glass', header='royal'))
     tn = text(P, sc, '협상상대', '', 0, 72, 12, C_WHITE, F_NUM, False, 0, w=400, h=18)
-    tn.on(on_msg('회의갱신'), write(join(LGET('투자자이름', V('투자자')), '와(과) 회의 중  ·  인내심 ', V('투자인내'))))
+    tn.on(on_msg('회의갱신'), if_(gt(V('투자자'), 0), write(join(LGET('투자자이름', V('투자자')), '와(과) 회의 중  ·  인내심 ', V('투자인내')))))
     neg.append(tn)
     neg.append(text(P, sc, '금액제목', '투자금', -150, 46, 10, C_DIM, F_NUM, False, 0, w=80, h=14))
     for j in (1, 2, 3):
         idx = add(mul(sub(V('투자자'), 1), 3), j)
-        b = sprite(P, sc, '금액버튼%d' % j, [('off', K.button('금액 %d' % j, 80, 24, 'navy')), ('on', K.button('금액 %d' % j, 80, 24, 'royal'))],
-                   -200 + (j - 1) * 84 + 34, 24)
-        b.on(on_msg('회의갱신'), ifelse(eq(V('투자액'), LGET('투자금액', idx)), [shape('on')], [shape('off')]))
+        b = sprite(P, sc, '금액버튼%d' % j, [('off', K.button('금액 %d' % j, 72, 24, 'navy')), ('on', K.button('금액 %d' % j, 72, 24, 'royal'))],
+                   -182 + (j - 1) * 76, 24)
+        b.on(on_msg('회의갱신'), if_(gt(V('투자자'), 0), ifelse(eq(V('투자액'), LGET('투자금액', idx)), [shape('on')], [shape('off')])))
         b.on(on_click(), if_(eq(V('투자단계'), 1), setv('투자액', LGET('투자금액', idx)), setv('_mk', j), cast('최소율계산'),
                              cast('회의갱신'), G.sfx('click')))
         neg.append(b)
