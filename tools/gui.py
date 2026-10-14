@@ -139,13 +139,30 @@ def fmt_money(src, dst):
     ]
 
 
+def fmt_price(src, dst, short=False):
+    """가격(만원 단위, 소수 가능) → 글자. long: '1억 919만원' / '1,234만원' / '97.2만원' / '800원'.
+    short(시세판용): '1.4억' / '1,234만' / '97.2만' / '800원'."""
+    big = ([setv(dst, join(div(rounded(div(V('_pv'), 1000)), 10), '억'))] if short else
+           [setv('_ph', floor(div(V('_pv'), 10000))), setv('_pl', floor(mod(V('_pv'), 10000))),
+            ifelse(eq(V('_pl'), 0), [setv(dst, join(V('_ph'), '억원'))],
+                   [*fmt_comma(V('_pl'), '_pc'), setv(dst, join(V('_ph'), '억 ', V('_pc'), '만원'))])])
+    unit = '만' if short else '만원'
+    return [
+        setv('_pv', src),
+        ifelse(ge(V('_pv'), 10000), big,
+               [ifelse(ge(V('_pv'), 100), [*fmt_comma(rounded(V('_pv')), '_pc'), setv(dst, join(V('_pc'), unit))],
+                       [ifelse(ge(V('_pv'), 1), [setv(dst, join(div(rounded(mul(V('_pv'), 10)), 10), unit))],
+                               [*fmt_comma(rounded(mul(V('_pv'), 10000)), '_pc'), setv(dst, join(V('_pc'), '원'))])])]),
+    ]
+
+
 def round1(e):
     """소수 첫째 자리 반올림."""
     return div(rounded(mul(e, 10)), 10)
 
 
 # ------------------------------------------------------------------ 공통 HUD (재산 · 유세 진행 · 지지율)
-def hud(P, scene, portraits, first_scene=False):
+def hud(P, scene, portraits, first_scene=False, empire=False):
     """portraits: {'me':path,'u1':path,'u2':path} (원형 초상 그림)"""
     objs = []
     # 재산 (왼쪽 위 구석)
@@ -158,12 +175,12 @@ def hud(P, scene, portraits, first_scene=False):
     sprite(P, scene, 'HUD투표함', K.icon_img('ballot', 14), -224, 96)
     t2 = text(P, scene, 'HUD유세', '유세 0/15', -188, 95, 11, '#FFFFFF', F_NUM, False, 1, w=56, h=16)
     t2.on(on_scene(), forever(write(join('유세 ', V('유세횟수'), '/15')), wait(0.2)))
-    # 지지율 (3줄)
-    panel(P, scene, 'HUD지지판', 160, 106, 152, 52, 'glass')
+    # 지지율 (3줄, 합계 100%) + 조치원 지배 자본 지분 (1줄)
+    panel(P, scene, 'HUD지지판', 160, 99, 152, 68, 'glass')
     rows = [('me', '나', '내지지율', 'royal', C_ACC), ('u1', '첫째', '큰A', 'red', C_RED),
             ('u2', '둘째', '큰B', 'purple', C_VIOLET)]
     for i, (pk, nm, var, col, hexc) in enumerate(rows):
-        yy = 122 - i * 15
+        yy = 123 - i * 15
         sprite(P, scene, 'HUD얼굴' + pk, portraits[pk], 96, yy, scale=0.62)
         text(P, scene, 'HUD이름' + pk, nm, 116, yy, 9, hexc, F_NUM, False, 1, w=26, h=13)
         bars = K.bar_set('sup_' + col, 64, 8, col)
@@ -171,6 +188,23 @@ def hud(P, scene, portraits, first_scene=False):
         b.on(on_scene(), forever(shape(add(floor(div(V(var), 2.5)), 1)), wait(0.1)))
         tv = text(P, scene, 'HUD값' + pk, '0%', 216, yy, 10, '#FFFFFF', F_NUM, False, 2, w=36, h=13)
         tv.on(on_scene(), forever(write(join(round1(V(var)), '%')), wait(0.1)))
+    # 지배 자본 (내 지분, 50% 표시)
+    yy = 123 - 3 * 15
+    sprite(P, scene, 'HUD왕관', K.icon_img('trophy', 13), 96, yy)
+    text(P, scene, 'HUD지배', '지배', 116, yy, 9, '#FFFFFF', F_NUM, False, 1, w=26, h=13)
+    bars = K.bar_set('stake_royal', 64, 8, 'royal')
+    b = sprite(P, scene, 'HUD지배막대', bars, 166, yy)
+    b.on(on_scene(), forever(shape(add(floor(div(LGET('보유', 16), 2500)), 1)), wait(0.1)))
+    sprite(P, scene, 'HUD지배선', K.icon_img('up', 6), 166, yy - 5)
+    tv = text(P, scene, 'HUD지배값', '0%', 216, yy, 10, C_ACC, F_NUM, False, 2, w=36, h=13)
+    tv.on(on_scene(), forever(write(join(div(rounded(div(LGET('보유', 16), 100)), 10), '%')), wait(0.1)))
+    if empire:
+        # 지도: 오른쪽 아래 '재벌 현황' (계열사 수, 유세마다 버는 돈)
+        panel(P, scene, 'HUD계열사판', 176, -98, 124, 34, 'glass')
+        sprite(P, scene, 'HUD계열사아이콘', K.icon_img('shop', 16), 126, -98)
+        t3 = text(P, scene, 'HUD계열사', '', 184, -98, 9, '#FFFFFF', F_NUM, False, 1, w=96, h=26)
+        t3.on(on_scene(), forever(*fmt_money(V('계열사수입'), '_m'),
+                                  write(join('계열사 ', V('계열사수'), '/15개\n유세마다 +', V('_m'))), wait(0.2)))
     return objs
 
 

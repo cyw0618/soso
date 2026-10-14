@@ -1,33 +1,47 @@
 # -*- coding: utf-8 -*-
-"""조치원 증권거래소: 일반 15종목 + 특별 주식 '조치원 지배 자본'.
+"""조치원 증권거래소: 국내 주식 15 + 해외 주식 6 + 코인 6 + 특별 주식 '조치원 지배 자본'.
 
 - 장 시간 동안 1초마다 시세가 움직이고(실시간), 가끔 뉴스(속보/루머)가 떠서 종목에 추세가 생긴다.
+- 해외 주식은 국내보다, 코인은 그보다 훨씬 크게 출렁인다. 코인은 장이 닫혀도 24시간 움직인다.
 - 유세를 한 번 할 때마다 밤사이 시세가 변하고(갭), 장 시간이 늘어나며, 큰아버지들이 지배 자본을 조금씩 사 모은다.
-- 지배 자본 지분 50% 이상을 모으면 즉시 '조치원 장악' 승리.
+- 지배 자본 지분 50% 초과는 승리 조건의 절반 (지지율 50% 초과와 함께 있어야 군수).
 
+종목 번호: 1~15 국내, 16 지배 자본, 17~22 해외, 23~28 코인.
 엔트리의 반복 블록은 한 바퀴에 한 프레임이 걸리므로, 시세 계산과 차트 그리기는 반복문을 풀어서 만든다.
 """
 from entrygen import *
 import ui_kit as K
 import gui as G
-from gui import text, sprite, panel, button, go, fmt_comma, fmt_money, round1, F_BODY, F_NUM
+from gui import text, sprite, panel, button, go, fmt_comma, fmt_money, fmt_price, round1, F_BODY, F_NUM
 from gui import C_WHITE, C_ACC, C_DIM, C_RED, C_BLUE, C_VIOLET, C_BOX
 import data as D
 import stock_art as SA
 
-N = len(D.STOCKS) + 1           # 16 (마지막이 지배 자본)
-CTL = N
+ND = len(D.STOCKS)              # 15 국내
+CTL = ND + 1                    # 16 지배 자본
+FOR0 = CTL                      # 해외는 17~
+COIN0 = CTL + len(D.FOREIGN)    # 코인은 23~
+N = COIN0 + len(D.COINS)        # 28
 HIST = 30
-NAMES = [s[0] for s in D.STOCKS] + [D.CONTROL_NAME]
-PRICES = [s[1] for s in D.STOCKS] + [D.CONTROL_PRICE]
-VOLS = [s[2] for s in D.STOCKS] + [D.CONTROL_VOL]
-SECTORS = [s[3] for s in D.STOCKS] + ['경영권']
-FLOORS = [max(0.5, round(p / 20.0, 1)) for p in PRICES[:-1]] + [40]
+ALL = list(D.STOCKS) + [(D.CONTROL_NAME, D.CONTROL_PRICE, D.CONTROL_VOL, '경영권')] + list(D.FOREIGN) + list(D.COINS)
+NAMES = [s[0] for s in ALL]
+PRICES = [s[1] for s in ALL]
+VOLS = [s[2] for s in ALL]
+SECTORS = [s[3] for s in ALL]
+KIND = [1] * ND + [0] + [2] * len(D.FOREIGN) + [3] * len(D.COINS)     # 1 국내, 0 지배, 2 해외, 3 코인
+FLOORS = [max(0.0001, round(p / (60.0 if k == 3 else 20.0), 4)) if k else 40 for p, k in zip(PRICES, KIND)]
+COIN_IDX = [i for i in range(1, N + 1) if KIND[i - 1] == 3]
+TABS = [('국내 주식', 0, ND), ('해외 주식', FOR0, len(D.FOREIGN)), ('코인', COIN0, len(D.COINS))]
 
 STOCK_VARS = dict(장시간=D.MARKET_START, 기록위치=1, 채움=1, 첫째주=D.CONTROL_UNCLES[0], 둘째주=D.CONTROL_UNCLES[1],
                   유통주=0, 평가금=0, 지배달성=0, 주문방향=1, 주문수량=1, 매매수량=0, 이번차단=0,
-                  뉴스글='', 뉴스종목=0, 뉴스호재=1, 뉴스루머=3, 뉴스진짜=1, 뉴스세기=0, 변동률=0,
-                  체결성공=0, _s=1, _p=0, _b=0, _k0=0, _mn=0, _mx=0, _v=0, _rg=1, _c=0, _q='', _m='', _a=0, _bb=0, 체결글='')
+                  뉴스글='', 뉴스종목=0, 뉴스호재=1, 뉴스루머=3, 뉴스진짜=1, 뉴스세기=0, 변동률=0, 탭=1, 탭기준=0, 탭개수=ND,
+                  체결성공=0, _pv=0, _ph=0, _pl=0, _pc='', _pt='', _s=1, _p=0, _b=0, _k0=0, _mn=0, _mx=0, _v=0, _rg=1, _c=0, _q='', _m='', _a=0, _bb=0, 체결글='')
+
+
+def round2(x):
+    """가격 저장용 반올림 (만원 단위 소수 넷째 자리 = 1원 단위)."""
+    return div(rounded(mul(x, 10000)), 10000)
 
 
 def setup(P):
@@ -36,19 +50,23 @@ def setup(P):
     P.list('전주가', PRICES)
     P.list('변동폭', VOLS)
     P.list('업종', SECTORS)
-    P.list('변동성표시', ['●' * min(5, max(1, round(v / 4.5))) + '○' * (5 - min(5, max(1, round(v / 4.5)))) for v in VOLS])
+    P.list('변동성표시', ['●' * min(5, max(1, round(v / 9.0))) + '○' * (5 - min(5, max(1, round(v / 9.0)))) for v in VOLS])
     for nm in ('보유', '평단', '추세', '추세남은'):
         P.list(nm, [0] * N)
     P.list('주가기록', [p for p in PRICES for _ in range(HIST)])
     P.list('호재뉴스', D.NEWS_GOOD)
     P.list('악재뉴스', D.NEWS_BAD)
+    P.list('코인호재', D.COIN_NEWS_GOOD)
+    P.list('코인악재', D.COIN_NEWS_BAD)
+    P.list('해외호재', D.FOREIGN_NEWS_GOOD)
+    P.list('해외악재', D.FOREIGN_NEWS_BAD)
     P.list('지배호재', D.CONTROL_NEWS_GOOD)
     P.list('지배악재', D.CONTROL_NEWS_BAD)
 
 
 # ------------------------------------------------------------------ 공통 블록
 def assets_blocks():
-    """평가금(주식 평가액)과 총자산(현금+주식)을 계산."""
+    """평가금(주식·코인 평가액)과 총자산(현금+평가금)을 계산."""
     b = [setv('평가금', 0)]
     for i in range(1, N + 1):
         b.append(chg('평가금', mul(LGET('보유', i), LGET('주가', i))))
@@ -72,18 +90,24 @@ def _record_blocks():
     return b
 
 
-def _news_blocks():
+def _news_blocks(coins_only=False):
     s = V('뉴스종목')
+    if coins_only:
+        pick = [setv('뉴스종목', rnd(COIN0 + 1, N))]
+    else:
+        pick = [ifelse(le(rnd(1, 100), 8), [setv('뉴스종목', CTL)],
+                       [setv('뉴스종목', rnd(1, N - 1)), if_(ge(V('뉴스종목'), CTL), chg('뉴스종목', 1))])]
     return [
-        if_(le(rnd(1, 100), 14),
-            ifelse(le(rnd(1, 100), 10), [setv('뉴스종목', CTL)], [setv('뉴스종목', rnd(1, N - 1))]),
-            ifelse(le(rnd(1, 100), 55), [setv('뉴스호재', 1)], [setv('뉴스호재', -1)]),
+        if_(le(rnd(1, 100), 16),
+            *pick,
+            ifelse(le(rnd(1, 100), 52), [setv('뉴스호재', 1)], [setv('뉴스호재', -1)]),
             ifelse(le(rnd(1, 100), 30), [setv('뉴스루머', 1)], [setv('뉴스루머', 0)]),
-            setv('뉴스세기', div(rnd(20, 70), 10)),
+            setv('뉴스세기', div(rnd(30, 95), 10)),
+            if_(gt(s, COIN0), chg('뉴스세기', mul(V('뉴스세기'), 0.25))),
             ifelse(eq(V('뉴스루머'), 1),
                    [chg('뉴스세기', mul(V('뉴스세기'), 0.4)),
                     ifelse(le(rnd(1, 100), 50), [setv('뉴스진짜', 1)], [setv('뉴스진짜', 0)])],
-                   [ifelse(le(rnd(1, 100), 88), [setv('뉴스진짜', 1)], [setv('뉴스진짜', 0)])]),
+                   [ifelse(le(rnd(1, 100), 85), [setv('뉴스진짜', 1)], [setv('뉴스진짜', 0)])]),
             ifelse(eq(V('뉴스진짜'), 1), [lst_set('추세', s, mul(V('뉴스세기'), V('뉴스호재')))],
                    [lst_set('추세', s, mul(mul(V('뉴스세기'), V('뉴스호재')), -0.6))]),
             lst_set('추세남은', s, rnd(4, 8)),
@@ -91,27 +115,50 @@ def _news_blocks():
                    [lst_set('추세', CTL, div(LGET('추세', CTL), 2.5)),
                     ifelse(eq(V('뉴스호재'), 1), [setv('뉴스글', LGET('지배호재', rnd(1, len(D.CONTROL_NEWS_GOOD))))],
                            [setv('뉴스글', LGET('지배악재', rnd(1, len(D.CONTROL_NEWS_BAD))))])],
-                   [ifelse(eq(V('뉴스호재'), 1),
-                           [setv('뉴스글', join(LGET('주식이름', s), LGET('호재뉴스', rnd(1, len(D.NEWS_GOOD)))))],
-                           [setv('뉴스글', join(LGET('주식이름', s), LGET('악재뉴스', rnd(1, len(D.NEWS_BAD)))))])]),
+                   [ifelse(gt(s, COIN0),
+                           [ifelse(eq(V('뉴스호재'), 1),
+                                   [setv('뉴스글', join(LGET('주식이름', s), LGET('코인호재', rnd(1, len(D.COIN_NEWS_GOOD)))))],
+                                   [setv('뉴스글', join(LGET('주식이름', s), LGET('코인악재', rnd(1, len(D.COIN_NEWS_BAD)))))])],
+                           [ifelse(gt(s, FOR0),
+                                   [ifelse(eq(V('뉴스호재'), 1),
+                                           [setv('뉴스글', join(LGET('주식이름', s), LGET('해외호재', rnd(1, len(D.FOREIGN_NEWS_GOOD)))))],
+                                           [setv('뉴스글', join(LGET('주식이름', s), LGET('해외악재', rnd(1, len(D.FOREIGN_NEWS_BAD)))))])],
+                                   [ifelse(eq(V('뉴스호재'), 1),
+                                           [setv('뉴스글', join(LGET('주식이름', s), LGET('호재뉴스', rnd(1, len(D.NEWS_GOOD)))))],
+                                           [setv('뉴스글', join(LGET('주식이름', s), LGET('악재뉴스', rnd(1, len(D.NEWS_BAD)))))])])])]),
             cast('뉴스')),
     ]
 
 
+def _move(i, mult):
+    v10 = VOLS[i - 1] * 10
+    return [setv('변동률', mul(div(rnd(-v10, v10), 1000), mult)),
+            if_(gt(LGET('추세남은', i), 0), chg('변동률', div(LGET('추세', i), 100)),
+                lst_set('추세남은', i, sub(LGET('추세남은', i), 1))),
+            lst_set('주가', i, round2(mul(LGET('주가', i), add(1, V('변동률'))))),
+            if_(lt(LGET('주가', i), FLOORS[i - 1]), lst_set('주가', i, FLOORS[i - 1]))]
+
+
 def tick_blocks():
-    """장중 1초마다: 16종목 시세 + 기록 + 뉴스."""
+    """장중 1초마다: 모든 종목 시세 + 기록 + 뉴스."""
     b = [chg('장시간', -1)]
     for i in range(1, N + 1):
-        v10 = VOLS[i - 1] * 10
-        b += [setv('변동률', mul(div(rnd(-v10, v10), 1000), 0.45)),
-              if_(gt(LGET('추세남은', i), 0), chg('변동률', div(LGET('추세', i), 100)),
-                  lst_set('추세남은', i, sub(LGET('추세남은', i), 1))),
-              lst_set('주가', i, round1(mul(LGET('주가', i), add(1, V('변동률'))))),
-              if_(lt(LGET('주가', i), FLOORS[i - 1]), lst_set('주가', i, FLOORS[i - 1]))]
+        b += _move(i, D.STOCK_TICK)
     b += _record_blocks()
     b += _news_blocks()
-    b += [if_(eq(V('장시간'), 0), setv('뉴스루머', 2), setv('뉴스글', '오늘 장이 마감됐습니다. 유세를 하면 장이 다시 열려요!'),
+    b += [if_(eq(V('장시간'), 0), setv('뉴스루머', 2), setv('뉴스글', '주식 장이 마감됐어요. 코인은 24시간 움직입니다!'),
               cast('뉴스'))]
+    b += assets_blocks()
+    return b
+
+
+def coin_tick_blocks():
+    """장이 닫혔을 때: 코인만 1초마다 움직인다."""
+    b = []
+    for i in COIN_IDX:
+        b += _move(i, D.STOCK_TICK)
+    b += _record_blocks()
+    b += _news_blocks(coins_only=True)
     b += assets_blocks()
     return b
 
@@ -121,13 +168,16 @@ def overnight_blocks():
     b = []
     for i in range(1, N + 1):
         v10 = VOLS[i - 1] * 10
+        k = KIND[i - 1]
         b.append(lst_set('전주가', i, LGET('주가', i)))
-        if i == CTL:
-            b.append(setv('변동률', div(rnd(-15, 30), 1000)))
+        if k == 0:
+            b.append(setv('변동률', div(rnd(-25, 40), 1000)))
+        elif k == 3:
+            b += [setv('변동률', div(rnd(int(-v10 * 0.6), int(v10 * 0.66)), 1000))]
         else:
             b += [setv('변동률', div(rnd(-v10, int(v10 * 1.1)), 1000)),
-                  if_(le(rnd(1, 100), 6), setv('변동률', mul(V('변동률'), 3)))]
-        b += [lst_set('주가', i, round1(mul(LGET('주가', i), add(1, V('변동률'))))),
+                  if_(le(rnd(1, 100), 6), setv('변동률', mul(V('변동률'), 2.5)))]
+        b += [lst_set('주가', i, round2(mul(LGET('주가', i), add(1, V('변동률'))))),
               if_(lt(LGET('주가', i), FLOORS[i - 1]), lst_set('주가', i, FLOORS[i - 1]))]
     b += _record_blocks()
     b += [chg('장시간', D.MARKET_ADD), if_(gt(V('장시간'), D.MARKET_MAX), setv('장시간', D.MARKET_MAX))]
@@ -140,7 +190,7 @@ def overnight_blocks():
                   setv('_a', floor(div(sub(sub(D.CONTROL_UNCLE_CAP, V('첫째주')), V('둘째주')), 2))), setv('_bb', V('_a'))),
               if_(lt(V('_a'), 0), setv('_a', 0), setv('_bb', 0)),
               chg('첫째주', V('_a')), chg('둘째주', V('_bb')),
-              lst_set('주가', CTL, round1(mul(LGET('주가', CTL), add(1, mul(div(add(V('_a'), V('_bb')), D.CONTROL_SHARES), D.CONTROL_IMPACT))))))]
+              lst_set('주가', CTL, round2(mul(LGET('주가', CTL), add(1, mul(div(add(V('_a'), V('_bb')), D.CONTROL_SHARES), D.CONTROL_IMPACT))))))]
     b += assets_blocks()
     return b
 
@@ -156,8 +206,8 @@ def pct2(expr):
     return div(rounded(div(expr, D.CONTROL_SHARES / 10000.0)), 100)
 
 
-def change_text(i, o):
-    """종목 i 의 등락률을 글상자 o 에 (빨강=오름, 파랑=내림)."""
+def change_blocks(i):
+    """종목 i 의 등락률을 글로 (빨강=오름, 파랑=내림)."""
     return [setv('_c', round1(mul(sub(div(LGET('주가', i), LGET('전주가', i)), 1), 100))),
             ifelse(gt(V('_c'), 0), [write(join('▲', V('_c'), '%')), text_color(C_RED)],
                    [ifelse(lt(V('_c'), 0), [write(join('▼', abs_(V('_c')), '%')), text_color(C_BLUE)],
@@ -166,8 +216,8 @@ def change_text(i, o):
 
 # ------------------------------------------------------------------ 장면
 def build(P, ctx):
+    import empire as E
     sc = ctx['S_STOCK']
-    ART = ctx['ART']
     G.bg(P, sc, SA.exchange_bg())
 
     # ---- 위쪽: 현금 / 총자산 / 제목 / 장 시간
@@ -184,7 +234,7 @@ def build(P, ctx):
     sprite(P, sc, '시계', K.icon_img('clock', 15), 118, 118)
     t = text(P, sc, '장시간', '', 178, 118, 10, C_WHITE, F_NUM, False, 1, w=96, h=15)
     t.on(on_scene(), forever(ifelse(gt(V('장시간'), 0), [write(join('장 마감까지 ', V('장시간'), '초')), text_color(C_WHITE)],
-                                    [write('장 마감 (유세 후 개장)'), text_color(C_RED)]), wait(0.2)))
+                                    [write('주식 마감 · 코인만 거래'), text_color(C_RED)]), wait(0.2)))
 
     # ---- 뉴스 띠
     sprite(P, sc, '뉴스띠', SA.news_bar(336, 20), 68, 95)
@@ -196,65 +246,77 @@ def build(P, ctx):
     news.on(on_msg('뉴스'), write(V('뉴스글')), lx(96), rep(6, mvx(-2), wait(0.016)))
     news.on(on_scene(), ifelse(gt(V('장시간'), 0),
                                [setv('뉴스루머', 3), setv('뉴스글', '장이 열렸습니다! 뉴스를 보고 사고파세요. 루머는 가짜일 수도 있어요.')],
-                               [setv('뉴스루머', 2), setv('뉴스글', '오늘 장은 마감됐어요. 유세를 하면 장이 다시 열립니다.')]),
+                               [setv('뉴스루머', 2), setv('뉴스글', '주식 장은 마감. 코인은 24시간 움직여요. 유세를 하면 장이 다시 열립니다.')]),
             cast('뉴스'))
 
-    # ---- 시세판 15칸
-    tiles = SA.tile_set()
+    def select_actions(idx_expr):
+        return [setv('선택종목', idx_expr), cast('선택변경')]
 
-    def select_actions(i):
-        return [setv('선택종목', i), cast('선택변경')]
-
-    for i in range(1, N):
-        c, r = (i - 1) % 3, (i - 1) // 3
-        x, y = -194 + c * 88, 62 - r * 27
-        tile = sprite(P, sc, '시세칸%02d' % i, tiles, x, y)
-        st = [ifelse(eq(V('선택종목'), i),
-                     [ifelse(gt(LGET('주가', i), LGET('전주가', i)), [shape('us')],
-                             [ifelse(lt(LGET('주가', i), LGET('전주가', i)), [shape('ds')], [shape('fs')])])],
-                     [ifelse(gt(LGET('주가', i), LGET('전주가', i)), [shape('u')],
-                             [ifelse(lt(LGET('주가', i), LGET('전주가', i)), [shape('d')], [shape('f')])])])]
-        tile.on(on_msg('시세갱신'), *st)
-        tile.on(on_msg('선택변경'), *st)
-        tile.on(on_click(), *select_actions(i))
-        nm = text(P, sc, '종목명%02d' % i, NAMES[i - 1], x - 1, y + 5, 8, C_WHITE, F_BODY, True, 1, w=70, h=12)
-        pr = text(P, sc, '종목가%02d' % i, '', x - 12, y - 6, 8, C_WHITE, F_NUM, False, 1, w=48, h=12)
-        ch = text(P, sc, '종목등락%02d' % i, '', x + 18, y - 6, 8, C_DIM, F_NUM, False, 2, w=40, h=12)
-        pr.on(on_msg('시세갱신'), write(join(round1(LGET('주가', i)), '만')))
-        ch.on(on_msg('시세갱신'), *change_text(i, ch))
-        for o in (nm, pr, ch):
-            o.on(on_click(), *select_actions(i))
-
-    # ---- 지배 자본 카드
-    cx, cy = -106, -86
-    card = sprite(P, sc, '지배카드', [('on', SA.control_card(262, 44)), ('sel', SA.control_card(262, 44, True))], cx, cy)
+    # ---- 조치원 지배 자본 카드 (크게, 맨 위)
+    cx, cy = -106, 47
+    card = sprite(P, sc, '지배카드', [('on', SA.control_card(262, 46)), ('sel', SA.control_card(262, 46, True))], cx, cy)
     card.on(on_msg('선택변경'), ifelse(eq(V('선택종목'), CTL), [shape('sel')], [shape('on')]))
+    card.on(on_scene(), forever(rep(15, fx_add('brightness', 1), wait(0.04)), rep(15, fx_add('brightness', -1), wait(0.04))))
     card.on(on_click(), *select_actions(CTL))
-    ttl = text(P, sc, '지배이름', '조치원 지배 자본 · 총 1,000억', -155, -72, 9, C_WHITE, F_NUM, False, 1, w=130, h=13)
-    cpr = text(P, sc, '지배가격', '', -30, -72, 8, C_WHITE, F_NUM, False, 2, w=96, h=12)
-    cpr.on(on_msg('시세갱신'), setv('_c', round1(mul(sub(div(LGET('주가', CTL), LGET('전주가', CTL)), 1), 100))),
-           write(join(round1(LGET('주가', CTL)), '만원/주  ', V('_c'), '%')))
-    legend = text(P, sc, '지분범례', '', cx, -101, 7, C_DIM, F_BODY, True, 0, w=252, h=11)
-    legend.on(on_msg('시세갱신'),
-              setv('유통주', sub(sub(sub(D.CONTROL_SHARES, LGET('보유', CTL)), V('첫째주')), V('둘째주'))),
-              write(join('나 ', pct2(LGET('보유', CTL)), '%  ·  첫째 ', pct2(V('첫째주')), '%  ·  둘째 ', pct2(V('둘째주')),
-                         '%  ·  유통 ', pct2(V('유통주')), '%   (목표 50%)')))
-    for o in (ttl, cpr, legend):
+    ttl = text(P, sc, '지배이름', '조치원 지배 자본 (총 1,000억)', -150, 61, 10, C_WHITE, F_NUM, False, 1, w=150, h=14)
+    mine = text(P, sc, '지배내지분', '', -10, 61, 11, C_ACC, F_NUM, False, 2, w=80, h=14)
+    mine.on(on_msg('시세갱신'), write(join('내 지분 ', E.stake_pct(), '%')))
+    cpr = text(P, sc, '지배가격', '', -106, 30, 8, C_DIM, F_BODY, True, 0, w=252, h=12)
+    cpr.on(on_msg('시세갱신'),
+           setv('유통주', sub(sub(sub(D.CONTROL_SHARES, LGET('보유', CTL)), V('첫째주')), V('둘째주'))),
+           *fmt_price(LGET('주가', CTL), '_pt'),
+           write(join(V('_pt'), '/주  ·  첫째 ', pct2(V('첫째주')), '%  ·  둘째 ', pct2(V('둘째주')),
+                      '%  ·  유통 ', pct2(V('유통주')), '%')))
+    for o in (ttl, mine, cpr):
         o.on(on_click(), *select_actions(CTL))
-    # 지분 막대 (붓으로 그림)
-    bx0, bw, by = -226, 240, -88
+    bx0, bw, by = -226, 240, 45
     bar = sprite(P, sc, '지분막대', K.icon_img('star', 2), bx0, by)
     seg = lambda frac_expr: add(bx0, mul(frac_expr, bw / float(D.CONTROL_SHARES)))
     bar.on(on_msg('시세갱신'),
-           pen_up(), pen_clear(), pen_size(7),
+           pen_up(), pen_clear(), pen_size(9),
            pen_color('#20263f'), xy(bx0, by), pen_down(), xy(bx0 + bw, by), pen_up(),
            setv('_a', LGET('보유', CTL)),
            pen_color('#3d6bff'), xy(bx0, by), pen_down(), xy(seg(V('_a')), by), pen_up(),
            pen_color('#d42a46'), pen_down(), xy(seg(add(V('_a'), V('첫째주'))), by), pen_up(),
            pen_color('#7a46e6'), pen_down(), xy(seg(add(add(V('_a'), V('첫째주')), V('둘째주'))), by), pen_up(),
            xy(-300, -300))
-    gm = sprite(P, sc, '목표선', SA.goal_marker(16), bx0 + bw / 2, by)
+    gm = sprite(P, sc, '목표선', SA.goal_marker(18), bx0 + bw / 2, by)
     gm.on(on_click(), *select_actions(CTL))
+    text(P, sc, '목표글', '50%', bx0 + bw / 2 + 12, by + 8, 7, C_WHITE, F_NUM, False, 0, w=24, h=10)
+
+    # ---- 탭: 국내 / 해외 / 코인
+    for k, (lbl, base, cnt) in enumerate(TABS, 1):
+        tb = sprite(P, sc, '탭%d' % k, [('off', K.badge(lbl, 80, 18, 'navy')), ('on', K.badge(lbl, 80, 18, 'royal'))],
+                    -194 + (k - 1) * 88, 77)
+        tb.on(on_msg('탭변경'), ifelse(eq(V('탭'), k), [shape('on'), tb.pct(108)], [shape('off'), tb.pct(100)]))
+        tb.on(on_click(), setv('탭', k), setv('탭기준', base), setv('탭개수', cnt), setv('선택종목', base + 1),
+              cast('탭변경'), cast('시세갱신'), cast('선택변경'))
+
+    # ---- 시세판 (탭에 따라 종목이 바뀜, 최대 15칸)
+    tiles = SA.tile_set()
+    for j in range(1, ND + 1):
+        c, r = (j - 1) % 3, (j - 1) // 3
+        x, y = -194 + c * 88, 7 - r * 25
+        idx = add(V('탭기준'), j)
+        on_tab = le(j, V('탭개수'))
+        tile = sprite(P, sc, '시세칸%02d' % j, tiles, x, y)
+        st = [ifelse(on_tab, [show(),
+                              ifelse(eq(V('선택종목'), idx),
+                                     [ifelse(gt(LGET('주가', idx), LGET('전주가', idx)), [shape('us')],
+                                             [ifelse(lt(LGET('주가', idx), LGET('전주가', idx)), [shape('ds')], [shape('fs')])])],
+                                     [ifelse(gt(LGET('주가', idx), LGET('전주가', idx)), [shape('u')],
+                                             [ifelse(lt(LGET('주가', idx), LGET('전주가', idx)), [shape('d')], [shape('f')])])])],
+                     [hide()])]
+        for m in ('시세갱신', '선택변경', '탭변경'):
+            tile.on(on_msg(m), *st)
+        nm = text(P, sc, '종목명%02d' % j, '', x - 1, y + 5, 8, C_WHITE, F_BODY, True, 1, w=70, h=12)
+        pr = text(P, sc, '종목가%02d' % j, '', x - 12, y - 6, 8, C_WHITE, F_NUM, False, 1, w=48, h=12)
+        ch = text(P, sc, '종목등락%02d' % j, '', x + 18, y - 6, 8, C_DIM, F_NUM, False, 2, w=40, h=12)
+        nm.on(on_msg('탭변경'), ifelse(on_tab, [write(LGET('주식이름', idx)), show()], [hide()]))
+        pr.on(on_msg('시세갱신'), ifelse(on_tab, [*fmt_price(LGET('주가', idx), '_pt', short=True), write(V('_pt')), show()], [hide()]))
+        ch.on(on_msg('시세갱신'), ifelse(on_tab, [*change_blocks(idx), show()], [hide()]))
+        for o in (tile, nm, pr, ch):
+            o.on(on_click(), if_(on_tab, *select_actions(idx)))
 
     # ---- 오른쪽: 선택 종목 상세
     px = 133
@@ -270,55 +332,53 @@ def build(P, ctx):
     detail = [
         d_nm, [write(LGET('주식이름', S))],
         d_sec, [write(join(LGET('업종', S), ' · 변동성 ', LGET('변동성표시', S)))],
-        d_pr, [write(join(round1(LGET('주가', S)), '만원'))],
+        d_pr, [*fmt_price(LGET('주가', S), '_pt'), write(V('_pt'))],
     ]
     for k in range(0, len(detail), 2):
         o, blk = detail[k], detail[k + 1]
         o.on(on_msg('시세갱신'), *blk)
         o.on(on_msg('선택변경'), *blk)
-    chg_blk = [setv('_c', round1(mul(sub(div(LGET('주가', S), LGET('전주가', S)), 1), 100))),
-               ifelse(gt(V('_c'), 0), [write(join('▲', V('_c'), '%')), text_color(C_RED)],
-                      [ifelse(lt(V('_c'), 0), [write(join('▼', abs_(V('_c')), '%')), text_color(C_BLUE)],
-                              [write('0.0%'), text_color(C_DIM)])])]
-    d_ch.on(on_msg('시세갱신'), *chg_blk)
-    d_ch.on(on_msg('선택변경'), *chg_blk)
+    d_ch.on(on_msg('시세갱신'), *change_blocks(S))
+    d_ch.on(on_msg('선택변경'), *change_blocks(S))
     i1 = [ifelse(eq(S, CTL),
                  [*fmt_comma(LGET('보유', CTL), '_q'), write(join('내 지분 ', pct2(LGET('보유', CTL)), '%  (', V('_q'), '주)'))],
                  [*fmt_comma(LGET('보유', S), '_q'),
-                  write(join('보유 ', V('_q'), '주 · 평단 ', round1(LGET('평단', S)), '만원'))])]
+                  *fmt_price(LGET('평단', S), '_pt'),
+                  write(join('보유 ', V('_q'), LGET('단위', ifelse_kind(S)), ' · 평단 ', V('_pt')))])]
     info1.on(on_msg('시세갱신'), *i1)
     info1.on(on_msg('선택변경'), *i1)
     i2 = [ifelse(eq(S, CTL),
-                 [setv('_v', sub(D.CONTROL_GOAL, LGET('보유', CTL))), if_(lt(V('_v'), 0), setv('_v', 0)),
+                 [setv('_v', sub(D.CONTROL_GOAL + 1, LGET('보유', CTL))), if_(lt(V('_v'), 0), setv('_v', 0)),
                   *fmt_comma(V('_v'), '_q'), *fmt_money(mul(V('_v'), LGET('주가', CTL)), '_m'),
-                  write(join('50%까지 ', V('_q'), '주 · 약 ', V('_m'))), text_color(C_ACC)],
+                  write(join('과반까지 ', V('_q'), '주 · 약 ', V('_m'))), text_color(C_ACC)],
                  [ifelse(gt(LGET('보유', S), 0),
                          [*fmt_money(mul(LGET('보유', S), LGET('주가', S)), '_m'),
                           setv('_c', round1(mul(sub(div(LGET('주가', S), LGET('평단', S)), 1), 100))),
                           ifelse(ge(V('_c'), 0), [write(join('평가 ', V('_m'), '  수익 +', V('_c'), '%')), text_color(C_RED)],
                                  [write(join('평가 ', V('_m'), '  손실 ', V('_c'), '%')), text_color(C_BLUE)])],
-                         [write('아직 보유하지 않은 종목이에요'), text_color(C_DIM)])])]
+                         [write('아직 갖고 있지 않아요'), text_color(C_DIM)])])]
     info2.on(on_msg('시세갱신'), *i2)
     info2.on(on_msg('선택변경'), *i2)
+    P.list('단위', ['주', '주', '주', '개'])     # ifelse_kind: 1 국내/지배, 2 해외, 3 국내, 4 코인
 
     # 차트 (붓): 최근 30칸, 오래된 것 → 최신
     pen = sprite(P, sc, '차트붓', K.icon_img('star', 2), 0, 0)
     X0, XW, Y0, YH = 41, 184, -13, 38
     dx = XW / float(HIST - 1)
-    idx = lambda k: add(V('_b'), add(mod(add(V('기록위치'), k), HIST), 1))
+    idx_h = lambda k: add(V('_b'), add(mod(add(V('기록위치'), k), HIST), 1))
     draw = [pen_up(), pen_clear(), setv('_b', mul(sub(S, 1), HIST)), setv('_k0', sub(HIST, V('채움'))),
-            setv('_mn', LGET('주가기록', idx(HIST - 1))), setv('_mx', V('_mn'))]
+            setv('_mn', LGET('주가기록', idx_h(HIST - 1))), setv('_mx', V('_mn'))]
     for k in range(HIST):
-        draw.append(if_(ge(k, V('_k0')), setv('_v', LGET('주가기록', idx(k))),
+        draw.append(if_(ge(k, V('_k0')), setv('_v', LGET('주가기록', idx_h(k))),
                         if_(lt(V('_v'), V('_mn')), setv('_mn', V('_v'))), if_(gt(V('_v'), V('_mx')), setv('_mx', V('_v')))))
     draw += [setv('_rg', sub(V('_mx'), V('_mn'))), if_(lt(V('_rg'), mul(V('_mn'), 0.02)), setv('_rg', mul(V('_mn'), 0.02)),
                                                        setv('_mn', sub(V('_mn'), mul(V('_rg'), 0.4)))),
              if_(le(V('_rg'), 0), setv('_rg', 1)),
-             ifelse(ge(LGET('주가기록', idx(HIST - 1)), LGET('주가기록', idx(V('_k0')))), [pen_color('#ff3b55')], [pen_color('#3f7bff')]),
+             ifelse(ge(LGET('주가기록', idx_h(HIST - 1)), LGET('주가기록', idx_h(V('_k0')))), [pen_color('#ff3b55')], [pen_color('#3f7bff')]),
              pen_size(2)]
     for k in range(HIST):
         draw.append(if_(ge(k, V('_k0')),
-                        xy(add(X0, mul(sub(k, V('_k0')), dx)), add(Y0, mul(div(sub(LGET('주가기록', idx(k)), V('_mn')), V('_rg')), YH))),
+                        xy(add(X0, mul(sub(k, V('_k0')), dx)), add(Y0, mul(div(sub(LGET('주가기록', idx_h(k)), V('_mn')), V('_rg')), YH))),
                         pen_down()))
     draw += [pen_up(), xy(-300, -300)]
     pen.on(on_msg('시세갱신'), *draw)
@@ -332,14 +392,13 @@ def build(P, ctx):
         button(P, sc, '매수버튼%d' % j, lbl, 66 + j * 67, -64, 62, 22, 'red', actions=order(dr, q))
     for j, (lbl, dr, q) in enumerate([('매도 1', -1, 1), ('매도 10', -1, 10), ('전부 매도', -1, big)]):
         button(P, sc, '매도버튼%d' % j, lbl, 66 + j * 67, -89, 62, 22, 'blue', actions=order(dr, q))
-    text(P, sc, '단위안내', '1·10은 주 단위 (지배 자본은 100주 단위)', px, -110, 7, C_DIM, F_BODY, True, 0, w=196, h=11)
+    text(P, sc, '단위안내', '1·10은 주(코인은 개) 단위 · 지배 자본은 100주 단위', px, -110, 7, C_DIM, F_BODY, True, 0, w=200, h=11)
     note = text(P, sc, '체결알림', '', px, 6, 9, C_WHITE, F_BODY, True, 0, w=186, h=18, visible=False, bg=C_BOX)
     note.on(on_msg('체결'), write(V('체결글')), to_front(), show(), wait(1.3), hide())
 
     # ---- 아래 버튼
     button(P, sc, '지도로', '지도로', -196, -121, 76, 22, 'navy', icon='back', actions=go(ctx['S_MAP']))
-    button(P, sc, '작전본부로', '작전 본부', -112, -121, 84, 22, 'purple', icon='bolt', actions=go(ctx['S_SHOP']))
-    text(P, sc, '거래안내', '종목을 눌러 고르고 사고파세요', -10, -121, 8, C_DIM, F_BODY, True, 0, w=110, h=12)
+    button(P, sc, '협상으로', '협상 테이블', -104, -121, 96, 22, 'red', icon='bolt', actions=go(ctx['S_NEGO']))
 
     # ---- 거래 담당 (보이지 않음)
     mgr = text(P, sc, '거래담당', '', -300, -300, 8, visible=False)
@@ -356,10 +415,10 @@ def build(P, ctx):
                                        add(LGET('보유', s_), V('매매수량')))),
                 lst_set('보유', s_, add(LGET('보유', s_), V('매매수량'))),
                 chg('돈', mul(mul(V('_p'), V('매매수량')), -1)),
-                if_(eq(s_, CTL), lst_set('주가', CTL, round1(mul(LGET('주가', CTL),
+                if_(eq(s_, CTL), lst_set('주가', CTL, round2(mul(LGET('주가', CTL),
                                                                add(1, mul(div(V('매매수량'), D.CONTROL_SHARES), D.CONTROL_IMPACT)))))),
-                *fmt_comma(V('매매수량'), '_q'), setv('체결글', join('매수 체결!  +', V('_q'), '주')), setv('체결성공', 1)],
-               [setv('체결글', '현금이 부족하거나 살 수 있는 주식이 없어요'), setv('체결성공', 0)])]
+                *fmt_comma(V('매매수량'), '_q'), setv('체결글', join('매수 체결!  +', V('_q'))), setv('체결성공', 1)],
+               [setv('체결글', '현금이 부족하거나 살 수 있는 수량이 없어요'), setv('체결성공', 0)])]
     sell = [
         setv('매매수량', LGET('보유', s_)),
         ifelse(eq(s_, CTL), [if_(gt(V('매매수량'), mul(V('주문수량'), 100)), setv('매매수량', mul(V('주문수량'), 100)))],
@@ -368,20 +427,36 @@ def build(P, ctx):
                [chg('돈', mul(V('_p'), V('매매수량'))),
                 lst_set('보유', s_, sub(LGET('보유', s_), V('매매수량'))),
                 if_(eq(LGET('보유', s_), 0), lst_set('평단', s_, 0)),
-                if_(eq(s_, CTL), lst_set('주가', CTL, round1(mul(LGET('주가', CTL),
+                if_(eq(s_, CTL), lst_set('주가', CTL, round2(mul(LGET('주가', CTL),
                                                                sub(1, mul(div(V('매매수량'), D.CONTROL_SHARES), D.CONTROL_IMPACT)))))),
-                *fmt_comma(V('매매수량'), '_q'), setv('체결글', join('매도 체결!  -', V('_q'), '주')), setv('체결성공', 1)],
-               [setv('체결글', '팔 주식이 없어요'), setv('체결성공', 0)])]
+                *fmt_comma(V('매매수량'), '_q'), setv('체결글', join('매도 체결!  -', V('_q'))), setv('체결성공', 1)],
+               [setv('체결글', '팔 수량이 없어요'), setv('체결성공', 0)])]
     mgr.on(on_msg('주문'),
            setv('_s', V('선택종목')), setv('_p', LGET('주가', V('_s'))),
            ifelse(eq(V('주문방향'), 1), buy, sell),
            setv('돈', div(rounded(mul(V('돈'), 10)), 10)),
-           cast('체결'), *assets_blocks(), cast('시세갱신'),
-           if_(ge(LGET('보유', CTL), D.CONTROL_GOAL), setv('지배달성', 1), wait(0.8), *go(ctx['S_CONTROL'])))
-    mgr.on(on_scene(), *assets_blocks(), if_(or_(lt(V('선택종목'), 1), gt(V('선택종목'), N)), setv('선택종목', 1)),
-           cast('시세갱신'), cast('선택변경'),
-           forever(wait(1), if_(gt(V('장시간'), 0), *tick_blocks(), cast('시세갱신'))))
+           cast('체결'), *assets_blocks(), cast('시세갱신'), *E.majority_check())
+    mgr.on(on_scene(), *assets_blocks(),
+           if_(or_(lt(V('선택종목'), 1), gt(V('선택종목'), N)), setv('선택종목', 1)),
+           setv('탭', 1), setv('탭기준', 0), setv('탭개수', ND),
+           if_(gt(V('선택종목'), ND), setv('선택종목', 1)),
+           cast('탭변경'), cast('시세갱신'), cast('선택변경'),
+           forever(wait(1), ifelse(gt(V('장시간'), 0), [*tick_blocks()], [*coin_tick_blocks()]), cast('시세갱신')))
+    E.majority_pop(P, sc)
     hub = G.sound_hub(P, sc, 'bgm_map')
     hub.on(on_msg('뉴스'), play('news'))
     hub.on(on_msg('체결'), ifelse(eq(V('체결성공'), 1), [play('cash')], [play('bad')]))
     G.fader(P, sc, ctx['BLACK'])
+
+
+def ifelse_kind(S):
+    """종목 번호 → 단위 리스트 번호 (코인이면 4, 아니면 1)."""
+    return add(1, mul(3, ifelse_gt(S, COIN0)))
+
+
+def ifelse_gt(a, b):
+    """a > b 이면 1, 아니면 0 (정수 산술): (a-b 를 0~1 로 자름)."""
+    x = sub(a, b)
+    m = div(add(x, abs_(x)), 2)          # max(x, 0)
+    return div(sub(add(m, 1), abs_(sub(m, 1))), 2)   # min(m, 1)
+

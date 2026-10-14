@@ -29,8 +29,9 @@ S_TITLE, S_STORY, S_HOWTO, S_MAP = '타이틀', '이야기', '게임 방법', '�
 S_GAME = ['%02d %s' % (p['id'], p['short']) for p in D.PLACES]
 S_RESULT, S_EVENT, S_SHOP, S_STOCK = '유세 결과', '돌발상황', '작전 본부', '주식'
 S_VOTE, S_RANK, S_BANKRUPT, S_CONTROL = '개표', '랭킹', '파산', '조치원 장악'
-for s in [S_TITLE, S_STORY, S_HOWTO, S_MAP] + S_GAME + [S_RESULT, S_EVENT, S_SHOP, S_STOCK, S_VOTE, S_CONTROL, S_RANK,
-                                                         S_BANKRUPT]:
+S_GROUP, S_NEGO = '계열사', '협상 테이블'
+for s in [S_TITLE, S_STORY, S_HOWTO, S_MAP] + S_GAME + [S_RESULT, S_EVENT, S_SHOP, S_STOCK, S_GROUP, S_NEGO, S_VOTE,
+                                                         S_CONTROL, S_RANK, S_BANKRUPT]:
     P.scene(s)
 
 # ------------------------------------------------------------------ 변수/리스트
@@ -43,7 +44,9 @@ P.var('내순위', 0)
 P.var('방금등록', 0)
 P.var('랭킹쪽', 1)
 import scene_stock as ST
+import empire as E
 VARS.update(ST.STOCK_VARS)
+VARS.update(E.EMPIRE_VARS)
 for k_, v_ in VARS.items():
     P.var(k_, v_)
 
@@ -95,6 +98,7 @@ def scene_title():
     init = [setv(k_, v_) for k_, v_ in VARS.items() if k_ not in ('돈표시', '_p3', '_m3', '표시글', '플레이어이름', '_q', '_m')]
     init += [setv('i', 1), rep(15, lst_set('지역완료', V('i'), 0), lst_set('지역점수', V('i'), 0), chg('i', 1))]
     init += STOCK_RESET
+    init += E.reset_blocks()
     mgr.on(on_msg('초기화'), *init)
     for lbl, yy, col, ic, act in [('게임 시작', 34, 'royal', 'star', [cast_wait('초기화')] + go(S_STORY)),
                                   ('게임 방법', -6, 'blue', 'map', go(S_HOWTO)),
@@ -182,7 +186,7 @@ def scene_map():
     ix, iy = 960 - INSET_SIZE[0] - 10, 160
     icx, icy = art2stage(ix + INSET_SIZE[0] / 2, iy + INSET_SIZE[1] / 2)
     sprite(P, sc, '시내확대', ART('map_inset'), icx, icy)
-    sprite(P, sc, '시내제목', K.badge('조치원 시내 확대', 92, 18, 'royal'), icx, icy + INSET_SIZE[1] / 4 + 4)
+    sprite(P, sc, '시내제목', K.badge('조치원 시내 확대', 92, 18, 'royal'), icx, icy - INSET_SIZE[1] / 4 + 6)
     # 핀 위치(무대 좌표)
     pin_xy = {}
     for k_ in range(1, 16):
@@ -233,13 +237,18 @@ def scene_map():
                                             [write(join('유세 완료! 점수 ', LGET('지역점수', V('호버지역')), '점'))],
                                             [write(LGET('지역설명', V('호버지역')))])), wait(0.05)))
     # 아래 버튼
-    button(P, sc, '주식버튼', '주식 투자', -184, -116, 96, 28, 'blue', icon='chart', actions=go(S_STOCK))
-    button(P, sc, '작전버튼', '작전 본부', -82, -116, 96, 28, 'purple', icon='bolt', actions=go(S_SHOP))
-    sprite(P, sc, '지도안내', K.badge('화살표를 눌러 유세 시작!', 130, 20, 'navy'), 60, -118)
-    hud(P, sc, PORT)
+    # 왼쪽 아래 세로 메뉴 (화살표를 가리지 않게)
+    for k_, (nm_, lbl_, col_, ic_, to_) in enumerate((('주식버튼', '거래소', 'blue', 'chart', S_STOCK),
+                                                      ('작전버튼', '작전 본부', 'purple', 'bolt', S_SHOP),
+                                                      ('계열사버튼', '계열사', 'royal', 'shop', S_GROUP),
+                                                      ('협상버튼', '협상 테이블', 'red', 'trophy', S_NEGO))):
+        button(P, sc, nm_, lbl_, -192, -36 - k_ * 26, 88, 24, col_, icon=ic_, actions=go(to_))
+    sprite(P, sc, '지도안내', K.badge('화살표를 눌러 유세 시작!', 130, 18, 'navy'), 6, 118)
+    hud(P, sc, PORT, empire=True)
+    E.majority_pop(P, sc)
     # 모든 지역을 돌았으면 개표로
     chk = text(P, sc, '진행검사', '', -300, -300, 8, visible=False)
-    chk.on(on_scene(), wait(0.4), *ST.assets_blocks(), if_(ge(V('유세횟수'), 15), *go(S_VOTE)),
+    chk.on(on_scene(), *E.stats_blocks(), wait(0.4), *ST.assets_blocks(), if_(ge(V('유세횟수'), 15), *go(S_VOTE)),
            if_(le(V('총자산'), 0), *go(S_BANKRUPT)))
     G.sound_hub(P, sc, 'bgm_map')
     G.fader(P, sc, BLACK)
@@ -259,9 +268,9 @@ def scene_result():
     text(P, sc, '점수단위', '점', 80, 30, 14, C_ACC, F_NUM, False, 1, w=30, h=20)
     stamp = sprite(P, sc, '등급도장', [(g, SP.grade_stamp(g)) for g in 'SABCD'], 150, 38, visible=False)
     rows = []
-    labels = [('star', '지지율', C_WHITE), ('bolt', '큰아버지 반격', C_RED), ('coin', '재화', C_ACC)]
+    labels = [('star', '지지율', C_WHITE), ('bolt', '큰아버지 반격', C_RED), ('coin', '재화', C_ACC), ('shop', '계열사 수익', C_ACC)]
     for i, (ic, lb, col) in enumerate(labels):
-        yy = -6 - i * 24
+        yy = 2 - i * 20
         sprite(P, sc, '결과아이콘%d' % i, K.icon_img(ic, 16), -88, yy)
         text(P, sc, '결과라벨%d' % i, lb, -26, yy, 12, C_DIM, F_BODY, True, 1, w=100, h=18)
         rows.append(text(P, sc, '결과값%d' % i, '', 110, yy, 13, col, F_NUM, False, 2, w=150, h=18, visible=False))
@@ -277,14 +286,16 @@ def scene_result():
                 setv('결과처리됨', 1),
                 lst_set('지역완료', V('현재지역'), 1), lst_set('지역점수', V('현재지역'), V('점수')), chg('유세횟수', 1),
                 # 지지율 얻기 (큰아버지 둘에게서 비율대로 가져옴)
-                setv('획득지지', round1(div(mul(V('점수'), w), 100))),
+                # 지지율은 올라갈수록 덜 오른다
+                setv('획득지지', round1(mul(mul(div(mul(V('점수'), w), 100), D.SUPPORT_MULT), sub(1.1, div(V('내지지율'), 100))))),
+                if_(lt(V('획득지지'), 0), setv('획득지지', 0)),
                 setv('tmp', div(V('큰A'), add(V('큰A'), V('큰B')))),
                 chg('큰A', mul(mul(V('획득지지'), V('tmp')), -1)),
                 chg('큰B', mul(mul(V('획득지지'), sub(1, V('tmp'))), -1)),
                 chg('내지지율', V('획득지지')),
                 # 큰아버지들의 반격
                 ifelse(gt(V('차단턴'), 0), [setv('반격A', 0), setv('반격B', 0), chg('차단턴', -1), setv('이번차단', 1)],
-                       [setv('반격A', div(rnd(3, 11), 10)), setv('반격B', div(rnd(3, 11), 10)), setv('이번차단', 0)]),
+                       [setv('반격A', div(rnd(*D.COUNTER_RANGE), 10)), setv('반격B', div(rnd(*D.COUNTER_RANGE), 10)), setv('이번차단', 0)]),
                 if_(lt(V('내지지율'), add(add(V('반격A'), V('반격B')), 2)), setv('반격A', 0), setv('반격B', 0)),
                 chg('내지지율', mul(add(V('반격A'), V('반격B')), -1)), chg('큰A', V('반격A')), chg('큰B', V('반격B')),
                 setv('내지지율', round1(V('내지지율'))), setv('큰A', round1(V('큰A'))),
@@ -307,7 +318,11 @@ def scene_result():
     rows[0].on(on_msg('결과줄'), write(join('+', V('획득지지'), '%p')), show())
     rows[1].on(on_msg('결과줄'), wait(0.25), write(join('-', round1(add(V('반격A'), V('반격B'))), '%p')), show())
     rows[2].on(on_msg('결과줄'), wait(0.5), *fmt_money(V('획득재화'), '표시글'), write(join('+', V('표시글'))), show())
-    nxt.on(on_msg('결과줄'), wait(0.9), show())
+    rows[3].on(on_msg('결과줄'), wait(0.75), *fmt_money(V('계열사수입'), '표시글'),
+               write(join('+', V('표시글'), ' (', V('계열사수'), '개)')), show())
+    news_ = text(P, sc, '계열사소식', '', 40, -78, 9, C_RED, F_BODY, True, 0, w=280, h=13, visible=False)
+    news_.on(on_msg('결과줄'), wait(0.9), if_(gt(slen(V('계열사소식')), 0), write(V('계열사소식')), show()))
+    nxt.on(on_msg('결과줄'), wait(1.0), show())
     # 할아버지 한마디
     gp = sprite(P, sc, '할아버지', BUST['gp'], -200, -40, scale=0.62, visible=False)
     bub = panel(P, sc, '말풍선', -178, 46, 116, 50, 'card', visible=False)
@@ -324,12 +339,14 @@ def scene_result():
     hub.on(on_msg('축하'), play('fanfare'))
     hub.on(on_msg('결과줄'), wait(0.5), play('coin'))
     G.fader(P, sc, BLACK)
-    # 주가 변동 담당 (밤사이 시세, 장 시간, 큰아버지 지분 매수)
+    # 주가 변동 담당 (밤사이 시세, 장 시간, 큰아버지 지분 매수) + 계열사 수익/쟁탈
     ST.overnight_object(P, sc)
+    E.overnight_object(P, sc)
 
 
 # ================================================================== 주식 데이터
 ST.setup(P)
+E.setup(P)
 STOCK_RESET = ST.reset_blocks()
 
 
@@ -355,6 +372,8 @@ def build(dev_dir=None, out=None):
             scene_minigame_stub(i)
     scene_result()
     ST.build(P, globals())
+    E.build_group(P, globals())
+    E.build_nego(P, globals())
     import scenes_more
     scenes_more.build_all(P, globals())
     out = out or os.path.join(HERE, '..', '군수집_막내아들.ent')

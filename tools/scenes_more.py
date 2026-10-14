@@ -10,6 +10,7 @@ from gui import C_WHITE, C_ACC, C_DIM, C_RED, C_BLUE, C_VIOLET, C_BOX
 from art_common import save, ensure_out
 import data as D
 import scene_stock as ST
+import empire as E
 
 W, H = 960, 540
 
@@ -45,8 +46,8 @@ def normalize():
 
 
 def support_gain(g):
-    """g>0: 두 큰아버지에게서 비율대로 가져옴, g<0: 두 큰아버지에게 반씩 넘어감."""
-    return [setv('_g', g),
+    """g>0: 두 큰아버지에게서 비율대로 가져옴 (내 지지율이 높을수록 덜 오름), g<0: 두 큰아버지에게 반씩 넘어감."""
+    return [setv('_g', g), if_(gt(V('_g'), 0), setv('_g', mul(V('_g'), sub(1.1, div(V('내지지율'), 100))))),
             ifelse(gt(V('_g'), 0),
                    [setv('tmp', div(V('큰A'), add(V('큰A'), V('큰B')))),
                     chg('큰A', mul(mul(V('_g'), V('tmp')), -1)), chg('큰B', mul(mul(V('_g'), sub(1, V('tmp'))), -1)),
@@ -56,7 +57,9 @@ def support_gain(g):
 
 
 def transfer(from_var, x):
-    return [chg(from_var, -x), chg('내지지율', x), *normalize()]
+    """특정 큰아버지에게서 x%p 가져옴 (내 지지율이 높을수록 덜 오름)."""
+    return [setv('_g', mul(x, sub(1.1, div(V('내지지율'), 100)))), chg(from_var, mul(V('_g'), -1)), chg('내지지율', V('_g')),
+            *normalize()]
 
 
 def grandpa_say(P, sc, ctx, x, y, msg, lines_expr_blocks, scale=0.6, bx=None, by=None, bw=150):
@@ -73,13 +76,13 @@ def grandpa_say(P, sc, ctx, x, y, msg, lines_expr_blocks, scale=0.6, bx=None, by
 
 
 def score_blocks():
-    """최종 점수 = 지지율×100 + 총자산(억)×20 + 지배 자본 지분(%)×60 + 당선 3000 + 장악 5000."""
+    """최종 점수 = 지지율×100 + 총자산(억)×20 + 지배 자본 지분(%)×60 + 계열사×800 + 승리(지지율·지분 둘 다 과반) 8000."""
     return [
         *ST.assets_blocks(),
         setv('최종점수', add(add(rounded(mul(V('내지지율'), 100)), floor(mul(div(V('총자산'), 10000), 20))),
                          rounded(mul(div(LGET('보유', ST.CTL), D.CONTROL_SHARES / 100.0), 60)))),
-        if_(eq(V('당선'), 1), chg('최종점수', 3000)),
-        if_(eq(V('지배달성'), 1), chg('최종점수', 5000)),
+        chg('최종점수', mul(V('계열사수'), D.AFFILIATE_SCORE)),
+        if_(eq(V('당선'), 1), chg('최종점수', 8000)),
         setv('최종점수', rounded(V('최종점수'))),
     ]
 
@@ -220,9 +223,9 @@ def scene_event(P, ctx):
     nxt.on(on_msg('사건결과'), wait(1.5), show())
     grandpa_say(P, sc, ctx, -200, -78, '사건결과',
                 [wait(1.4), ifelse(eq(V('사건성공'), 1),
-                                   [ifelse(lt(V('사건순익'), 0), [write('돈 좀 들었제?\n사람 얻는 기 남는 장사다.')],
-                                           [write('그래, 그기 맞다.\n위기는 기회인 기라.')])],
-                                   [write('니 지금 뭐하노!\n판을 읽어야제.')])], scale=0.45, bx=-178, by=-2, bw=116)
+                                   [ifelse(lt(V('사건순익'), 0), [write('돈 좀 썼군.\n사람을 얻었으면 남는 장사다.')],
+                                           [write('그래, 그거다.\n위기는 기회야.')])],
+                                   [write('지금 뭐 하는 거냐!\n판을 읽어.')])], scale=0.45, bx=-178, by=-2, bw=116)
     # 담당 (계산)
     mgr = text(P, sc, '사건담당', '', -300, -300, 8, visible=False)
     mgr.on(on_scene(),
@@ -276,7 +279,7 @@ SHOP = [
     ('현수막 100장', 'ballot', '읍내 곳곳에\n현수막을 건다\n(지지율 +0.4%p)', 5000, 'banner', '현수막이 걸렸다! 지지율 +0.4%p'),
     ('위기관리팀', 'shield', '돌발상황에서 실패해도\n손해를 1번 막아준다', 15000, 'guard', '위기관리팀을 고용했다! (방어 1회)'),
     ('정보 차단', 'bolt', '큰아버지들의 반격과\n지배 자본 매수를\n유세 3번 동안 막는다', 20000, 'block', '정보를 차단했다! (유세 3번 동안)'),
-    ('지분 빼오기', 'trophy', '큰아버지의 지배 자본\n1,000주(1%)를 웃돈\n30% 주고 사 온다', -1, 'steal', '큰아버지 지분 1%를 빼왔다!'),
+    ('선거 컨설팅', 'trophy', '전문 선거 컨설턴트가\n전략을 짜 준다\n(지지율 +1.2%p)', 25000, 'consult', '컨설팅 효과! 지지율 +1.2%p'),
 ]
 
 
@@ -291,11 +294,10 @@ def scene_shop(P, ctx):
     st.on(on_scene(), forever(write(join('위기관리팀 ', V('방어권'), '회  ·  정보 차단 ', V('차단턴'), '턴')), wait(0.2)))
     note = text(P, sc, '상점알림', '', 40, -121, 10, C_WHITE, F_NUM, False, 0, w=300, h=16, visible=False, bg=C_BOX)
     note.on(on_msg('상점알림'), write(V('상점알림')), to_front(), show(), wait(2.0), hide())
-    steal_price = mul(mul(1000, LGET('주가', ST.CTL)), 1.3)
     effects = {
         'expose_a': transfer('큰A', 2.5), 'expose_b': transfer('큰B', 2.5),
         'peach': support_gain(1.5), 'youtube': support_gain(0.8), 'banner': support_gain(0.4),
-        'guard': [chg('방어권', 1)], 'block': [chg('차단턴', 3)],
+        'guard': [chg('방어권', 1)], 'block': [chg('차단턴', 3)], 'consult': support_gain(1.2),
     }
     for j, (nm, ic, desc, price, key_, msg) in enumerate(SHOP):
         c, r = j % 4, j // 4
@@ -310,20 +312,9 @@ def scene_shop(P, ctx):
             cost = price
             ok = [chg('돈', -price), *effects[key_], setv('상점알림', msg)]
             cond = ge(V('돈'), price)
-        else:
-            pt.on(on_scene(), forever(setv('빼오기가', rounded(steal_price)), *fmt_money(V('빼오기가'), '_m'), write(V('_m')), wait(0.3)))
-            cond = and_(ge(V('돈'), V('빼오기가')), ge(add(V('첫째주'), V('둘째주')), 1000))
-            ok = [setv('빼오기가', rounded(steal_price)), chg('돈', mul(V('빼오기가'), -1)),
-                  ifelse(ge(V('첫째주'), V('둘째주')), [chg('첫째주', -1000)], [chg('둘째주', -1000)]),
-                  lst_set('평단', ST.CTL, div(add(mul(LGET('평단', ST.CTL), LGET('보유', ST.CTL)), V('빼오기가')),
-                                             add(LGET('보유', ST.CTL), 1000))),
-                  lst_set('보유', ST.CTL, add(LGET('보유', ST.CTL), 1000)),
-                  setv('상점알림', join(msg, ' 내 지분 ', ST.pct2(LGET('보유', ST.CTL)), '%'))]
         buy = [ifelse(cond, [*ok, cast('구매반짝'), G.sfx('coin')],
                       [setv('상점알림', '재화가 부족해요!' if price > 0 else '재화가 부족하거나 빼올 지분이 없어요!'), G.sfx('bad')]),
-               cast('상점알림'),
-               *([if_(ge(LGET('보유', ST.CTL), D.CONTROL_GOAL), setv('지배달성', 1), wait(0.8), *go(ctx['S_CONTROL']))]
-                 if price < 0 else [])]
+               cast('상점알림')]
         button(P, sc, '구매버튼%d' % j, '실행', x, y - 36, 64, 18, 'royal', actions=buy)
     G.sparkles(P, sc, '구매반짝', ctx['SPARK'], 40, -121, 12, 40)
     button(P, sc, '지도로', '지도로', -196, -121, 76, 22, 'navy', icon='back', actions=go(ctx['S_MAP']))
@@ -356,9 +347,12 @@ def scene_vote(P, ctx):
         tv.on(on_scene(), forever(write(join(V(var), '%')), wait(0.03)))
     rate = text(P, sc, '개표율글', '', 0, -74, 10, C_WHITE, F_NUM, False, 0, w=200, h=15)
     rate.on(on_scene(), forever(write(join('개표율 ', V('개표율'), '%')), wait(0.05)))
+    stake = text(P, sc, '지분확인', '', 0, -92, 11, C_WHITE, F_NUM, False, 0, w=420, h=16, visible=False)
+    stake.on(on_msg('지분공개'), write(join('조치원 지배 자본 내 지분 ', ST.pct2(LGET('보유', ST.CTL)), '%  (과반 기준 50%)')),
+             ifelse(gt(LGET('보유', ST.CTL), D.CONTROL_GOAL), [text_color(C_ACC)], [text_color(C_RED)]), show())
     mgr = text(P, sc, '개표담당', '', -300, -300, 8, visible=False)
     noise = lambda: mul(div(rnd(-30, 30), 10), sub(1, div(V('개표율'), 100)))
-    mgr.on(on_scene(), setv('개표율', 0), setv('당선', 0), wait(1.0), G.sfx('drumroll'),
+    mgr.on(on_scene(), setv('개표율', 0), setv('당선', 0), setv('지배달성', 0), wait(1.0), G.sfx('drumroll'),
            until(ge(V('개표율'), 100), chg('개표율', 2),
                  setv('표시나', round1(add(mul(V('내지지율'), div(V('개표율'), 100)), noise()))),
                  setv('표시A', round1(add(mul(V('큰A'), div(V('개표율'), 100)), noise()))),
@@ -366,19 +360,26 @@ def scene_vote(P, ctx):
                  if_(lt(V('표시나'), 0), setv('표시나', 0)), if_(lt(V('표시A'), 0), setv('표시A', 0)),
                  if_(lt(V('표시B'), 0), setv('표시B', 0)), wait(0.07)),
            setv('표시나', V('내지지율')), setv('표시A', V('큰A')), setv('표시B', V('큰B')),
-           wait(0.6),
-           if_(and_(gt(V('내지지율'), V('큰A')), gt(V('내지지율'), V('큰B'))), setv('당선', 1)),
-           ifelse(eq(V('당선'), 1), [cast('당선'), cast('축하')], [cast('낙선')]),
-           wait(2.6), cast('엔딩대사'), wait(1.6), *finish_blocks(ctx))
+           wait(0.8), cast('지분공개'), G.sfx('stamp'), wait(1.4),
+           # 승리: 지지율 50% 초과 + 지배 자본 50% 초과 (둘 다)
+           if_(gt(LGET('보유', ST.CTL), D.CONTROL_GOAL), setv('지배달성', 1)),
+           if_(and_(gt(V('내지지율'), D.WIN_SUPPORT), eq(V('지배달성'), 1)), setv('당선', 1)),
+           ifelse(eq(V('당선'), 1), [cast('당선'), cast('축하'), wait(2.4), *go(ctx['S_CONTROL'])],
+                  [cast('낙선'), wait(2.6), cast('엔딩대사'), wait(1.6), *finish_blocks(ctx)]))
     ending_dim(P, sc)
-    G.big_pop(P, sc, '당선팝', K.big_text('당선!', 54, 'royal'), 0, 20, '당선', hold=1.6)
+    G.big_pop(P, sc, '당선팝', K.big_text('군수 당선!', 50, 'royal'), 0, 20, '당선', hold=1.8)
     G.big_pop(P, sc, '낙선팝', K.big_text('낙선...', 46, 'red'), 0, 20, '낙선', hold=1.6)
-    res = text(P, sc, '개표결과', '', 60, 84, 13, C_WHITE, F_NUM, False, 0, w=300, h=20, visible=False)
-    res.on(on_msg('엔딩대사'), ifelse(eq(V('당선'), 1), [write('조치원 군수 당선!'), text_color(C_ACC)], [write('아쉽게 낙선...'), text_color(C_RED)]),
-           show())
+    res = text(P, sc, '개표결과', '', 60, 84, 11, C_WHITE, F_NUM, False, 0, w=320, h=34, visible=False)
+    res.on(on_msg('엔딩대사'),
+           ifelse(and_(le(V('내지지율'), D.WIN_SUPPORT), eq(V('지배달성'), 0)),
+                  [write('지지율도, 지배 자본도\n과반을 넘지 못했다...')],
+                  [ifelse(le(V('내지지율'), D.WIN_SUPPORT), [write('지배 자본은 쥐었지만\n지지율이 과반을 넘지 못했다...')],
+                          [write('표는 얻었지만\n지배 자본이 과반을 넘지 못했다...')])]),
+           text_color(C_RED), show())
     G.confetti(P, sc, '축하', ctx['CONF'], 50)
     grandpa_say(P, sc, ctx, -170, -8, '엔딩대사',
-                [ifelse(eq(V('당선'), 1), [write(D.GP_WIN)], [write(D.GP_LOSE)])], scale=0.6, bx=40, by=30, bw=220)
+                [ifelse(or_(gt(V('내지지율'), D.WIN_SUPPORT), eq(V('지배달성'), 1)), [write(D.GP_HALF)], [write(D.GP_LOSE)])],
+                scale=0.6, bx=40, by=30, bw=220)
     ending_buttons(P, sc, ctx)
     name_asker(P, sc)
     hub = G.sound_hub(P, sc)
@@ -387,7 +388,7 @@ def scene_vote(P, ctx):
     G.fader(P, sc, ctx['BLACK'])
 
 
-# ================================================================== 조치원 장악 (지배 자본 50%)
+# ================================================================== 조치원 장악 (최종 승리: 지지율 + 지배 자본 둘 다 과반)
 def scene_control(P, ctx):
     sc = ctx['S_CONTROL']
     G.bg(P, sc, ctx['ART']('title_bg'))
@@ -396,7 +397,8 @@ def scene_control(P, ctx):
     glow.on(on_scene(), forever(rep(20, fx_add('transparency', 2), wait(0.04)), rep(20, fx_add('transparency', -2), wait(0.04))))
     G.big_pop(P, sc, '장악글', K.big_text('조치원 장악!', 50, 'royal'), 0, 82, '장악', hold=99, fade=False)
     sub_ = text(P, sc, '장악설명', '', 0, 46, 12, C_WHITE, F_NUM, False, 0, w=400, h=18, visible=False)
-    sub_.on(on_msg('장악'), wait(0.6), write(join('「조치원 지배 자본」 지분 ', ST.pct2(LGET('보유', ST.CTL)), '% 확보 · 총 1,000억의 주인')), show())
+    sub_.on(on_msg('장악'), wait(0.6), write(join('지지율 ', V('내지지율'), '%  ·  지배 자본 ', ST.pct2(LGET('보유', ST.CTL)),
+                                                   '%  ·  계열사 ', V('계열사수'), '개')), show())
     # 지분 막대
     bx0, bw, by = -150, 300, 24
     bar = sprite(P, sc, '지분막대', K.icon_img('star', 2), bx0, by)
@@ -414,11 +416,10 @@ def scene_control(P, ctx):
     me = sprite(P, sc, '나', ctx['BUST']['me'], 186, -40, scale=0.5, visible=False)
     me.on(on_msg('장악'), wait(1.2), show())
     ending_dim(P, sc)
-    grandpa_say(P, sc, ctx, -170, -8, '엔딩대사', [write(D.GP_CONTROL)], scale=0.6, bx=40, by=28, bw=220)
+    grandpa_say(P, sc, ctx, -170, -8, '엔딩대사', [write(D.GP_WIN)], scale=0.6, bx=40, by=28, bw=220)
     G.confetti(P, sc, '축하', ctx['CONF'], 60)
     mgr = text(P, sc, '장악담당', '', -300, -300, 8, visible=False)
-    mgr.on(on_scene(), setv('지배달성', 1), setv('당선', 0),
-           if_(and_(gt(V('내지지율'), V('큰A')), gt(V('내지지율'), V('큰B'))), setv('당선', 1)),
+    mgr.on(on_scene(), setv('지배달성', 1), setv('당선', 1), *E.stats_blocks(),
            wait(0.4), cast('장악'), cast('축하'), wait(2.0), cast('엔딩대사'), wait(1.8), *finish_blocks(ctx, always=True))
     ending_buttons(P, sc, ctx)
     name_asker(P, sc)
