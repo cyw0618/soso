@@ -838,10 +838,24 @@ class Project:
         )
 
     # ---- 출력
-    def write_ent(self, out_path, dev_dir=None):
+    def write_ent(self, out_path, dev_dir=None, fast=False):
         proj = self.to_json()
         pj = json.dumps(proj, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
         files = {'temp/project.json': pj}
+        if fast and dev_dir:
+            # 테스트용 빠른 빌드: .ent 를 만들지 않고, 이미 풀어둔 그림/소리는 건너뛴다
+            for fh, sd in self.snds.items():
+                files['temp/%s/%s/sound/%s.mp3' % (fh[:2], fh[2:4], fh)] = sd.data
+            for fh, pic in self.pics.items():
+                files['temp/%s/%s/image/%s.png' % (fh[:2], fh[2:4], fh)] = pic.data
+            for path, data in files.items():
+                full = os.path.join(dev_dir, path)
+                if path != 'temp/project.json' and os.path.exists(full):
+                    continue
+                os.makedirs(os.path.dirname(full), exist_ok=True)
+                with open(full, 'wb') as f:
+                    f.write(data)
+            return proj
         for fh, sd in self.snds.items():
             files['temp/%s/%s/sound/%s.mp3' % (fh[:2], fh[2:4], fh)] = sd.data
         for fh, pic in self.pics.items():

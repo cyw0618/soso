@@ -70,7 +70,9 @@ def assets_blocks():
     b = [setv('평가금', 0)]
     for i in range(1, N + 1):
         b.append(chg('평가금', mul(LGET('보유', i), LGET('주가', i))))
-    b.append(setv('총자산', add(V('돈'), V('평가금'))))
+    # 해외 투자자에게 갚아야 할 돈은 빚이라 총자산에서 뺀다
+    debt = add(add(LGET('투자부채', 1), LGET('투자부채', 2)), LGET('투자부채', 3))
+    b.append(setv('총자산', sub(add(V('돈'), V('평가금')), debt)))
     return b
 
 

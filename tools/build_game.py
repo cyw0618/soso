@@ -29,8 +29,8 @@ S_TITLE, S_STORY, S_HOWTO, S_MAP = '타이틀', '이야기', '게임 방법', '�
 S_GAME = ['%02d %s' % (p['id'], p['short']) for p in D.PLACES]
 S_RESULT, S_EVENT, S_SHOP, S_STOCK = '유세 결과', '돌발상황', '작전 본부', '주식'
 S_VOTE, S_RANK, S_BANKRUPT, S_CONTROL = '개표', '랭킹', '파산', '조치원 장악'
-S_GROUP, S_NEGO = '계열사', '협상 테이블'
-for s in [S_TITLE, S_STORY, S_HOWTO, S_MAP] + S_GAME + [S_RESULT, S_EVENT, S_SHOP, S_STOCK, S_GROUP, S_NEGO, S_VOTE,
+S_GROUP, S_NEGO, S_INVEST = '계열사', '협상 테이블', '투자 회의'
+for s in [S_TITLE, S_STORY, S_HOWTO, S_MAP] + S_GAME + [S_RESULT, S_EVENT, S_SHOP, S_INVEST, S_STOCK, S_GROUP, S_NEGO, S_VOTE,
                                                          S_CONTROL, S_RANK, S_BANKRUPT]:
     P.scene(s)
 
@@ -45,8 +45,10 @@ P.var('방금등록', 0)
 P.var('랭킹쪽', 1)
 import scene_stock as ST
 import empire as E
+import invest as IV
 VARS.update(ST.STOCK_VARS)
 VARS.update(E.EMPIRE_VARS)
+VARS.update(IV.INVEST_VARS)
 for k_, v_ in VARS.items():
     P.var(k_, v_)
 
@@ -101,6 +103,7 @@ def scene_title():
     init += [setv('i', 1), rep(N_PL, lst_set('지역완료', V('i'), 0), lst_set('지역점수', V('i'), 0), chg('i', 1))]
     init += STOCK_RESET
     init += E.reset_blocks()
+    init += IV.reset_blocks()
     mgr.on(on_msg('초기화'), *init)
     for lbl, yy, col, ic, act in [('게임 시작', 34, 'royal', 'star', [cast_wait('초기화')] + go(S_STORY)),
                                   ('게임 방법', -6, 'blue', 'map', go(S_HOWTO)),
@@ -391,11 +394,16 @@ def scene_result():
     # 주가 변동 담당 (밤사이 시세, 장 시간, 큰아버지 지분 매수) + 계열사 수익/쟁탈
     ST.overnight_object(P, sc)
     E.overnight_object(P, sc)
+    # 해외 투자금 상환 (만기가 된 것). 현금이 모자라면 주식을 판다.
+    liq = [if_(gt(LGET('보유', i_), 0), chg('돈', mul(LGET('보유', i_), LGET('주가', i_))), lst_set('보유', i_, 0), lst_set('평단', i_, 0))
+           for i_ in range(1, ST.N + 1)]
+    text(P, sc, '투자상환', '', -300, -300, 8, visible=False).on(on_msg('주가변동'), wait(0.05), *IV.overnight_blocks(liq))
 
 
 # ================================================================== 주식 데이터
 ST.setup(P)
 E.setup(P)
+IV.setup(P)
 STOCK_RESET = ST.reset_blocks()
 
 
@@ -423,10 +431,11 @@ def build(dev_dir=None, out=None):
     ST.build(P, globals())
     E.build_group(P, globals())
     E.build_nego(P, globals())
+    IV.build(P, globals())
     import scenes_more
     scenes_more.build_all(P, globals())
     out = out or os.path.join(HERE, '..', '군수집_막내아들.ent')
-    proj = P.write_ent(out, dev_dir=dev_dir)
+    proj = P.write_ent(out, dev_dir=dev_dir, fast=os.environ.get('FAST') == '1')
     return proj
 
 

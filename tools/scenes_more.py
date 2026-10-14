@@ -311,7 +311,7 @@ def scene_shop(P, ctx):
     sprite(P, sc, '상점제목', K.banner('작전 본부', 150, 32, 'purple'), 0, 116)
     st = text(P, sc, '작전상태', '', 0, 92, 9, C_DIM, F_BODY, True, 0, w=240, h=13)
     st.on(on_scene(), forever(write(join('위기관리팀 ', V('방어권'), '회  ·  정보 차단 ', V('차단턴'), '턴')), wait(0.2)))
-    note = text(P, sc, '상점알림', '', 40, -121, 10, C_WHITE, F_NUM, False, 0, w=300, h=16, visible=False, bg=C_BOX)
+    note = text(P, sc, '상점알림', '', 128, -121, 9, C_WHITE, F_NUM, False, 0, w=200, h=16, visible=False, bg=C_BOX)
     note.on(on_msg('상점알림'), write(V('상점알림')), to_front(), show(), wait(2.0), hide())
     effects = {
         'expose_a': transfer('큰A', 2.5), 'expose_b': transfer('큰B', 2.5),
@@ -338,6 +338,7 @@ def scene_shop(P, ctx):
     G.sparkles(P, sc, '구매반짝', ctx['SPARK'], 40, -121, 12, 40)
     button(P, sc, '지도로', '지도로', -196, -121, 76, 22, 'navy', icon='back', actions=go(ctx['S_MAP']))
     button(P, sc, '주식으로', '주식', -112, -121, 70, 22, 'blue', icon='chart', actions=go(ctx['S_STOCK']))
+    meet = button(P, sc, '회의실로', '회의실', -24, -121, 96, 22, 'royal', icon='coin', actions=go(ctx['S_INVEST']))
     G.hud(P, sc, ctx['PORT'])
     G.sound_hub(P, sc, 'bgm_map')
     G.fader(P, sc, ctx['BLACK'])

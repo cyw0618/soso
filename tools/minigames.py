@@ -838,4 +838,7 @@ GAMES = {1: g01, 2: g02, 3: g03, 4: g04, 5: g05, 6: g06, 7: g07, 8: g08, 9: g09,
 
 def build_minigame(P, idx, ctx):
     f = GAMES.get(idx)
+    if f is None:
+        import minigames2
+        f = minigames2.GAMES.get(idx)
     return bool(f and f(P, ctx))
