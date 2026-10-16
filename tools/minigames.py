@@ -28,21 +28,30 @@ def need_vars(P):
 
 # ================================================================== 공통 틀
 class MG:
-    def __init__(self, P, idx, ctx, time_limit=None, status='', dim=0, music='bgm_game'):
+    def __init__(self, P, idx, ctx, time_limit=None, status='', dim=0, music='bgm_game', tier=None, kind=None):
         need_vars(P)
         self.music = music
         self.snd_map = []
         self.P, self.idx, self.ctx = P, idx, ctx
-        self.sc = ctx['S_GAME'][idx - 1]
-        self.p = D.PLACES[idx - 1]
         self.time_limit = time_limit
         self.init_blocks = []
-        # 단계마다 다른 장소: 1 조치원, 2 세종시, 3 전국 (게임 규칙은 같고 배경·제목·설명이 바뀐다)
-        self.titles = [(self.p['name'], self.p['game']), (D2.SEJONG[idx - 1][0], D2.SEJONG[idx - 1][1]),
-                       (D2.KOREA[idx - 1][0], D2.KOREA[idx - 1][1])]
-        bgo = G.bg(P, self.sc, [('1', ctx['ART']('place_%02d' % idx)), ('2', ctx['ART']('sj_%02d' % idx)),
-                                ('3', ctx['ART']('kr_%02d' % idx))])
-        bgo.on(on_scene(), shape(V('단계')))
+        self.tier = tier
+        if tier:
+            # 시장(2)·대통령(3) 선거 전용 게임: 장면·배경·제목이 따로 있다
+            src = (D2.SEJONG if tier == 2 else D2.KOREA)[idx - 1]
+            self.sc = ctx['S_GAME%d' % tier][idx - 1]
+            self.p = dict(name=src[0], game=src[1], kind=kind or '미니게임', help=src[2])
+            self.titles = [(src[0], src[1])]
+            G.bg(P, self.sc, ctx['ART'](('sj_%02d' if tier == 2 else 'kr_%02d') % idx))
+        else:
+            self.sc = ctx['S_GAME'][idx - 1]
+            self.p = D.PLACES[idx - 1]
+            # 퀴즈처럼 단계마다 같은 장면을 쓰는 게임: 배경·제목·설명이 단계에 따라 바뀐다
+            self.titles = [(self.p['name'], self.p['game']), (D2.SEJONG[idx - 1][0], D2.SEJONG[idx - 1][1]),
+                           (D2.KOREA[idx - 1][0], D2.KOREA[idx - 1][1])]
+            bgo = G.bg(P, self.sc, [('1', ctx['ART']('place_%02d' % idx)), ('2', ctx['ART']('sj_%02d' % idx)),
+                                    ('3', ctx['ART']('kr_%02d' % idx))])
+            bgo.on(on_scene(), shape(V('단계')))
         if dim:
             self.S('어둡게', A.plain_rect(480, 270, (2, 4, 14, dim), 'dim_%d' % dim), 0, 0)
         self.status0 = status
@@ -89,11 +98,14 @@ class MG:
         """HUD/소개/카운트다운/시간/종료 처리 오브젝트를 만든다 (게임 오브젝트보다 앞에 보이도록 마지막에 호출)."""
         P, sc, ctx, p = self.P, self.sc, self.ctx, self.p
         # HUD
-        tb = self.S('제목띠', [(str(t + 1), K.banner('%s · %s' % self.titles[t], 236, 30, 'royal')) for t in range(3)], -116, 118)
-        tb.on(on_scene(), shape(V('단계')))
+        if self.tier:
+            self.S('제목띠', K.banner('%s · %s' % self.titles[0], 236, 30, 'royal'), -116, 118)
+        else:
+            tb = self.S('제목띠', [(str(t + 1), K.banner('%s · %s' % self.titles[t], 236, 30, 'royal')) for t in range(3)], -116, 118)
+            tb.on(on_scene(), shape(V('단계')))
         panel(P, sc, 'HUD판', 162, 118, 152, 24, 'glass')
         st = self.T('HUD상태', self.status0, 128, 118, 10, C_WHITE, F_NUM, False, 1, w=96, h=15)
-        st.on(on_scene(), forever(write(V('미니표시')), wait(0.05)))
+        st.on(on_scene(), *G.live_write(st, [], '미니표시', 0.08))
         if self.time_limit:
             self.S('HUD시계', K.icon_img('clock', 13), 186, 118)
             tm = self.T('HUD시간', '', 214, 118, 10, C_ACC, F_NUM, False, 2, w=36, h=15)
@@ -101,12 +113,16 @@ class MG:
         # 소개 창
         intro = [self.S('소개어둡게', A.plain_rect(480, 270, (2, 3, 12, 205), 'dim_intro'), 0, 0)]
         intro.append(panel(P, sc, '소개판', 0, -4, 320, 186, 'glass', header='royal'))
-        it = self.S('소개제목', [(str(t + 1), K.big_text(self.titles[t][1], 22, 'white')) for t in range(3)], 0, 72)
-        it.on(on_scene(), shape(V('단계')))
-        intro.append(it)
+        if self.tier:
+            intro.append(self.S('소개제목', K.big_text(self.titles[0][1], 22, 'white'), 0, 72))
+        else:
+            it = self.S('소개제목', [(str(t + 1), K.big_text(self.titles[t][1], 22, 'white')) for t in range(3)], 0, 72)
+            it.on(on_scene(), shape(V('단계')))
+            intro.append(it)
         intro.append(self.S('소개종류', K.badge(p['kind'], 74, 18, 'royal'), 0, 46))
         hl = self.T('소개설명', help_lines, 0, 14, 11, C_WHITE, F_BODY, True, 0, w=290, h=44)
-        hl.on(on_scene(), ifelse(eq(V('단계'), 1), [write(help_lines)], [write(LGET('지역설명', V('지역번호')))]))
+        if not self.tier:
+            hl.on(on_scene(), ifelse(eq(V('단계'), 1), [write(help_lines)], [write(LGET('지역설명', V('지역번호')))]))
         intro.append(hl)
         intro.append(self.T('소개조작', controls, 0, -22, 9, C_ACC, F_BODY, True, 0, w=290, h=28))
         start_act = [if_(eq(V('시작됨'), 0), setv('시작됨', 1), cast('시작누름'))]

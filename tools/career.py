@@ -155,8 +155,9 @@ def build_map(P, ctx, tier, sc, whole, dt, pins, dt_ids, ring, mode_names, ring_
                                     [if_(ne(V('_pv'), 1), setv('_pv', 1), shape('on'), o.pct(100), show()),
                                      if_(eq(V('호버지역'), k), setv('호버지역', 0))])]),
                      wait(0.05)))
+        games = ctx['S_GAME'] if tier == 1 else ctx['S_GAME%d' % tier]
         o.on(on_click(), if_(and_(vis, eq(V('개표창'), 0)), setv('현재지역', k), setv('지역번호', off + k),
-                             *go(ctx['S_GAME'][k - 1])))
+                             *go(games[k - 1])))
     tip = panel(P, sc, '툴팁판', 0, 0, 150, 52, 'card', visible=False)
     tip_t = text(P, sc, '툴팁제목', '', 0, 0, 10, C_ACC, F_NUM, False, 0, w=144, h=16, visible=False)
     tip_d = text(P, sc, '툴팁설명', '', 0, 0, 8, '#FFFFFF', F_BODY, True, 0, w=140, h=26, visible=False)

@@ -28,13 +28,18 @@ P = Project('군수집 막내아들')
 S_INTRO = '인트로'
 S_TITLE, S_STORY, S_HOWTO, S_MAP = '타이틀', '이야기', '게임 방법', '조치원 지도'
 S_GAME = ['%02d %s' % (p['id'], p['short']) for p in D.PLACES]
+import data2 as D2
+# 시장·대통령 선거 전용 게임 장면 (퀴즈 7번은 군수 장면을 같이 쓰고 문제만 단계마다 다름)
+S_GAME2 = [S_GAME[k - 1] if k == 7 else '시장%02d %s' % (k, D2.SEJONG[k - 1][1]) for k in range(1, 41)]
+S_GAME3 = [S_GAME[k - 1] if k == 7 else '대선%02d %s' % (k, D2.KOREA[k - 1][1]) for k in range(1, 41)]
+NEW_GAMES = [s_ for s_ in S_GAME2 + S_GAME3 if s_ not in S_GAME]
 S_RESULT, S_EVENT, S_SHOP, S_STOCK = '유세 결과', '돌발상황', '작전 본부', '주식'
 S_VOTE, S_RANK, S_BANKRUPT, S_CONTROL = '개표', '랭킹', '파산', '조치원 장악'
 S_GROUP, S_NEGO, S_INVEST = '계열사', '협상 테이블', '투자 회의'
 S_MAP2, S_MAP3, S_OFFICE, S_PARTY, S_ENDING = '세종시 지도', '대한민국 지도', '집무실', '정당', '엔딩'
 S_COMPANY, S_MA, S_LAND, S_OPS, S_CONTRACT = '내 회사', '기업 인수', '부동산', '작전 세력', '계약서'
 S_CASE, S_HIRE = '수사 대응', '직원 면접'
-for s in [S_INTRO, S_TITLE, S_STORY, S_HOWTO, S_MAP, S_MAP2, S_MAP3, S_OFFICE] + S_GAME + \
+for s in [S_INTRO, S_TITLE, S_STORY, S_HOWTO, S_MAP, S_MAP2, S_MAP3, S_OFFICE] + S_GAME + NEW_GAMES + \
         [S_RESULT, S_EVENT, S_SHOP, S_INVEST, S_STOCK, S_GROUP, S_NEGO, S_COMPANY, S_HIRE, S_MA, S_LAND, S_PARTY, S_OPS, S_CASE,
          S_CONTRACT,
          S_VOTE, S_CONTROL, S_ENDING, S_RANK, S_BANKRUPT]:
@@ -372,6 +377,10 @@ def build(dev_dir=None, out=None):
     for i in range(1, N_PL + 1):
         if not minigames.build_minigame(P, i, globals()):
             scene_minigame_stub(i)
+    import games2
+    games2.build_all(P, globals())
+    import games3
+    games3.build_all(P, globals())
     scene_result()
     ST.build(P, globals())
     E.build_group(P, globals())
