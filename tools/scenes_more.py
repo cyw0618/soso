@@ -398,6 +398,8 @@ def scene_shop(P, ctx):
     button(P, sc, '회의실로', '회의실', -30, -121, 84, 22, 'royal', icon='coin', actions=go(ctx['S_INVEST']))
     ops = button(P, sc, '작전세력', '작전 세력', 56, -121, 84, 22, 'red', icon='bolt', actions=go(ctx['S_OPS']))
     ops.on(on_scene(), ifelse(ge(V('직위'), 1), [show()], [hide()]))
+    case_b = button(P, sc, '수사대응', '수사 대응', 146, -121, 84, 22, 'red', icon='shield', actions=go(ctx['S_CASE']))
+    case_b.on(on_scene(), ifelse(ge(V('직위'), 2), [show()], [hide()]))
     G.hud(P, sc, ctx['PORT'])
     G.sound_hub(P, sc, 'bgm_map')
     G.fader(P, sc, ctx['BLACK'])

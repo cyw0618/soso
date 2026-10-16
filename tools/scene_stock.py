@@ -24,25 +24,31 @@ CTL = ND + 1                    # 16 지배 자본
 FOR0 = CTL                      # 해외는 17~
 COIN0 = CTL + len(D.FOREIGN)    # 코인은 23~
 SPEC0 = COIN0 + len(D.COINS)    # 특별주는 29~
-N = SPEC0 + len(D2.SPECIALS)    # 34
+LEV0 = SPEC0 + len(D2.SPECIALS)  # 레버리지·인버스 상품은 35~
+N = LEV0 + len(D2.LEVERAGED)     # 40
 HIST = 30
 ALL = list(D.STOCKS) + [(D.CONTROL_NAME, D.CONTROL_PRICE, D.CONTROL_VOL, '경영권')] + list(D.FOREIGN) + list(D.COINS) + \
-    [(nm, p, 99, '특별주 · 코인의 %d배 출렁임' % (100 if t == 2 else 500)) for nm, p, t in D2.SPECIALS]
+    [(nm, p, 99, '특별주 · 코인의 %d배 출렁임' % (100 if t == 2 else 500)) for nm, p, t in D2.SPECIALS] + \
+    [(nm, p, 40, '%s · %s 지수 %s배' % ('인버스' if k < 0 else '레버리지', {1: '국내', 2: '나스닥', 3: '비트코인'}[ix], k))
+     for nm, p, ix, k in D2.LEVERAGED]
 SPEC_IDX = [SPEC0 + i for i in range(1, len(D2.SPECIALS) + 1)]
 EXP_K = 60                      # 특별주 상태 -60~60 → 가격 × e^(상태/10)
 NAMES = [s[0] for s in ALL]
 PRICES = [s[1] for s in ALL]
 VOLS = [s[2] for s in ALL]
 SECTORS = [s[3] for s in ALL]
-KIND = [1] * ND + [0] + [2] * len(D.FOREIGN) + [3] * len(D.COINS) + [4] * len(D2.SPECIALS)  # 1 국내, 0 지배, 2 해외, 3 코인, 4 특별
+KIND = [1] * ND + [0] + [2] * len(D.FOREIGN) + [3] * len(D.COINS) + [4] * len(D2.SPECIALS) + [5] * len(D2.LEVERAGED)
+# 1 국내, 0 지배, 2 해외, 3 코인, 4 특별, 5 레버리지·인버스
 FLOORS = [max(0.0001, round(p / (60.0 if k == 3 else 20.0), 4)) if k else 40 for p, k in zip(PRICES, KIND)]
 COIN_IDX = [i for i in range(1, N + 1) if KIND[i - 1] == 3]
-TABS = [('국내 주식', 0, ND), ('해외 주식', FOR0, len(D.FOREIGN)), ('코인', COIN0, len(D.COINS)), ('특별주', SPEC0, len(D2.SPECIALS))]
+TABS = [('국내', 0, ND), ('해외', FOR0, len(D.FOREIGN)), ('코인', COIN0, len(D.COINS)), ('특별주', SPEC0, len(D2.SPECIALS)),
+        ('레버리지', LEV0, len(D2.LEVERAGED))]
+BTC = COIN0 + 1                 # 비트코인
 
 STOCK_VARS = dict(장시간=D.MARKET_START, 기록위치=1, 채움=1, 첫째주=D.CONTROL_UNCLES[0], 둘째주=D.CONTROL_UNCLES[1],
                   유통주=0, 평가금=0, 지배달성=0, 주문방향=1, 주문수량=1, 매매수량=0, 이번차단=0,
                   뉴스글='', 뉴스종목=0, 뉴스호재=1, 뉴스루머=3, 뉴스진짜=1, 뉴스세기=0, 변동률=0, 탭=1, 탭기준=0, 탭개수=ND,
-                  체결성공=0, _pv=0, _ph=0, _pl=0, _pc='', _pt='', _s=1, _p=0, _b=0, _k0=0, _mn=0, _mx=0, _v=0, _rg=1, _c=0, _q='', _m='', _a=0, _bb=0, 체결글='')
+                  체결성공=0, _po=0, _rd=0, _rf=0, _rb=1, _lr=0, _lf=1, _lk=0, _pv=0, _ph=0, _pl=0, _pc='', _pt='', _s=1, _p=0, _b=0, _k0=0, _mn=0, _mx=0, _v=0, _rg=1, _c=0, _q='', _m='', _a=0, _bb=0, 체결글='')
 
 
 def round2(x):
@@ -155,6 +161,27 @@ def _move(i, mult):
             if_(lt(LGET('주가', i), FLOORS[i - 1]), lst_set('주가', i, FLOORS[i - 1]))]
 
 
+def _track(i, acc, moves):
+    """종목 i 를 움직이기 전후 가격 비율을 acc 에 더한다 (지수 계산용)."""
+    return [setv('_po', LGET('주가', i))] + moves + [chg(acc, div(LGET('주가', i), V('_po')))]
+
+
+def lev_blocks():
+    """레버리지·인버스 상품: 지수 수익률 × 배수 만큼 움직인다 (매번 다시 맞추므로 오래 들고 있으면 깎임)."""
+    b = []
+    for j, (nm, base, ix, k) in enumerate(D2.LEVERAGED, 1):
+        s = LEV0 + j
+        r = {1: sub(div(V('_rd'), ND), 1), 2: sub(div(V('_rf'), len(D.FOREIGN)), 1), 3: sub(V('_rb'), 1)}[ix]
+        b += [setv('_lf', add(1, mul(k, r))), if_(lt(V('_lf'), 0.05), setv('_lf', 0.05)),
+              lst_set('주가', s, round2(mul(LGET('주가', s), V('_lf')))),
+              if_(lt(LGET('주가', s), 0.01), lst_set('주가', s, 0.01))]
+    return b
+
+
+def _index_reset():
+    return [setv('_rd', ND), setv('_rf', len(D.FOREIGN)), setv('_rb', 1)]
+
+
 def special_blocks():
     """특별주: 평균으로 돌아가려는 힘 + 아주 큰 흔들림 (시장 단계 종목은 코인의 100배, 대통령 단계 종목은 500배)."""
     b = []
@@ -171,10 +198,19 @@ def special_blocks():
 def tick_blocks():
     """장중 1초마다: 모든 종목 시세 + 기록 + 뉴스 + 작전 세력."""
     import economy as EC
-    b = [chg('장시간', -1)]
+    b = [chg('장시간', -1), *_index_reset(), setv('_rd', 0), setv('_rf', 0)]
     for i in range(1, SPEC0 + 1):
-        b += _move(i, D.STOCK_TICK)
+        k = KIND[i - 1]
+        if k == 1:
+            b += _track(i, '_rd', _move(i, D.STOCK_TICK))
+        elif k == 2:
+            b += _track(i, '_rf', _move(i, D.STOCK_TICK))
+        elif i == BTC:
+            b += [setv('_rb', 0)] + _track(i, '_rb', _move(i, D.STOCK_TICK))
+        else:
+            b += _move(i, D.STOCK_TICK)
     b += special_blocks()
+    b += lev_blocks()
     b += EC.ops_tick_blocks()
     b += _record_blocks()
     b += _news_blocks()
@@ -186,10 +222,14 @@ def tick_blocks():
 
 def coin_tick_blocks():
     """장이 닫혔을 때: 코인만 1초마다 움직인다."""
-    b = []
+    b = [*_index_reset()]
     for i in COIN_IDX:
-        b += _move(i, D.STOCK_TICK)
+        if i == BTC:
+            b += [setv('_rb', 0)] + _track(i, '_rb', _move(i, D.STOCK_TICK))
+        else:
+            b += _move(i, D.STOCK_TICK)
     b += special_blocks()
+    b += lev_blocks()
     b += _record_blocks()
     b += _news_blocks(coins_only=True)
     b += assets_blocks()
@@ -198,13 +238,14 @@ def coin_tick_blocks():
 
 def overnight_blocks():
     """유세 1번이 끝날 때(밤사이): 갭 변동, 장 시간 추가, 큰아버지들의 지배 자본 매수."""
-    b = []
+    b = [*_index_reset(), setv('_rd', 0), setv('_rf', 0), setv('_rb', 0)]
     for i in range(1, N + 1):
         v10 = VOLS[i - 1] * 10
         k = KIND[i - 1]
         b.append(lst_set('전주가', i, LGET('주가', i)))
-        if k == 4:
+        if k in (4, 5):
             continue
+        b.append(setv('_po', LGET('주가', i)))
         if k == 0:
             b.append(setv('변동률', div(rnd(-25, 40), 1000)))
         elif k == 3:
@@ -214,7 +255,11 @@ def overnight_blocks():
                   if_(le(rnd(1, 100), 6), setv('변동률', mul(V('변동률'), 2.5)))]
         b += [lst_set('주가', i, round2(mul(LGET('주가', i), add(1, V('변동률'))))),
               if_(lt(LGET('주가', i), FLOORS[i - 1]), lst_set('주가', i, FLOORS[i - 1]))]
+        acc = '_rd' if k == 1 else ('_rf' if k == 2 else ('_rb' if i == BTC else None))
+        if acc:
+            b.append(chg(acc, div(LGET('주가', i), V('_po'))))
     b += special_blocks()
+    b += lev_blocks()
     b += _record_blocks()
     b += [chg('장시간', D.MARKET_ADD), if_(gt(V('장시간'), D.MARKET_MAX), setv('장시간', D.MARKET_MAX))]
     # 큰아버지들의 지분 매수
@@ -323,9 +368,9 @@ def build(P, ctx):
 
     # ---- 탭: 국내 / 해외 / 코인
     for k, (lbl, base, cnt) in enumerate(TABS, 1):
-        col = 'red' if k == 4 else 'royal'
-        tb = sprite(P, sc, '탭%d' % k, [('off', K.badge(lbl, 62, 18, 'navy')), ('on', K.badge(lbl, 62, 18, col))],
-                    -200 + (k - 1) * 66, 77)
+        col = 'red' if k == 4 else ('purple' if k == 5 else 'royal')
+        tb = sprite(P, sc, '탭%d' % k, [('off', K.badge(lbl, 50, 18, 'navy')), ('on', K.badge(lbl, 50, 18, col))],
+                    -208 + (k - 1) * 52, 77)
         tb.on(on_msg('탭변경'), ifelse(eq(V('탭'), k), [shape('on'), tb.pct(108)], [shape('off'), tb.pct(100)]))
         act = [setv('탭', k), setv('탭기준', base), setv('탭개수', cnt), setv('선택종목', base + 1),
                cast('탭변경'), cast('시세갱신'), cast('선택변경')]
@@ -479,10 +524,11 @@ def build(P, ctx):
                                                                sub(1, mul(div(V('매매수량'), D.CONTROL_SHARES), D.CONTROL_IMPACT)))))),
                 *fmt_comma(V('매매수량'), '_q'), setv('체결글', join('매도 체결!  -', V('_q'))), setv('체결성공', 1)],
                [setv('체결글', '팔 수량이 없어요'), setv('체결성공', 0)])]
-    locked = and_(gt(V('_s'), SPEC0), gt(LGET('특별단계', sub(V('_s'), SPEC0)), V('단계')))
     mgr.on(on_msg('주문'),
            setv('_s', V('선택종목')), setv('_p', LGET('주가', V('_s'))),
-           ifelse(locked, [setv('체결글', '대통령 선거 때 열리는 특별주예요!'), setv('체결성공', 0)],
+           setv('_lk', 0),
+           if_(and_(gt(V('_s'), SPEC0), le(V('_s'), LEV0)), if_(gt(LGET('특별단계', sub(V('_s'), SPEC0)), V('단계')), setv('_lk', 1))),
+           ifelse(eq(V('_lk'), 1), [setv('체결글', '대통령 선거 때 열리는 특별주예요!'), setv('체결성공', 0)],
                   [ifelse(eq(V('주문방향'), 1), buy, sell)]),
            setv('돈', div(rounded(mul(V('돈'), 10)), 10)),
            cast('체결'), *assets_blocks(), cast('시세갱신'), *E.majority_check())

@@ -25,6 +25,7 @@ from art_common import save, ensure_out, OUT
 P = Project('군수집 막내아들')
 
 # ------------------------------------------------------------------ 장면 이름
+S_INTRO = '인트로'
 S_TITLE, S_STORY, S_HOWTO, S_MAP = '타이틀', '이야기', '게임 방법', '조치원 지도'
 S_GAME = ['%02d %s' % (p['id'], p['short']) for p in D.PLACES]
 S_RESULT, S_EVENT, S_SHOP, S_STOCK = '유세 결과', '돌발상황', '작전 본부', '주식'
@@ -32,8 +33,10 @@ S_VOTE, S_RANK, S_BANKRUPT, S_CONTROL = '개표', '랭킹', '파산', '조치원
 S_GROUP, S_NEGO, S_INVEST = '계열사', '협상 테이블', '투자 회의'
 S_MAP2, S_MAP3, S_OFFICE, S_PARTY, S_ENDING = '세종시 지도', '대한민국 지도', '집무실', '정당', '엔딩'
 S_COMPANY, S_MA, S_LAND, S_OPS, S_CONTRACT = '내 회사', '기업 인수', '부동산', '작전 세력', '계약서'
-for s in [S_TITLE, S_STORY, S_HOWTO, S_MAP, S_MAP2, S_MAP3, S_OFFICE] + S_GAME + \
-        [S_RESULT, S_EVENT, S_SHOP, S_INVEST, S_STOCK, S_GROUP, S_NEGO, S_COMPANY, S_MA, S_LAND, S_PARTY, S_OPS, S_CONTRACT,
+S_CASE, S_HIRE = '수사 대응', '직원 면접'
+for s in [S_INTRO, S_TITLE, S_STORY, S_HOWTO, S_MAP, S_MAP2, S_MAP3, S_OFFICE] + S_GAME + \
+        [S_RESULT, S_EVENT, S_SHOP, S_INVEST, S_STOCK, S_GROUP, S_NEGO, S_COMPANY, S_HIRE, S_MA, S_LAND, S_PARTY, S_OPS, S_CASE,
+         S_CONTRACT,
          S_VOTE, S_CONTROL, S_ENDING, S_RANK, S_BANKRUPT]:
     P.scene(s)
 
@@ -358,6 +361,8 @@ def scene_minigame_stub(idx):
 
 
 def build(dev_dir=None, out=None):
+    import intro
+    intro.build(P, globals())
     scene_title()
     scene_story()
     scene_howto()
@@ -376,6 +381,8 @@ def build(dev_dir=None, out=None):
     EC.build_ma(P, globals())
     EC.build_land(P, globals())
     EC.build_ops(P, globals())
+    EC.build_case(P, globals())
+    EC.build_hire(P, globals())
     CR.build_party(P, globals())
     import scenes_more
     scenes_more.build_all(P, globals())

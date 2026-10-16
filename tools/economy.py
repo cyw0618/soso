@@ -28,7 +28,10 @@ ECON_VARS = dict(마지막시각=0, 주기수입=0, 투자자산=0, 이번수입
                  경제알림='', 작전종목=1, 작전단계=0, 작전틱=0, 작전비용=0, 작전결과='', 작전대상=1, 작전폭=0, 작전위험=0, 작전변호=0,
                  세력비용합=0, 세력힘합=0, 세력위험합=0,
                  계약종류=0, 계약대상=0, 계약금액=0, 계약제목='', 계약내용='', 계약상대='', 서명길이=0, 계약확인=0,
-                 결재수=1, 결재타이머=0, 서류번호=0, _now=0, _el=0, _np=0, _ei=0, _eg=0, _ev=0, _ek=0, _inc=0, _펜=0, _px=0, _py=0)
+                 결재수=1, 결재타이머=0, 서류번호=0,
+                 의혹=0, 수사기관=0, 수사혐의=1, 수사남은=0, 수사위험=60, 수사결과글='', _cf=0, _ca=0, _cp=0,
+                 경영력=0, 직원급여합=0, 직원총수=0, 선택직급=9, 후보직급=9, 후보이름='', 후보나이=0, 후보경력=0, 후보능력=50,
+                 후보성격=1, 후보급여=0, 질문수=0, 질문1=0, 질문2=0, 질문3=0, 후보정보1='', 후보정보2='', 후보정보3='', _hc=0, _now=0, _el=0, _np=0, _ei=0, _eg=0, _ev=0, _ek=0, _inc=0, _펜=0, _px=0, _py=0)
 
 
 def setup(P):
@@ -61,6 +64,26 @@ def setup(P):
     P.list('정보꾼값', [b[1] * 10000 for b in D2.BROKERS])
     P.list('정보꾼확률', [b[2] for b in D2.BROKERS])
     P.list('급여', D2.SALARY)
+    P.list('기관이름', D2.AGENCIES)
+    P.list('기관짧은', D2.AGENCY_SHORT)
+    P.list('매수남은', [0] * len(D2.AGENCIES))
+    P.list('혐의기관', [c[0] for c in D2.CHARGES])
+    P.list('혐의이름', [c[1] for c in D2.CHARGES])
+    P.list('혐의설명', [c[2] for c in D2.CHARGES])
+    PO = D2.POSITIONS
+    P.list('직급이름', [p[0] for p in PO])
+    P.list('직급정원', [p[1] for p in PO])
+    P.list('직급급여', [p[2] for p in PO])
+    P.list('직급배수', [p[3] for p in PO])
+    P.list('직급능력최소', [p[4][0] for p in PO])
+    P.list('직급능력최대', [p[4][1] for p in PO])
+    P.list('직급경력최소', [p[5][0] for p in PO])
+    P.list('직급경력최대', [p[5][1] for p in PO])
+    P.list('직원수', [0] * len(PO))
+    P.list('직원능력합', [0] * len(PO))
+    P.list('성격힌트', D2.TRAIT_HINT)
+    P.list('성씨', D2.SURNAMES)
+    P.list('이름', D2.GIVEN)
     P.list('세력이름', [m[0] for m in D2.OPS_MEMBERS])
     P.list('세력비용', [m[2] * 10000 for m in D2.OPS_MEMBERS])
     P.list('세력힘', [m[3] for m in D2.OPS_MEMBERS])
@@ -73,7 +96,27 @@ def reset_blocks():
     for i in range(1, NL + 1):
         b += [lst_set('땅보유', i, 0), lst_set('땅가격', i, D2.LANDS[i - 1][2] * 10000), lst_set('땅예정', i, 0), lst_set('땅배율', i, 1)]
     b += [lst_set('회사기록', i, 0) for i in range(1, 21)]
+    b += [lst_set('매수남은', i, 0) for i in range(1, len(D2.AGENCIES) + 1)]
+    b += staff_reset()
     return b
+
+
+NP = len(D2.POSITIONS)
+NA = len(D2.AGENCIES)
+
+
+def staff_reset():
+    return [lst_set('직원수', i, 0) for i in range(1, NP + 1)] + [lst_set('직원능력합', i, 0) for i in range(1, NP + 1)] + \
+        [setv('경영력', 0), setv('직원급여합', 0), setv('직원총수', 0)]
+
+
+def staff_calc():
+    """경영력 = Σ(직급별 능력 합 × 직급 배수)/100, 급여 합, 직원 수."""
+    b = [setv('경영력', 0), setv('직원급여합', 0), setv('직원총수', 0)]
+    for i in range(1, NP + 1):
+        b += [chg('경영력', div(mul(LGET('직원능력합', i), LGET('직급배수', i)), 100)),
+              chg('직원급여합', mul(LGET('직원수', i), LGET('직급급여', i))), chg('직원총수', LGET('직원수', i))]
+    return b + [setv('경영력', round1(V('경영력')))]
 
 
 # ------------------------------------------------------------------ 계산
@@ -92,7 +135,7 @@ def income_sum():
     return [setv('투자자산', add(V('인수가치'), V('땅가치합'))),
             setv('회사배당', 0),
             if_(eq(V('회사상태'), 1), setv('회사배당', rounded(div(mul(V('회사가치'), D2.MYCO_PAYOUT), 1000)))),
-            setv('주기수입', add(add(V('인수수입'), V('땅수입')), V('회사배당'))),
+            setv('주기수입', sub(add(add(V('인수수입'), V('땅수입')), V('회사배당')), V('직원급여합'))),
             if_(gt(V('직위'), 0), chg('주기수입', mul(LGET('급여', add(V('직위'), 1)), add(0.5, div(V('평판'), 100))))),
             if_(eq(V('창당'), 1), chg('주기수입', mul(V('당원'), D2.PARTY_FEE))),
             control_dividend(),
@@ -107,7 +150,7 @@ def recalc_loop():
     return [setv('인수가치', 0), setv('인수수', 0), setv('인수수입', 0), setv('_ci2', 1),
             rep(NC, if_(le(V('_ci2'), NC), if_(gt(LGET('인수레벨', V('_ci2')), 0), chg('인수가치', company_value(V('_ci2'))),
                                                 chg('인수수', 1), chg('인수수입', company_income(V('_ci2'))))), chg('_ci2', 1)),
-            *land_totals_loop(), *income_sum()]
+            *land_totals_loop(), *staff_calc(), *income_sum()]
 
 
 def land_totals_loop():
@@ -127,15 +170,17 @@ def company_step():
     return [if_(eq(V('회사상태'), 1),
                 setv('_eg', div(add(rnd(mul(LGET('업종흔들림', t), -1), LGET('업종흔들림', t)), LGET('업종성장', t)), 1000)),
                 if_(gt(V('회사부스트'), 0), chg('_eg', 0.012), chg('회사부스트', -1)),
+                chg('_eg', mul(V('경영력'), 0.0004)),
                 setv('_ek', rnd(1, 100)),
-                ifelse(le(V('_ek'), LGET('업종대박', t)),
+                ifelse(le(V('_ek'), add(LGET('업종대박', t), div(V('경영력'), 40))),
                        [chg('_eg', div(rnd(30, 80), 100)), setv('회사소식', LGET('회사호재', rnd(1, len(D2.MYCO_NEWS_GOOD))))],
-                       [if_(gt(V('_ek'), sub(100, LGET('업종위기', t))),
+                       [if_(gt(V('_ek'), sub(100, sub(LGET('업종위기', t), div(V('경영력'), 15)))),
                             chg('_eg', div(rnd(-45, -25), 100)), setv('회사소식', LGET('회사악재', rnd(1, len(D2.MYCO_NEWS_BAD)))))]),
                 setv('회사가치', rounded(mul(V('회사가치'), add(1, V('_eg'))))),
                 lst_del('회사기록', 1), lst_add('회사기록', V('회사가치')),
                 if_(lt(V('회사가치'), mul(V('회사투자'), 0.15)),
                     setv('회사상태', 2), setv('회사가치', 0), setv('회사소식', '회사가 부도났다... 투자금을 모두 잃었다'),
+                    *staff_reset(),
                     setv('경제알림', join(V('회사이름'), ' 부도!')), cast('경제알림')))]
 
 
@@ -179,6 +224,46 @@ def docs_step():
                 if_(ge(V('결재타이머'), D2.DOC_REFILL), setv('결재타이머', 0), if_(lt(V('결재수'), 3), chg('결재수', 1))))]
 
 
+def bribe_mult():
+    return LGET('상점배율', clamp13(V('직위')))
+
+
+def case_step():
+    """검찰·금감원·노동청·공정위 수사 (세종시장 이상). 의혹이 클수록, 직원·인수 기업이 많을수록 잘 들어온다.
+    미리 매수해 둔 기관은 그 시간 동안 수사를 하지 않는다."""
+    return [*[if_(gt(LGET('매수남은', a), 0), lst_set('매수남은', a, sub(LGET('매수남은', a), mul(V('_np'), PERIOD))),
+                  if_(lt(LGET('매수남은', a), 0), lst_set('매수남은', a, 0))) for a in range(1, NA + 1)],
+            if_(gt(V('의혹'), 0), chg('의혹', mul(V('_np'), -0.5)), if_(lt(V('의혹'), 0), setv('의혹', 0))),
+            ifelse(gt(V('수사기관'), 0),
+                   [chg('수사남은', mul(V('_np'), -PERIOD)),
+                    ifelse(le(V('수사남은'), 0), case_verdict(),
+                           [if_(eq(mod(V('수사남은'), 30), 0),
+                                setv('경제알림', join('⚖ ', LGET('기관짧은', V('수사기관')), ' 수사 중! 남은 ', V('수사남은'),
+                                                      '초 · 집무실 「수사 대응」')), cast('경제알림'))])],
+                   [if_(ge(V('직위'), 2),
+                        setv('_ca', rnd(1, NA)),
+                        setv('_cp', add(1, div(V('의혹'), 10))),
+                        if_(eq(V('_ca'), 3), chg('_cp', div(V('직원총수'), 10))),
+                        if_(eq(V('_ca'), 4), chg('_cp', div(V('인수수'), 3))),
+                        if_(and_(le(rnd(1, 100), V('_cp')), le(LGET('매수남은', V('_ca')), 0)),
+                            setv('수사기관', V('_ca')), setv('수사혐의', add(mul(sub(V('_ca'), 1), 5), rnd(1, 5))),
+                            setv('수사남은', mul(rnd(D2.CASE_TIME[0] // 10, D2.CASE_TIME[1] // 10), 10)), setv('수사위험', D2.CASE_RISK),
+                            setv('경제알림', join(LGET('기관이름', V('_ca')), ' ', LGET('혐의이름', V('수사혐의')),
+                                                  ' 수사 착수! 집무실 「수사 대응」에서 막으세요')),
+                            cast('경제알림')))])]
+
+
+def case_verdict():
+    return [ifelse(le(rnd(1, 100), V('수사위험')),
+                   [setv('_cf', rounded(mul(V('총자산'), D2.CASE_FINE / 100.0))), if_(lt(V('_cf'), 0), setv('_cf', 0)),
+                    chg('돈', mul(V('_cf'), -1)), chg('평판', -20), if_(lt(V('평판'), 0), setv('평판', 0)),
+                    if_(eq(V('캠페인중'), 1), chg('내지지율', -4), if_(lt(V('내지지율'), 0.5), setv('내지지율', 0.5))),
+                    chg('의혹', 10), *fmt_money(V('_cf'), '_m'),
+                    setv('수사결과글', join(LGET('기관짧은', V('수사기관')), ' 수사 결과 유죄! 벌금 ', V('_m'), ', 평판 -20'))],
+                   [chg('평판', 3), setv('수사결과글', join(LGET('기관짧은', V('수사기관')), ' 수사 결과 무혐의!'))]),
+            setv('수사기관', 0), setv('경제알림', V('수사결과글')), cast('경제알림')]
+
+
 def tick_blocks():
     """1초마다: 실제 시각을 보고 10초가 지났으면 경제 한 걸음."""
     return [setv('_now', now_sec()),
@@ -189,10 +274,10 @@ def tick_blocks():
                 setv('_np', floor(div(V('_el'), PERIOD))),
                 chg('마지막시각', mul(V('_np'), PERIOD)),
                 if_(gt(V('_np'), 30), setv('_np', 30)),
-                *company_step(), *land_step(), *docs_step(), *income_sum(),
+                *company_step(), *land_step(), *docs_step(), *case_step(), *income_sum(),
                 setv('이번수입', mul(V('주기수입'), V('_np'))),
                 chg('돈', V('이번수입')),
-                if_(gt(V('이번수입'), 0), cast('수입팝')),
+                if_(ne(V('이번수입'), 0), cast('수입팝')),
                 cast('경제갱신'))]
 
 
@@ -205,8 +290,9 @@ def ticker(P, sc):
 def income_pop(P, sc, x=-150, y=104):
     """돈 옆에 '+1.2억' 이 떠올랐다 사라짐."""
     t = text(P, sc, '수입팝', '', x, y, 10, '#7CFFB2', F_NUM, False, 0, w=120, h=15, visible=False)
-    t.on(on_msg('수입팝'), *fmt_money(V('이번수입'), '_m'), write(join('+', V('_m'))), xy(x, y), to_front(), show(),
-         rep(20, mvy(0.6), wait(0.03)), hide())
+    t.on(on_msg('수입팝'), *fmt_money(V('이번수입'), '_m'),
+         ifelse(ge(V('이번수입'), 0), [write(join('+', V('_m'))), text_color('#7CFFB2')], [write(V('_m')), text_color(C_RED)]),
+         xy(x, y), to_front(), show(), rep(20, mvy(0.6), wait(0.03)), hide())
     note = text(P, sc, '경제알림', '', 0, -100, 9, C_WHITE, F_NUM, False, 0, w=320, h=16, visible=False, bg=C_BOX)
     note.on(on_msg('경제알림'), write(V('경제알림')), to_front(), show(), wait(2.6), hide())
     return t
@@ -407,9 +493,16 @@ def build_company(P, ctx):
         run.append(b)
     sell = button(P, sc, '매각버튼', '회사 매각 (가치의 90%)', 126, -76, 170, 24, 'gray', icon='coin',
                   actions=[if_(eq(V('회사상태'), 1), chg('돈', rounded(mul(V('회사가치'), 0.9))), setv('회사상태', 0),
-                               setv('회사가치', 0), setv('회사투자', 0), setv('경제알림', '회사를 매각했어요!'), cast('경제알림'),
+                               setv('회사가치', 0), setv('회사투자', 0), *staff_reset(), setv('경제알림', '회사를 매각했어요! 직원들도 함께 넘어갔어요'),
+                               cast('경제알림'),
                                G.sfx('cash'), *income_blocks(), cast('회사화면'))])
     run.append(sell)
+    hire_b = button(P, sc, '면접버튼', '직원 면접·채용', 126, -100, 150, 22, 'purple', icon='person', actions=go(ctx['S_HIRE']))
+    run.append(hire_b)
+    staff_t = text(P, sc, '직원요약', '', -112, -14, 8, C_VIOLET, F_NUM, False, 0, w=220, h=12)
+    staff_t.on(on_msg('회사갱신'), *fmt_money(V('직원급여합'), '_m'),
+               write(join('직원 ', V('직원총수'), '명 · 경영력 ', V('경영력'), ' · 급여 -', V('_m'), '/10초')))
+    run.append(staff_t)
     for o in found:
         o.on(on_msg('회사화면'), ifelse(alive, [hide()], [show()]))
     for o in run:
@@ -426,7 +519,7 @@ def build_company(P, ctx):
     # 계약 적용: 설립
     CONTRACT_KINDS[1] = ([if_(ge(V('돈'), D2.MYCO_START), chg('돈', -D2.MYCO_START), setv('회사상태', 1),
                               setv('회사업종', V('계약대상')), setv('회사가치', D2.MYCO_START), setv('회사투자', D2.MYCO_START),
-                              setv('회사부스트', 0), setv('회사소식', '회사를 세웠다! 이제 시작이다.'),
+                              setv('회사부스트', 0), setv('회사소식', '회사를 세웠다! 이제 직원을 뽑아 보자.'), *staff_reset(),
                               *[lst_set('회사기록', i, D2.MYCO_START) for i in range(1, 21)])],
                          go(sc))
 
@@ -748,10 +841,204 @@ def ops_tick_blocks():
             if_(eq(V('작전단계'), 3),
                 lst_set('주가', s, mul(LGET('주가', s), div(rnd(80, 90), 100))), chg('작전틱', 1),
                 if_(ge(V('작전틱'), D2.OPS_DUMP_TICKS), setv('작전단계', 0),
-                    ifelse(le(rnd(1, 100), V('작전위험')),
+                    setv('_cp', V('작전위험')), if_(gt(LGET('매수남은', 2), 0), setv('_cp', div(V('작전위험'), 2))),
+                    chg('의혹', 10),
+                    ifelse(le(rnd(1, 100), V('_cp')),
                            [fine, chg('돈', mul(V('_ev'), -1)), chg('평판', -20), if_(lt(V('평판'), 0), setv('평판', 0)),
                             chg('내지지율', -2), if_(lt(V('내지지율'), 0.5), setv('내지지율', 0.5)),
                             *fmt_money(V('_ev'), '_m'),
                             setv('작전결과', join('금감원에 적발! 벌금 ', V('_m'), ', 평판·지지율 하락...')),
                             setv('뉴스글', join(LGET('주식이름', s), ' 시세조종 적발! 금감원 조사 착수')), setv('뉴스루머', 0), cast('뉴스')],
                            [setv('작전결과', '작전 종료. 들키지 않았다!')])))]
+
+
+# ------------------------------------------------------------------ 수사 대응 (검찰 · 금감원 · 노동청 · 공정위)
+def build_case(P, ctx):
+    sc = ctx['S_CASE']
+    G.bg(P, sc, ctx['ART']('story_bg'))
+    sprite(P, sc, '어둡게', ctx['DIM'], 0, 0)
+    sprite(P, sc, '제목', K.banner('수사 대응', 120, 30, 'red'), 0, 116)
+    on = gt(V('수사기관'), 0)
+    mult = bribe_mult()
+    # ---- 왼쪽: 진행 중인 수사
+    panel(P, sc, '사건판', -112, 6, 232, 160, 'alert')
+    ag = text(P, sc, '수사기관', '', -112, 72, 13, C_RED, F_NUM, False, 0, w=220, h=18)
+    ch = text(P, sc, '수사혐의', '', -112, 52, 11, C_WHITE, F_NUM, False, 0, w=220, h=16)
+    ds = text(P, sc, '수사설명', '', -112, 28, 8, C_DIM, F_BODY, True, 0, w=216, h=28)
+    tm = text(P, sc, '수사남은', '', -112, 2, 10, C_WHITE, F_NUM, False, 0, w=216, h=15)
+    rk = text(P, sc, '유죄확률', '', -112, -16, 10, C_ACC, F_NUM, False, 0, w=216, h=15)
+    rb = sprite(P, sc, '유죄막대', K.bar_set('case_red', 180, 8, 'red'), -112, -32)
+    upd = [ag, [ifelse(on, [write(join(LGET('기관이름', V('수사기관')), ' 수사 중!'))], [write('진행 중인 수사 없음')])],
+           ch, [ifelse(on, [write(LGET('혐의이름', V('수사혐의')))], [write('')])],
+           ds, [ifelse(on, [write(LGET('혐의설명', V('수사혐의')))], [write('세종시장이 되면 검찰·금감원·노동청·공정위가\n수사를 시작할 수 있어요.')])],
+           tm, [ifelse(on, [write(join('결과 발표까지 ', V('수사남은'), '초'))], [write('')])],
+           rk, [write(join('의혹 지수 ', rounded(V('의혹')), '  ·  유죄 확률 ', ifelse_case_risk(), '%'))]]
+    for k in range(0, len(upd), 2):
+        upd[k].on(on_msg('수사갱신'), *upd[k + 1])
+    rb.on(on_msg('수사갱신'), ifelse(on, [shape(add(floor(div(V('수사위험'), 2.5)), 1)), show()], [hide()]))
+    # 대응 버튼
+    note = text(P, sc, '수사알림', '', 0, -100, 9, C_WHITE, F_NUM, False, 0, w=360, h=16, visible=False, bg=C_BOX)
+    note.on(on_msg('수사알림'), write(V('수사결과글')), to_front(), show(), wait(2.6), hide())
+    lawyer = mul(D2.LAWYER_COST, mult)
+    bribe = mul(D2.BRIBE_COST, mult)
+
+    def act(blocks):
+        return [ifelse(on, blocks, [setv('수사결과글', '지금은 수사가 없어요.')]), cast('수사알림'), cast('수사갱신')]
+    acts = [
+        ('변호인단 선임', 'royal', act([ifelse(ge(V('돈'), lawyer),
+                                         [chg('돈', mul(lawyer, -1)), chg('수사위험', -20), if_(lt(V('수사위험'), 5), setv('수사위험', 5)),
+                                          setv('수사결과글', '전관 변호인단 합류! 유죄 확률 -20%p'), G.sfx('coin')],
+                                         [setv('수사결과글', '변호사 비용이 부족해요!'), G.sfx('bad')])])),
+        ('해명 기자회견', 'blue', act([ifelse(le(rnd(1, 100), 50),
+                                        [chg('평판', 5), chg('수사위험', -10), if_(lt(V('수사위험'), 5), setv('수사위험', 5)),
+                                         setv('수사결과글', '해명이 먹혔다! 여론이 돌아섰다 (유죄 확률 -10%p)'), G.sfx('good')],
+                                        [chg('평판', -8), chg('수사위험', 10), if_(gt(V('수사위험'), 95), setv('수사위험', 95)),
+                                         setv('수사결과글', '말실수를 했다... 유죄 확률 +10%p'), G.sfx('bad')])])),
+        ('몰래 매수 시도', 'red', act([ifelse(ge(V('돈'), bribe),
+                                        [chg('돈', mul(bribe, -1)),
+                                         ifelse(le(rnd(1, 100), D2.BRIBE_OK),
+                                                [chg('의혹', 20), setv('수사기관', 0),
+                                                 setv('수사결과글', '수사가 흐지부지 끝났다... 무혐의 처리'), G.sfx('cash')],
+                                                [chg('의혹', 25), chg('수사위험', 30), if_(gt(V('수사위험'), 95), setv('수사위험', 95)),
+                                                 chg('평판', -15), chg('수사남은', 30),
+                                                 setv('수사결과글', '매수 시도가 들통났다! 뇌물 공여 혐의까지 추가'), G.sfx('bad')])],
+                                        [setv('수사결과글', '매수할 돈이 부족해요!'), G.sfx('bad')])])),
+        ('수사 협조', 'gray', act([setv('_cf', rounded(mul(V('총자산'), 0.03))), if_(lt(V('_cf'), 0), setv('_cf', 0)),
+                                    chg('돈', mul(V('_cf'), -1)), chg('평판', -5), chg('의혹', -10), if_(lt(V('의혹'), 0), setv('의혹', 0)),
+                                    setv('수사기관', 0), *fmt_money(V('_cf'), '_m'),
+                                    setv('수사결과글', join('잘못을 인정하고 협조했다. 벌금 ', V('_m'), ' 내고 마무리')), G.sfx('stamp')])),
+    ]
+    for j, (lbl, col, a) in enumerate(acts):
+        button(P, sc, '대응%d' % j, lbl, -168 + (j % 2) * 112, -54 - (j // 2) * 26, 106, 22, col, actions=a)
+    cost_t = text(P, sc, '대응비용', '', -112, -112, 7, C_DIM, F_BODY, True, 0, w=220, h=11)
+    cost_t.on(on_scene(), *fmt_money(lawyer, '_m'), setv('_q', V('_m')), *fmt_money(bribe, '_m'),
+              write(join('변호인단 ', V('_q'), ' · 매수 ', V('_m'), ' (성공 ', D2.BRIBE_OK, '%)')))
+    # ---- 오른쪽: 미리 매수하기
+    panel(P, sc, '매수판', 124, 6, 214, 160, 'glass', header='purple')
+    text(P, sc, '매수제목', '미리 매수해 두기', 124, 72, 12, C_WHITE, F_NUM, False, 0, w=200, h=16)
+    text(P, sc, '매수설명', '3분 동안 그 기관은 수사를 안 해요.\n(금감원: 작전 적발↓, 검찰: 뒷돈 적발↓) 의혹 +6',
+         124, 50, 7, C_DIM, F_BODY, True, 0, w=200, h=22)
+    pre = mul(mul(D2.BRIBE_COST, 0.6), mult)
+    for a in range(1, NA + 1):
+        y = 24 - (a - 1) * 30
+        bt = button(P, sc, '미리매수%d' % a, D2.AGENCY_SHORT[a - 1] + ' 매수', 84, y, 92, 22, 'purple',
+                    actions=[ifelse(ge(V('돈'), pre),
+                                    [chg('돈', mul(pre, -1)), lst_set('매수남은', a, D2.PRE_BRIBE_TIME), chg('의혹', 6),
+                                     setv('수사결과글', '%s 쪽 사람을 매수했다. 3분 동안 조용할 것이다' % D2.AGENCY_SHORT[a - 1]),
+                                     G.sfx('cash')],
+                                    [setv('수사결과글', '매수할 돈이 부족해요!'), G.sfx('bad')]),
+                             cast('수사알림'), cast('수사갱신')])
+        st = text(P, sc, '매수상태%d' % a, '', 174, y, 8, C_ACC, F_NUM, False, 0, w=86, h=13)
+        st.on(on_msg('수사갱신'), ifelse(gt(LGET('매수남은', a), 0), [write(join('안전 ', LGET('매수남은', a), '초')), text_color(C_ACC)],
+                                       [write('매수 안 함'), text_color(C_DIM)]))
+    pc = text(P, sc, '매수비용', '', 124, -98, 7, C_DIM, F_BODY, True, 0, w=200, h=11)
+    pc.on(on_scene(), *fmt_money(pre, '_m'), write(join('기관마다 ', V('_m'))))
+    mgr = text(P, sc, '수사담당', '', -300, -300, 8, visible=False)
+    mgr.on(on_scene(), *ST_assets(), cast('수사갱신'))
+    mgr.on(on_msg('경제갱신'), cast('수사갱신'))
+    button(P, sc, '돌아가기', '돌아가기', -196, -121, 76, 22, 'navy', icon='back', actions=ctx['GO_HOME']())
+    G.hud(P, sc, ctx['PORT'])
+    G.sound_hub(P, sc, 'bgm_map')
+    G.fader(P, sc, ctx['BLACK'])
+
+
+def ifelse_case_risk():
+    return V('수사위험')
+
+
+def ST_assets():
+    import scene_stock as ST
+    return ST.assets_blocks()
+
+
+# ------------------------------------------------------------------ 직원 면접 (내 회사)
+def new_candidate():
+    p = V('후보직급')
+    return [setv('후보이름', join(LGET('성씨', rnd(1, len(D2.SURNAMES))), LGET('이름', rnd(1, len(D2.GIVEN))))),
+            setv('후보경력', rnd(LGET('직급경력최소', p), LGET('직급경력최대', p))),
+            setv('후보나이', add(add(24, V('후보경력')), rnd(0, 5))),
+            setv('_hc', rnd(1, 100)),
+            ifelse(le(V('_hc'), 40), [setv('후보성격', 1)],
+                   [ifelse(le(V('_hc'), 65), [setv('후보성격', 2)], [ifelse(le(V('_hc'), 85), [setv('후보성격', 3)], [setv('후보성격', 4)])])]),
+            setv('후보능력', rnd(LGET('직급능력최소', p), LGET('직급능력최대', p))),
+            setv('후보급여', rounded(mul(LGET('직급급여', p), add(0.8, div(V('후보능력'), 250))))),
+            setv('질문수', 0), setv('질문1', 0), setv('질문2', 0), setv('질문3', 0),
+            setv('후보정보1', ''), setv('후보정보2', ''), setv('후보정보3', '')]
+
+
+def build_hire(P, ctx):
+    sc = ctx['S_HIRE']
+    G.bg(P, sc, ctx['ART']('story_bg'))
+    sprite(P, sc, '어둡게', ctx['DIM'], 0, 0)
+    sprite(P, sc, '제목', K.banner('직원 면접', 120, 30, 'royal'), 0, 116)
+    summ = text(P, sc, '인사요약', '', 0, 92, 9, C_ACC, F_NUM, False, 0, w=300, h=14)
+    summ.on(on_msg('인사갱신'), *fmt_money(V('직원급여합'), '_m'),
+            write(join('경영력 ', V('경영력'), ' · 직원 ', V('직원총수'), '명 · 급여 10초마다 -', V('_m'))))
+    # ---- 왼쪽: 직급 목록
+    panel(P, sc, '직급판', -128, -10, 204, 196, 'glass', header='royal')
+    rows = [('n', K.panel(196, 18, 'card')), ('s', K.panel(196, 18, 'card', header='royal'))]
+    for i, pos in enumerate(D2.POSITIONS, 1):
+        y = 72 - (i - 1) * 20
+        rc = sprite(P, sc, '직급칸%d' % i, rows, -128, y)
+        rc.on(on_msg('인사갱신'), ifelse(eq(V('선택직급'), i), [shape('s')], [shape('n')]))
+        t1 = text(P, sc, '직급명%d' % i, pos[0], -186, y, 9, C_WHITE, F_NUM, False, 1, w=70, h=13)
+        t2 = text(P, sc, '직급현황%d' % i, '', -80, y, 8, C_DIM, F_BODY, True, 2, w=100, h=12)
+        t2.on(on_msg('인사갱신'),
+              ifelse(gt(LGET('직원수', i), 0),
+                     [write(join(LGET('직원수', i), '/', pos[1], '명 · 평균 ', rounded(div(LGET('직원능력합', i), LGET('직원수', i)))))],
+                     [write(join('0/', pos[1], '명'))]))
+        sel = [setv('선택직급', i), setv('후보직급', i), *new_candidate(), cast('인사갱신')]
+        for o in (rc, t1, t2):
+            o.on(on_click(), *sel)
+    fire = button(P, sc, '해고', '한 명 해고', -128, -110, 90, 20, 'gray',
+                  actions=[if_(gt(LGET('직원수', V('선택직급')), 0),
+                               lst_set('직원능력합', V('선택직급'), sub(LGET('직원능력합', V('선택직급')),
+                                                                     div(LGET('직원능력합', V('선택직급')), LGET('직원수', V('선택직급'))))),
+                               lst_set('직원수', V('선택직급'), sub(LGET('직원수', V('선택직급')), 1)),
+                               setv('경제알림', join(LGET('직급이름', V('선택직급')), ' 한 명을 내보냈다')), cast('경제알림')),
+                           *staff_calc(), *income_sum(), cast('인사갱신')])
+    # ---- 오른쪽: 지원자
+    panel(P, sc, '지원자판', 104, -10, 252, 196, 'glass', header='purple')
+    nm = text(P, sc, '지원자이름', '', 104, 72, 13, C_WHITE, F_NUM, False, 0, w=240, h=18)
+    nm.on(on_msg('인사갱신'), write(join(V('후보이름'), ' (', V('후보나이'), '세) · ', LGET('직급이름', V('후보직급')), ' 지원')))
+    bio = text(P, sc, '지원자경력', '', 104, 54, 9, C_DIM, F_BODY, True, 0, w=240, h=13)
+    bio.on(on_msg('인사갱신'), *fmt_money(V('후보급여'), '_m'), write(join('경력 ', V('후보경력'), '년 · 희망 급여 10초마다 ', V('_m'))))
+    infos = []
+    for k in range(1, 4):
+        it = text(P, sc, '면접정보%d' % k, '', 104, 34 - (k - 1) * 18, 8, C_WHITE, F_BODY, True, 0, w=236, h=16)
+        it.on(on_msg('인사갱신'), write(V('후보정보%d' % k)))
+        infos.append(it)
+    ql = text(P, sc, '질문남은', '', 104, -18, 8, C_ACC, F_NUM, False, 0, w=236, h=12)
+    ql.on(on_msg('인사갱신'), write(join('질문은 2개까지 (남은 ', sub(2, V('질문수')), '개)')))
+    qs = [('경력 확인', '질문1', [setv('_hc', add(V('후보능력'), rnd(-10, 10))), if_(eq(V('후보성격'), 3), chg('_hc', 25)),
+                                if_(gt(V('_hc'), 99), setv('_hc', 99)),
+                                setv('후보정보1', join('· 본인 말로는 능력이 ', V('_hc'), '점쯤 된다고 한다'))]),
+          ('압박 질문', '질문2', [setv('후보정보2', join('· ', LGET('성격힌트', V('후보성격'))))]),
+          ('실무 테스트', '질문3', [setv('_hc', add(V('후보능력'), rnd(-5, 5))), if_(eq(V('후보성격'), 4), chg('_hc', -15)),
+                                  if_(lt(V('_hc'), 1), setv('_hc', 1)),
+                                  setv('후보정보3', join('· 실무 테스트 점수 ', V('_hc'), '점'))])]
+    for j, (lbl, flag, blk) in enumerate(qs):
+        button(P, sc, '질문버튼%d' % j, lbl, 26 + j * 78, -40, 74, 22, 'blue',
+               actions=[ifelse(and_(lt(V('질문수'), 2), eq(V(flag), 0)), [setv(flag, 1), chg('질문수', 1), *blk, G.sfx('click')],
+                               [setv('경제알림', '더 물어볼 수 없어요'), cast('경제알림')]), cast('인사갱신')])
+    hire = [ifelse(not_(eq(V('회사상태'), 1)), [setv('경제알림', '먼저 회사를 세워야 해요!')],
+                   [ifelse(ge(LGET('직원수', V('후보직급')), LGET('직급정원', V('후보직급'))),
+                           [setv('경제알림', '그 직급은 자리가 다 찼어요!')],
+                           [setv('_hc', V('후보능력')), if_(eq(V('후보성격'), 4), chg('_hc', -15)), if_(lt(V('_hc'), 1), setv('_hc', 1)),
+                            lst_set('직원수', V('후보직급'), add(LGET('직원수', V('후보직급')), 1)),
+                            lst_set('직원능력합', V('후보직급'), add(LGET('직원능력합', V('후보직급')), V('_hc'))),
+                            setv('경제알림', join(V('후보이름'), ' ', LGET('직급이름', V('후보직급')), ' 채용! 진짜 실력은 일하면서 드러나요')),
+                            G.sfx('fanfare'), *staff_calc(), *income_sum(), *new_candidate()])]),
+            cast('경제알림'), cast('인사갱신')]
+    button(P, sc, '채용', '채용하기', 54, -70, 100, 26, 'royal', icon='person', actions=hire)
+    button(P, sc, '다음지원자', '다음 지원자', 160, -70, 100, 26, 'navy', icon='back',
+           actions=[*new_candidate(), cast('인사갱신')])
+    text(P, sc, '면접안내', '허세가 심한 지원자는 경력을 부풀리고, 게으른 지원자는 채용 뒤 실력이 떨어져요.', 104, -96, 7, C_DIM, F_BODY,
+         True, 0, w=240, h=20)
+    mgr = text(P, sc, '인사담당', '', -300, -300, 8, visible=False)
+    mgr.on(on_scene(), if_(or_(lt(V('선택직급'), 1), gt(V('선택직급'), NP)), setv('선택직급', NP)),
+           setv('후보직급', V('선택직급')), *new_candidate(), *staff_calc(), cast('인사갱신'))
+    button(P, sc, '돌아가기', '내 회사로', -196, -121, 80, 22, 'navy', icon='back', actions=go(ctx['S_COMPANY']))
+    G.hud(P, sc, ctx['PORT'])
+    G.sound_hub(P, sc, 'bgm_map')
+    G.fader(P, sc, ctx['BLACK'])

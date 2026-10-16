@@ -14,17 +14,19 @@ import data as D
 import data2 as D2
 import scene_stock as ST
 
-VERSION = 'S2'
+VERSION = 'S3'
 SEP, KEY = '|', '§'
 SAVE_VARS = ['돈', '내지지율', '큰A', '큰B', '유세횟수', '방어권', '차단턴', '장시간', '첫째주', '둘째주', '지배알림',
              '협상기회', '협상금지턴', '지도모드',
              '단계', '직위', '캠페인중', '평판', '창당', '당원', '공천', '당선', '회사상태', '회사업종', '회사가치', '회사투자',
-             '회사부스트', '마지막시각', '결재수', '결재타이머', '등록점수', '정당이름', '회사이름', '등록이름', '지역번호']
+             '회사부스트', '마지막시각', '결재수', '결재타이머', '등록점수', '정당이름', '회사이름', '등록이름', '지역번호',
+             '의혹', '수사기관', '수사혐의', '수사남은', '수사위험']
 DIGIT_LISTS = [('지역완료', D.N_PLACES * 3), ('인수레벨', len(D2.COMPANIES)), ('땅보유', len(D2.LANDS)),
                ('계열사주인', len(D.AFFILIATES))]
 SAVE_LISTS = [('주가', ST.N), ('보유', ST.N), ('평단', ST.N), ('투자부채', 3), ('투자만기', 3), ('투자결렬', 3),
               ('땅가격', len(D2.LANDS)), ('땅예정', len(D2.LANDS)), ('땅배율', len(D2.LANDS)), ('특별X', len(D2.SPECIALS)),
-              ('세력인원', len(D2.OPS_MEMBERS))]
+              ('세력인원', len(D2.OPS_MEMBERS)), ('직원수', len(D2.POSITIONS)), ('직원능력합', len(D2.POSITIONS)),
+              ('매수남은', len(D2.AGENCIES))]
 FIELDS = len(SAVE_VARS) + len(DIGIT_LISTS) + sum(n for _, n in SAVE_LISTS)
 
 

@@ -21,7 +21,7 @@ import data2 as D2
 import economy as EC
 
 CAREER_VARS = dict(단계=1, 직위=0, 캠페인중=1, 평판=50, 창당=0, 당원=0, 공천=0, 정당이름='', 출정알림=0, 엔딩종류=0, 취임알림=0,
-                   지역번호=1, 등록이름='', 등록점수=-1, _cv=0, _ci=0, _ok1='', _ok2='', _o1='', _o2='', _o3='', _o4='', _o6='',
+                   지역번호=1, 등록이름='', 등록점수=-1, _cp=0, _cv=0, _ci=0, _ok1='', _ok2='', _o1='', _o2='', _o3='', _o4='', _o6='',
                    재계산=1)
 N = 40
 
@@ -275,8 +275,9 @@ def build_office(P, ctx):
         if approve:
             res = [ifelse(eq(kind, 1), [chg('평판', D2.DOC_GOOD), setv('경제알림', '좋은 결정! 시민들이 반긴다 (평판 +5)')],
                           [ifelse(eq(kind, 2), [chg('평판', -D2.DOC_BAD), setv('경제알림', '시민들이 실망했다... (평판 -6)')],
-                                  [setv('_cv', mul(D2.DOC_BRIBE, mult)), chg('돈', V('_cv')),
-                                   ifelse(le(rnd(1, 100), D2.DOC_BRIBE_RISK),
+                                  [setv('_cv', mul(D2.DOC_BRIBE, mult)), chg('돈', V('_cv')), chg('의혹', 15),
+                                   setv('_cp', D2.DOC_BRIBE_RISK), if_(gt(LGET('매수남은', 1), 0), setv('_cp', D2.DOC_BRIBE_RISK / 2)),
+                                   ifelse(le(rnd(1, 100), V('_cp')),
                                           [chg('평판', -15), chg('돈', mul(V('_cv'), -2)),
                                            setv('경제알림', '뒷돈이 들통났다! 벌금에 평판 -15')],
                                           [*fmt_money(V('_cv'), '_m'), setv('경제알림', join('아무도 모른다... (+', V('_m'), ')'))])])])]
@@ -309,14 +310,18 @@ def build_office(P, ctx):
     # ---- 오른쪽: 투자 메뉴
     menu = (('내 회사', 'green', 'coin', ctx['S_COMPANY']), ('기업 인수', 'royal', 'shop', ctx['S_MA']),
             ('부동산', 'purple', 'map', ctx['S_LAND']), ('정당', 'red', 'person', ctx['S_PARTY']),
-            ('거래소', 'blue', 'chart', ctx['S_STOCK']), ('작전 본부', 'steel', 'bolt', ctx['S_SHOP']))
+            ('거래소', 'blue', 'chart', ctx['S_STOCK']), ('작전 본부', 'steel', 'bolt', ctx['S_SHOP']),
+            ('수사 대응', 'red', 'shield', ctx['S_CASE']))
     for k, (lbl, col, ic, to) in enumerate(menu):
         c, r = k % 2, k // 2
-        button(P, sc, '투자메뉴%d' % k, lbl, 74 + c * 100, 50 - r * 26, 94, 24, col, icon=ic, actions=go(to))
-    inc = text(P, sc, '시간수입', '', 124, -18, 9, '#7CFFB2', F_NUM, False, 0, w=210, h=14)
+        mb = button(P, sc, '투자메뉴%d' % k, lbl, 74 + c * 100, 58 - r * 22, 94, 20, col, icon=ic, actions=go(to))
+        if lbl == '수사 대응':
+            mb.on(on_scene(), forever(ifelse(gt(V('수사기관'), 0), [fx('brightness', 30), wait(0.4), fx('brightness', 0), wait(0.4)],
+                                             [wait(1)])))
+    inc = text(P, sc, '시간수입', '', 174, -8, 8, '#7CFFB2', F_NUM, False, 0, w=110, h=13)
     inc.on(on_scene(), *G.live_write(inc, [*fmt_money(V('주기수입'), '_m'), setv('_o4', join('10초마다 +', V('_m')))], '_o4', 0.5))
     # ---- 오른쪽 아래: 다음 선거
-    panel(P, sc, '출마판', 124, -70, 220, 82, 'glass', header='red')
+    panel(P, sc, '출마판', 124, -72, 220, 76, 'glass', header='red')
     tgt = add(V('직위'), 1)
     goal = text(P, sc, '출마목표', '', 124, -40, 10, C_WHITE, F_NUM, False, 0, w=210, h=15)
     cond = text(P, sc, '출마조건', '', 124, -62, 8, C_DIM, F_BODY, True, 0, w=210, h=26)
