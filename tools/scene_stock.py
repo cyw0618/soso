@@ -9,29 +9,35 @@
 종목 번호: 1~15 국내, 16 지배 자본, 17~22 해외, 23~28 코인.
 엔트리의 반복 블록은 한 바퀴에 한 프레임이 걸리므로, 시세 계산과 차트 그리기는 반복문을 풀어서 만든다.
 """
+import math
 from entrygen import *
 import ui_kit as K
 import gui as G
 from gui import text, sprite, panel, button, go, fmt_comma, fmt_money, fmt_price, round1, F_BODY, F_NUM
 from gui import C_WHITE, C_ACC, C_DIM, C_RED, C_BLUE, C_VIOLET, C_BOX
 import data as D
+import data2 as D2
 import stock_art as SA
 
 ND = len(D.STOCKS)              # 15 국내
 CTL = ND + 1                    # 16 지배 자본
 FOR0 = CTL                      # 해외는 17~
 COIN0 = CTL + len(D.FOREIGN)    # 코인은 23~
-N = COIN0 + len(D.COINS)        # 28
+SPEC0 = COIN0 + len(D.COINS)    # 특별주는 29~
+N = SPEC0 + len(D2.SPECIALS)    # 34
 HIST = 30
-ALL = list(D.STOCKS) + [(D.CONTROL_NAME, D.CONTROL_PRICE, D.CONTROL_VOL, '경영권')] + list(D.FOREIGN) + list(D.COINS)
+ALL = list(D.STOCKS) + [(D.CONTROL_NAME, D.CONTROL_PRICE, D.CONTROL_VOL, '경영권')] + list(D.FOREIGN) + list(D.COINS) + \
+    [(nm, p, 99, '특별주 · 코인의 %d배 출렁임' % (100 if t == 2 else 500)) for nm, p, t in D2.SPECIALS]
+SPEC_IDX = [SPEC0 + i for i in range(1, len(D2.SPECIALS) + 1)]
+EXP_K = 60                      # 특별주 상태 -60~60 → 가격 × e^(상태/10)
 NAMES = [s[0] for s in ALL]
 PRICES = [s[1] for s in ALL]
 VOLS = [s[2] for s in ALL]
 SECTORS = [s[3] for s in ALL]
-KIND = [1] * ND + [0] + [2] * len(D.FOREIGN) + [3] * len(D.COINS)     # 1 국내, 0 지배, 2 해외, 3 코인
+KIND = [1] * ND + [0] + [2] * len(D.FOREIGN) + [3] * len(D.COINS) + [4] * len(D2.SPECIALS)  # 1 국내, 0 지배, 2 해외, 3 코인, 4 특별
 FLOORS = [max(0.0001, round(p / (60.0 if k == 3 else 20.0), 4)) if k else 40 for p, k in zip(PRICES, KIND)]
 COIN_IDX = [i for i in range(1, N + 1) if KIND[i - 1] == 3]
-TABS = [('국내 주식', 0, ND), ('해외 주식', FOR0, len(D.FOREIGN)), ('코인', COIN0, len(D.COINS))]
+TABS = [('국내 주식', 0, ND), ('해외 주식', FOR0, len(D.FOREIGN)), ('코인', COIN0, len(D.COINS)), ('특별주', SPEC0, len(D2.SPECIALS))]
 
 STOCK_VARS = dict(장시간=D.MARKET_START, 기록위치=1, 채움=1, 첫째주=D.CONTROL_UNCLES[0], 둘째주=D.CONTROL_UNCLES[1],
                   유통주=0, 평가금=0, 지배달성=0, 주문방향=1, 주문수량=1, 매매수량=0, 이번차단=0,
@@ -50,10 +56,15 @@ def setup(P):
     P.list('전주가', PRICES)
     P.list('변동폭', VOLS)
     P.list('업종', SECTORS)
-    P.list('변동성표시', ['●' * min(5, max(1, round(v / 9.0))) + '○' * (5 - min(5, max(1, round(v / 9.0)))) for v in VOLS])
+    P.list('변동성표시', [('●' * min(5, max(1, round(v / 9.0))) + '○' * (5 - min(5, max(1, round(v / 9.0))))) if k != 4 else '★★★★★'
+                         for v, k in zip(VOLS, KIND)])
     for nm in ('보유', '평단', '추세', '추세남은'):
         P.list(nm, [0] * N)
     P.list('주가기록', [p for p in PRICES for _ in range(HIST)])
+    P.list('특별X', [0] * len(D2.SPECIALS))
+    P.list('특별단계', [t for _, _, t in D2.SPECIALS])
+    P.list('특별기준', [p for _, p, _ in D2.SPECIALS])
+    P.list('지수표', [round(math.exp(k / 10.0), 6) for k in range(-EXP_K, EXP_K + 1)])
     P.list('호재뉴스', D.NEWS_GOOD)
     P.list('악재뉴스', D.NEWS_BAD)
     P.list('코인호재', D.COIN_NEWS_GOOD)
@@ -72,7 +83,8 @@ def assets_blocks():
         b.append(chg('평가금', mul(LGET('보유', i), LGET('주가', i))))
     # 해외 투자자에게 갚아야 할 돈은 빚이라 총자산에서 뺀다
     debt = add(add(LGET('투자부채', 1), LGET('투자부채', 2)), LGET('투자부채', 3))
-    b.append(setv('총자산', sub(add(V('돈'), V('평가금')), debt)))
+    b.append(setv('총자산', add(sub(add(V('돈'), V('평가금')), debt), V('투자자산'))))
+    b.append(if_(eq(V('회사상태'), 1), chg('총자산', V('회사가치'))))
     return b
 
 
@@ -82,6 +94,8 @@ def reset_blocks():
         p = PRICES[i - 1]
         b += [lst_set('주가', i, p), lst_set('전주가', i, p), lst_set('보유', i, 0), lst_set('평단', i, 0),
               lst_set('추세', i, 0), lst_set('추세남은', i, 0), lst_set('주가기록', (i - 1) * HIST + 1, p)]
+    b += [lst_set('특별X', i, 0) for i in range(1, len(D2.SPECIALS) + 1)]
+    b += [lst_set('주식이름', CTL, D2.CONTROL_NAMES[0])]
     return b
 
 
@@ -95,10 +109,10 @@ def _record_blocks():
 def _news_blocks(coins_only=False):
     s = V('뉴스종목')
     if coins_only:
-        pick = [setv('뉴스종목', rnd(COIN0 + 1, N))]
+        pick = [setv('뉴스종목', rnd(COIN0 + 1, SPEC0))]
     else:
         pick = [ifelse(le(rnd(1, 100), 8), [setv('뉴스종목', CTL)],
-                       [setv('뉴스종목', rnd(1, N - 1)), if_(ge(V('뉴스종목'), CTL), chg('뉴스종목', 1))])]
+                       [setv('뉴스종목', rnd(1, SPEC0 - 1)), if_(ge(V('뉴스종목'), CTL), chg('뉴스종목', 1))])]
     return [
         if_(le(rnd(1, 100), 16),
             *pick,
@@ -141,11 +155,27 @@ def _move(i, mult):
             if_(lt(LGET('주가', i), FLOORS[i - 1]), lst_set('주가', i, FLOORS[i - 1]))]
 
 
+def special_blocks():
+    """특별주: 평균으로 돌아가려는 힘 + 아주 큰 흔들림 (시장 단계 종목은 코인의 100배, 대통령 단계 종목은 500배)."""
+    b = []
+    for j, (nm, base, t) in enumerate(D2.SPECIALS, 1):
+        a = D2.SPECIAL_SWING[t]
+        s = SPEC0 + j
+        b += [lst_set('특별X', j, rounded(add(mul(LGET('특별X', j), D2.SPECIAL_REVERT), rnd(-a, a)))),
+              if_(gt(LGET('특별X', j), EXP_K), lst_set('특별X', j, EXP_K)),
+              if_(lt(LGET('특별X', j), -EXP_K), lst_set('특별X', j, -EXP_K)),
+              lst_set('주가', s, round2(mul(base, LGET('지수표', add(LGET('특별X', j), EXP_K + 1)))))]
+    return b
+
+
 def tick_blocks():
-    """장중 1초마다: 모든 종목 시세 + 기록 + 뉴스."""
+    """장중 1초마다: 모든 종목 시세 + 기록 + 뉴스 + 작전 세력."""
+    import economy as EC
     b = [chg('장시간', -1)]
-    for i in range(1, N + 1):
+    for i in range(1, SPEC0 + 1):
         b += _move(i, D.STOCK_TICK)
+    b += special_blocks()
+    b += EC.ops_tick_blocks()
     b += _record_blocks()
     b += _news_blocks()
     b += [if_(eq(V('장시간'), 0), setv('뉴스루머', 2), setv('뉴스글', '주식 장이 마감됐어요. 코인은 24시간 움직입니다!'),
@@ -159,6 +189,7 @@ def coin_tick_blocks():
     b = []
     for i in COIN_IDX:
         b += _move(i, D.STOCK_TICK)
+    b += special_blocks()
     b += _record_blocks()
     b += _news_blocks(coins_only=True)
     b += assets_blocks()
@@ -172,6 +203,8 @@ def overnight_blocks():
         v10 = VOLS[i - 1] * 10
         k = KIND[i - 1]
         b.append(lst_set('전주가', i, LGET('주가', i)))
+        if k == 4:
+            continue
         if k == 0:
             b.append(setv('변동률', div(rnd(-25, 40), 1000)))
         elif k == 3:
@@ -181,6 +214,7 @@ def overnight_blocks():
                   if_(le(rnd(1, 100), 6), setv('변동률', mul(V('변동률'), 2.5)))]
         b += [lst_set('주가', i, round2(mul(LGET('주가', i), add(1, V('변동률'))))),
               if_(lt(LGET('주가', i), FLOORS[i - 1]), lst_set('주가', i, FLOORS[i - 1]))]
+    b += special_blocks()
     b += _record_blocks()
     b += [chg('장시간', D.MARKET_ADD), if_(gt(V('장시간'), D.MARKET_MAX), setv('장시간', D.MARKET_MAX))]
     # 큰아버지들의 지분 매수
@@ -261,6 +295,7 @@ def build(P, ctx):
     card.on(on_scene(), forever(rep(15, fx_add('brightness', 1), wait(0.04)), rep(15, fx_add('brightness', -1), wait(0.04))))
     card.on(on_click(), *select_actions(CTL))
     ttl = text(P, sc, '지배이름', '조치원 지배 자본 (총 1,000억)', -150, 61, 10, C_WHITE, F_NUM, False, 1, w=150, h=14)
+    ttl.on(on_scene(), write(join(LGET('주식이름', CTL), ' (총 ', LGET('지배총액', V('단계')), ')')))
     mine = text(P, sc, '지배내지분', '', -10, 61, 11, C_ACC, F_NUM, False, 2, w=80, h=14)
     mine.on(on_msg('시세갱신'), write(join('내 지분 ', E.stake_pct(), '%')))
     cpr = text(P, sc, '지배가격', '', -106, 30, 8, C_DIM, F_BODY, True, 0, w=252, h=12)
@@ -288,11 +323,16 @@ def build(P, ctx):
 
     # ---- 탭: 국내 / 해외 / 코인
     for k, (lbl, base, cnt) in enumerate(TABS, 1):
-        tb = sprite(P, sc, '탭%d' % k, [('off', K.badge(lbl, 80, 18, 'navy')), ('on', K.badge(lbl, 80, 18, 'royal'))],
-                    -194 + (k - 1) * 88, 77)
+        col = 'red' if k == 4 else 'royal'
+        tb = sprite(P, sc, '탭%d' % k, [('off', K.badge(lbl, 62, 18, 'navy')), ('on', K.badge(lbl, 62, 18, col))],
+                    -200 + (k - 1) * 66, 77)
         tb.on(on_msg('탭변경'), ifelse(eq(V('탭'), k), [shape('on'), tb.pct(108)], [shape('off'), tb.pct(100)]))
-        tb.on(on_click(), setv('탭', k), setv('탭기준', base), setv('탭개수', cnt), setv('선택종목', base + 1),
-              cast('탭변경'), cast('시세갱신'), cast('선택변경'))
+        act = [setv('탭', k), setv('탭기준', base), setv('탭개수', cnt), setv('선택종목', base + 1),
+               cast('탭변경'), cast('시세갱신'), cast('선택변경')]
+        if k == 4:
+            tb.on(on_scene(), ifelse(ge(V('단계'), 2), [show()], [hide()]))
+            act = [if_(ge(V('단계'), 2), *act)]
+        tb.on(on_click(), *act)
 
     # ---- 시세판 (탭에 따라 종목이 바뀜, 최대 15칸)
     tiles = SA.tile_set()
@@ -399,8 +439,14 @@ def build(P, ctx):
     note.on(on_msg('체결'), write(V('체결글')), to_front(), show(), wait(1.3), hide())
 
     # ---- 아래 버튼
-    button(P, sc, '지도로', '지도로', -196, -121, 76, 22, 'navy', icon='back', actions=go(ctx['S_MAP']))
-    button(P, sc, '협상으로', '협상 테이블', -104, -121, 96, 22, 'red', icon='bolt', actions=go(ctx['S_NEGO']))
+    button(P, sc, '지도로', '돌아가기', -196, -121, 76, 22, 'navy', icon='back', actions=ctx['GO_HOME']())
+    nego = button(P, sc, '협상으로', '협상 테이블', -104, -121, 96, 22, 'red', icon='bolt', actions=go(ctx['S_NEGO']))
+    nego.on(on_scene(), ifelse(eq(V('단계'), 1), [show()], [hide()]))
+    opsb = button(P, sc, '작전세력으로', '작전 세력', -104, -121, 96, 22, 'purple', icon='bolt', actions=go(ctx['S_OPS']))
+    opsb.on(on_scene(), ifelse(and_(gt(V('단계'), 1), ge(V('직위'), 1)), [show()], [hide()]))
+    opst = text(P, sc, '작전표시', '', 20, -121, 8, C_VIOLET, F_NUM, False, 0, w=120, h=12)
+    opst.on(on_msg('시세갱신'), ifelse(gt(V('작전단계'), 0),
+                                      [write(join('작전 중: ', LGET('주식이름', V('작전종목')))), show()], [hide()]))
 
     # ---- 거래 담당 (보이지 않음)
     mgr = text(P, sc, '거래담당', '', -300, -300, 8, visible=False)
@@ -433,9 +479,11 @@ def build(P, ctx):
                                                                sub(1, mul(div(V('매매수량'), D.CONTROL_SHARES), D.CONTROL_IMPACT)))))),
                 *fmt_comma(V('매매수량'), '_q'), setv('체결글', join('매도 체결!  -', V('_q'))), setv('체결성공', 1)],
                [setv('체결글', '팔 수량이 없어요'), setv('체결성공', 0)])]
+    locked = and_(gt(V('_s'), SPEC0), gt(LGET('특별단계', sub(V('_s'), SPEC0)), V('단계')))
     mgr.on(on_msg('주문'),
            setv('_s', V('선택종목')), setv('_p', LGET('주가', V('_s'))),
-           ifelse(eq(V('주문방향'), 1), buy, sell),
+           ifelse(locked, [setv('체결글', '대통령 선거 때 열리는 특별주예요!'), setv('체결성공', 0)],
+                  [ifelse(eq(V('주문방향'), 1), buy, sell)]),
            setv('돈', div(rounded(mul(V('돈'), 10)), 10)),
            cast('체결'), *assets_blocks(), cast('시세갱신'), *E.majority_check())
     mgr.on(on_scene(), *assets_blocks(),
@@ -445,6 +493,9 @@ def build(P, ctx):
            cast('탭변경'), cast('시세갱신'), cast('선택변경'),
            forever(wait(1), ifelse(gt(V('장시간'), 0), [*tick_blocks()], [*coin_tick_blocks()]), cast('시세갱신')))
     E.majority_pop(P, sc)
+    import economy as EC
+    EC.ticker(P, sc)
+    EC.income_pop(P, sc, -150, 80)
     hub = G.sound_hub(P, sc, 'bgm_map')
     hub.on(on_msg('뉴스'), play('news'))
     hub.on(on_msg('체결'), ifelse(eq(V('체결성공'), 1), [play('cash')], [play('bad')]))
@@ -453,7 +504,7 @@ def build(P, ctx):
 
 def ifelse_kind(S):
     """종목 번호 → 단위 리스트 번호 (코인이면 4, 아니면 1)."""
-    return add(1, mul(3, ifelse_gt(S, COIN0)))
+    return add(1, mul(3, sub(ifelse_gt(S, COIN0), ifelse_gt(S, SPEC0))))
 
 
 def ifelse_gt(a, b):

@@ -56,12 +56,15 @@ def panel(P, scene, base, x, y, w, h, kind='glass', header=None, visible=True):
 
 
 def hover_scripts(o, big=108, normal=100, first_scene=False):
-    """마우스를 올리면 살짝 커지고 밝아지는 효과."""
-    loop = forever(ifelse(touch('mouse'), [o.pct(big), fx('brightness', 12)], [o.pct(normal), fx('brightness', 0)]),
-                   wait(0.03))
-    o.on(on_scene(), loop)
+    """마우스를 올리면 살짝 커지고 밝아지는 효과. 상태가 바뀔 때만 크기·밝기를 바꾼다 (매 프레임 바꾸면 화면이 느려짐)."""
+    o.local('_hv', 0)
+    loop = [setv('_hv', 0), o.pct(normal), fx('brightness', 0),
+            forever(ifelse(touch('mouse'), [if_(eq(V('_hv'), 0), setv('_hv', 1), o.pct(big), fx('brightness', 12))],
+                           [if_(eq(V('_hv'), 1), setv('_hv', 0), o.pct(normal), fx('brightness', 0))]),
+                    wait(0.04))]
+    o.on(on_scene(), *loop)
     if first_scene:
-        o.on(on_run(), loop)
+        o.on(on_run(), *loop)
 
 
 def button(P, scene, base, label, x, y, w, h, color='royal', icon=None, actions=(), hover=True, visible=True,
@@ -71,14 +74,26 @@ def button(P, scene, base, label, x, y, w, h, color='royal', icon=None, actions=
         hover_scripts(o, first_scene=first_scene)
     # 누름 효과와 동작을 따로 (빠르게 여러 번 눌러도 동작은 매번 실행)
     o.on(on_click(), o.pct(92), cast('snd:click'), *flat(actions))
-    o.on(on_click(), wait(0.07), o.pct(100))
+    o.on(on_click(), wait(0.07), ifelse(touch('mouse'), [o.pct(108)], [o.pct(100)]))
     return o
 
 
-def big_pop(P, scene, base, path, x, y, msg, hold=0.7, fade=True, then=()):
-    """신호(msg)를 받으면 튀어나오며 커졌다가 사라지는 큰 글자/그림."""
+def live_write(o, make, var, period=0.2):
+    """make 블록으로 변수 var 에 글을 만든 뒤, 바뀌었을 때만 글상자에 쓴다 (on_scene 에 붙일 블록 목록)."""
+    o.local('_lt', '')
+    return [setv('_lt', '__처음__'), forever(*flat(make), if_(ne(V(var), V('_lt')), write(V(var)), setv('_lt', V(var))), wait(period))]
+
+
+def live_shape(o, expr, period=0.15):
+    """모양 번호 expr 가 바뀌었을 때만 모양을 바꾼다."""
+    o.local('_ls', -1)
+    return [setv('_ls', -1), forever(if_(ne(expr, V('_ls')), setv('_ls', expr), shape(V('_ls'))), wait(period))]
+
+
+def big_pop(P, scene, base, path, x, y, msg, hold=0.7, fade=True, then=(), pre=()):
+    """신호(msg)를 받으면 튀어나오며 커졌다가 사라지는 큰 글자/그림. pre: 나타나기 전에 할 블록(모양 고르기 등)."""
     o = sprite(P, scene, base, path, x, y, visible=False)
-    o.on(on_msg(msg), xy(x, y), to_front(), o.pct(25), fx('transparency', 0), show(),
+    o.on(on_msg(msg), *flat(pre), xy(x, y), to_front(), o.pct(25), fx('transparency', 0), show(),
          rep(6, o.grow_pct(17), wait(0.016)), rep(3, o.grow_pct(-6), wait(0.016)),
          wait(hold),
          *([rep(10, fx_add('transparency', 10), mvy(1), wait(0.02)), hide()] if fade else []),
@@ -123,18 +138,23 @@ def fmt_comma(src, dst):
 
 
 def fmt_money(src, dst):
-    """src(만원 단위 숫자)를 '1억 2,500만원' / '8,500만원' / '3억원' 형태의 문자열로 변수 dst 에 넣는 블록들."""
+    """src(만원 단위 숫자)를 '1억 2,500만원' / '8,500만원' / '3억원' / '12조 3,456억원' 형태의 문자열로 변수 dst 에 넣는 블록들."""
     pad3 = lambda v: ifelse(lt(v, 10), [setv('_p3', join('00', v))],
                             [ifelse(lt(v, 100), [setv('_p3', join('0', v))], [setv('_p3', v)])])
+    comma4 = lambda v: ifelse(lt(v, 1000), [setv('_m3', v)],
+                              [pad3(mod(v, 1000)), setv('_m3', join(floor(div(v, 1000)), ',', V('_p3')))])
     return [
         setv('_n', floor(abs_(src))),
         setv('_hi', floor(div(V('_n'), 10000))),
         setv('_lo', mod(V('_n'), 10000)),
-        ifelse(lt(V('_lo'), 1000), [setv('_m3', V('_lo'))],
-               [pad3(mod(V('_lo'), 1000)), setv('_m3', join(floor(div(V('_lo'), 1000)), ',', V('_p3')))]),
-        ifelse(eq(V('_hi'), 0), [setv(dst, join(V('_m3'), '만원'))],
-               [ifelse(eq(V('_lo'), 0), [setv(dst, join(V('_hi'), '억원'))],
-                       [setv(dst, join(V('_hi'), '억 ', V('_m3'), '만원'))])]),
+        ifelse(ge(V('_hi'), 10000),
+               # 1조 이상: 'X조 Y억원' (만원 자리는 생략)
+               [setv('_lo', mod(V('_hi'), 10000)), setv('_hi', floor(div(V('_hi'), 10000))), comma4(V('_lo')),
+                ifelse(eq(V('_lo'), 0), [setv(dst, join(V('_hi'), '조원'))], [setv(dst, join(V('_hi'), '조 ', V('_m3'), '억원'))])],
+               [comma4(V('_lo')),
+                ifelse(eq(V('_hi'), 0), [setv(dst, join(V('_m3'), '만원'))],
+                       [ifelse(eq(V('_lo'), 0), [setv(dst, join(V('_hi'), '억원'))],
+                               [setv(dst, join(V('_hi'), '억 ', V('_m3'), '만원'))])])]),
         if_(lt(src, 0), setv(dst, join('-', V(dst)))),
     ]
 
@@ -166,39 +186,48 @@ def hud(P, scene, portraits, first_scene=False, empire=False, empire_xy=(176, -9
     """portraits: {'me':path,'u1':path,'u2':path} (원형 초상 그림)"""
     objs = []
     # 재산 (왼쪽 위 구석)
-    panel(P, scene, 'HUD재산판', -172, 118, 128, 24, 'glass')
+    panel(P, scene, 'HUD재산판', -164, 118, 144, 24, 'glass')
     sprite(P, scene, 'HUD동전', K.icon_img('coin', 16), -224, 118)
-    t = text(P, scene, 'HUD재산', '1억원', -160, 118, 12, C_WHITE, F_NUM, False, 1, w=100, h=18)
-    t.on(on_scene(), forever(*fmt_money(V('돈'), '돈표시'), write(V('돈표시')), wait(0.1)))
+    t = text(P, scene, 'HUD재산', '1억원', -152, 118, 11, C_WHITE, F_NUM, False, 1, w=118, h=18)
+    t.on(on_scene(), *live_write(t, fmt_money(V('돈'), '돈표시'), '돈표시', 0.15))
     # 유세 진행 (재산 아래)
     panel(P, scene, 'HUD유세판', -196, 95, 80, 22, 'glass')
     sprite(P, scene, 'HUD투표함', K.icon_img('ballot', 14), -224, 96)
     import data as _D
     t2 = text(P, scene, 'HUD유세', '유세 0/%d' % _D.N_PLACES, -188, 95, 11, '#FFFFFF', F_NUM, False, 1, w=56, h=16)
-    t2.on(on_scene(), forever(write(join('유세 ', V('유세횟수'), '/%d' % _D.N_PLACES)), wait(0.2)))
+    t2.on(on_scene(), *live_write(t2, [setv('_hu', join('유세 ', V('유세횟수'), '/%d' % _D.N_PLACES))], '_hu', 0.3))
     # 지지율 (3줄, 합계 100%) + 조치원 지배 자본 지분 (1줄)
     panel(P, scene, 'HUD지지판', 160, 99, 152, 68, 'glass')
     rows = [('me', '나', '내지지율', 'royal', C_ACC), ('u1', '첫째', '큰A', 'red', C_RED),
             ('u2', '둘째', '큰B', 'purple', C_VIOLET)]
     for i, (pk, nm, var, col, hexc) in enumerate(rows):
         yy = 123 - i * 15
-        sprite(P, scene, 'HUD얼굴' + pk, portraits[pk], 96, yy, scale=0.62)
-        text(P, scene, 'HUD이름' + pk, nm, 116, yy, 9, hexc, F_NUM, False, 1, w=26, h=13)
+        if pk != 'me' and 'm1' in portraits:
+            # 군수 선거: 큰아버지 / 시장 선거: 시장 후보 / 대선: 대통령 후보
+            n = pk[1]
+            fo = sprite(P, scene, 'HUD얼굴' + pk, [('1', portraits[pk]), ('2', portraits['m' + n]), ('3', portraits['p' + n])],
+                        96, yy, scale=0.62)
+            fo.on(on_scene(), shape(V('단계')))
+            nt = text(P, scene, 'HUD이름' + pk, nm, 116, yy, 9, hexc, F_NUM, False, 1, w=26, h=13)
+            nt.on(on_scene(), write(LGET('상대%s이름' % n, V('단계'))))
+        else:
+            sprite(P, scene, 'HUD얼굴' + pk, portraits[pk], 96, yy, scale=0.62)
+            text(P, scene, 'HUD이름' + pk, nm, 116, yy, 9, hexc, F_NUM, False, 1, w=26, h=13)
         bars = K.bar_set('sup_' + col, 64, 8, col)
         b = sprite(P, scene, 'HUD막대' + pk, bars, 166, yy)
-        b.on(on_scene(), forever(shape(add(floor(div(V(var), 2.5)), 1)), wait(0.1)))
+        b.on(on_scene(), *live_shape(b, add(floor(div(V(var), 2.5)), 1)))
         tv = text(P, scene, 'HUD값' + pk, '0%', 216, yy, 10, '#FFFFFF', F_NUM, False, 2, w=36, h=13)
-        tv.on(on_scene(), forever(write(join(round1(V(var)), '%')), wait(0.1)))
+        tv.on(on_scene(), *live_write(tv, [setv('_hv' + pk, join(round1(V(var)), '%'))], '_hv' + pk, 0.15))
     # 지배 자본 (내 지분, 50% 표시)
     yy = 123 - 3 * 15
     sprite(P, scene, 'HUD왕관', K.icon_img('trophy', 13), 96, yy)
     text(P, scene, 'HUD지배', '지배', 116, yy, 9, '#FFFFFF', F_NUM, False, 1, w=26, h=13)
     bars = K.bar_set('stake_royal', 64, 8, 'royal')
     b = sprite(P, scene, 'HUD지배막대', bars, 166, yy)
-    b.on(on_scene(), forever(shape(add(floor(div(LGET('보유', 16), 2500)), 1)), wait(0.1)))
+    b.on(on_scene(), *live_shape(b, add(floor(div(LGET('보유', 16), 2500)), 1)))
     sprite(P, scene, 'HUD지배선', K.icon_img('up', 6), 166, yy - 5)
     tv = text(P, scene, 'HUD지배값', '0%', 216, yy, 10, C_ACC, F_NUM, False, 2, w=36, h=13)
-    tv.on(on_scene(), forever(write(join(div(rounded(div(LGET('보유', 16), 100)), 10), '%')), wait(0.1)))
+    tv.on(on_scene(), *live_write(tv, [setv('_hst', join(div(rounded(div(LGET('보유', 16), 100)), 10), '%'))], '_hst', 0.2))
     if empire:
         # 지도: 오른쪽 아래 '재벌 현황' (계열사 수, 유세마다 버는 돈)
         ex, ey = empire_xy
@@ -206,8 +235,12 @@ def hud(P, scene, portraits, first_scene=False, empire=False, empire_xy=(176, -9
         sprite(P, scene, 'HUD계열사아이콘', K.icon_img('shop', 16), ex - empire_w / 2 + 12, ey)
         t3 = text(P, scene, 'HUD계열사', '', ex + 10, ey, 8 if empire_w < 120 else 9, '#FFFFFF', F_NUM, False, 1,
                   w=empire_w - 26, h=26)
-        t3.on(on_scene(), forever(*fmt_money(V('계열사수입'), '_m'),
-                                  write(join('계열사 ', V('계열사수'), '/15개\n유세마다 +', V('_m'))), wait(0.2)))
+        t3.on(on_scene(), *live_write(t3, [*fmt_money(V('주기수입'), '_m'), setv('_q', V('_m')), *fmt_money(V('계열사수입'), '_m'),
+                                           setv('_hem', join('계열사 ', V('계열사수'), '/15 · 유세 +', V('_m'), '\n10초마다 +', V('_q')))],
+                                      '_hem', 0.4))
+    import economy as EC
+    EC.ticker(P, scene)
+    EC.income_pop(P, scene)
     return objs
 
 

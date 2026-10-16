@@ -278,7 +278,7 @@ def g30(P, ctx):
     _vars(P, '신호', '눌림', '반칙', '내반응', '상대반응', '승리수')
     m = MG(P, 30, ctx, status='승리 0/%d' % R, dim=60)
     me = m.S('결투나', ctx['BUST']['me'], -160, -36, scale=0.55)
-    foe = m.S('결투상대', ctx['BUST']['u2'], 160, -36, scale=0.55)
+    foe = m.rival('결투상대', '2', 160, -36, scale=0.55)
     sig = m.S('결투신호', [('ready', K.big_text('준비...', 30, 'white')), ('fire', K.big_text('쏴!', 64, 'royal')),
                           ('fake1', K.big_text('쏘지 마!', 36, 'red')), ('fake2', K.big_text('잠깐!', 36, 'red'))],
               0, 40, visible=False)

@@ -11,6 +11,7 @@ import gui as G
 from gui import text, sprite, panel, button, go, round1, F_BODY, F_NUM
 from gui import C_WHITE, C_ACC, C_DIM, C_RED, C_BLUE, C_VIOLET, C_BOX
 import data as D
+import data2 as D2
 import mg_art as A
 
 SHARED_VARS = ['시작됨', '미니표시', '합계', '_mx', '_my', '_mt', '_mi', '_mk', '_ma', '_mb', '라운드', '정답', '입력순서',
@@ -36,7 +37,12 @@ class MG:
         self.p = D.PLACES[idx - 1]
         self.time_limit = time_limit
         self.init_blocks = []
-        G.bg(P, self.sc, ctx['ART']('place_%02d' % idx))
+        # 단계마다 다른 장소: 1 조치원, 2 세종시, 3 전국 (게임 규칙은 같고 배경·제목·설명이 바뀐다)
+        self.titles = [(self.p['name'], self.p['game']), (D2.SEJONG[idx - 1][0], D2.SEJONG[idx - 1][1]),
+                       (D2.KOREA[idx - 1][0], D2.KOREA[idx - 1][1])]
+        bgo = G.bg(P, self.sc, [('1', ctx['ART']('place_%02d' % idx)), ('2', ctx['ART']('sj_%02d' % idx)),
+                                ('3', ctx['ART']('kr_%02d' % idx))])
+        bgo.on(on_scene(), shape(V('단계')))
         if dim:
             self.S('어둡게', A.plain_rect(480, 270, (2, 4, 14, dim), 'dim_%d' % dim), 0, 0)
         self.status0 = status
@@ -47,6 +53,21 @@ class MG:
 
     def T(self, base, txt, x, y, size=10, color=C_WHITE, font=F_BODY, bold=True, align=0, w=None, h=None, visible=True, bg=None):
         return text(self.P, self.sc, base, txt, x, y, size, color, font, bold, align, w=w, h=h, visible=visible, bg=bg)
+
+    def rival(self, base, n, x, y, scale=0.6):
+        """상대 (군수 선거: 큰아버지 n / 시장: 시장 후보 n / 대통령: 대통령 후보 n)."""
+        ctx = self.ctx
+        o = self.S(base, [('1', ctx['BUST']['u' + n]), ('2', ctx['CAND_CARD']['m' + n]), ('3', ctx['CAND_CARD']['p' + n])],
+                   x, y, scale=scale)
+        o.on(on_scene(), shape(V('단계')))
+        return o
+
+    def rival_badge(self, base, label1, x, y, w=80, col='red'):
+        n = '1' if col == 'red' else '2'
+        lab = ['%s번 후보' % n] * 2
+        o = self.S(base, [('1', K.badge(label1, w, 18, col)), ('2', K.badge(lab[0], w, 18, col)), ('3', K.badge(lab[1], w, 18, col))], x, y)
+        o.on(on_scene(), shape(V('단계')))
+        return o
 
     def snd(self, msg, *blocks):
         """msg 신호를 받으면 소리 담당이 실행할 블록 (play('pop') 등)."""
@@ -68,7 +89,8 @@ class MG:
         """HUD/소개/카운트다운/시간/종료 처리 오브젝트를 만든다 (게임 오브젝트보다 앞에 보이도록 마지막에 호출)."""
         P, sc, ctx, p = self.P, self.sc, self.ctx, self.p
         # HUD
-        self.S('제목띠', K.banner('%s · %s' % (p['name'], p['game']), 236, 30, 'royal'), -116, 118)
+        tb = self.S('제목띠', [(str(t + 1), K.banner('%s · %s' % self.titles[t], 236, 30, 'royal')) for t in range(3)], -116, 118)
+        tb.on(on_scene(), shape(V('단계')))
         panel(P, sc, 'HUD판', 162, 118, 152, 24, 'glass')
         st = self.T('HUD상태', self.status0, 128, 118, 10, C_WHITE, F_NUM, False, 1, w=96, h=15)
         st.on(on_scene(), forever(write(V('미니표시')), wait(0.05)))
@@ -79,9 +101,13 @@ class MG:
         # 소개 창
         intro = [self.S('소개어둡게', A.plain_rect(480, 270, (2, 3, 12, 205), 'dim_intro'), 0, 0)]
         intro.append(panel(P, sc, '소개판', 0, -4, 320, 186, 'glass', header='royal'))
-        intro.append(self.S('소개제목', K.big_text(p['game'], 22, 'white'), 0, 72))
+        it = self.S('소개제목', [(str(t + 1), K.big_text(self.titles[t][1], 22, 'white')) for t in range(3)], 0, 72)
+        it.on(on_scene(), shape(V('단계')))
+        intro.append(it)
         intro.append(self.S('소개종류', K.badge(p['kind'], 74, 18, 'royal'), 0, 46))
-        intro.append(self.T('소개설명', help_lines, 0, 14, 11, C_WHITE, F_BODY, True, 0, w=290, h=44))
+        hl = self.T('소개설명', help_lines, 0, 14, 11, C_WHITE, F_BODY, True, 0, w=290, h=44)
+        hl.on(on_scene(), ifelse(eq(V('단계'), 1), [write(help_lines)], [write(LGET('지역설명', V('지역번호')))]))
+        intro.append(hl)
         intro.append(self.T('소개조작', controls, 0, -22, 9, C_ACC, F_BODY, True, 0, w=290, h=28))
         start_act = [if_(eq(V('시작됨'), 0), setv('시작됨', 1), cast('시작누름'))]
         intro.append(button(P, sc, '시작버튼', '시작!', 0, -60, 110, 28, 'royal', icon='star', actions=start_act))
@@ -207,14 +233,18 @@ def g02(P, ctx):
     bk.on(on_msg('게임시작'), until(eq(V('게임중'), 0),
                                   if_(key(K_LEFT), mvx(-6)), if_(key(K_RIGHT), mvx(6)),
                                   if_(lt(obj_x(), -190), lx(-190)), if_(gt(obj_x(), 190), lx(190))))
-    leaf = m.S('은행잎', [('leaf', A.ginkgo('leaf')), ('gold', A.ginkgo('gold')), ('dry', A.ginkgo('dry'))], 0, 200, scale=1.35, visible=False)
+    import mg_art2 as A2
+    leaf = m.S('은행잎', [('leaf', A.ginkgo('leaf')), ('gold', A.ginkgo('gold')), ('dry', A.ginkgo('dry')),
+                         ('m1', A2.maple('leaf')), ('m2', A2.maple('gold')), ('m3', A2.maple('dry')),
+                         ('t1', A2.tangerine('leaf')), ('t2', A2.tangerine('gold')), ('t3', A2.tangerine('dry'))],
+               0, 200, scale=1.35, visible=False)
     for v in ('종', '기준x', '각', '낙하'):
         leaf.local(v, 0)
     leaf.on(on_msg('게임시작'), until(eq(V('게임중'), 0), clone_self(), wait(div(rnd(28, 55), 100))))
     leaf.on(on_clone(),
             setv('_mk', rnd(1, 100)),
             ifelse(le(V('_mk'), 12), [setv('종', 2)], [ifelse(le(V('_mk'), 34), [setv('종', 3)], [setv('종', 1)])]),
-            shape(V('종')), setv('기준x', rnd(-215, 215)), setv('각', rnd(0, 360)),
+            shape(add(V('종'), mul(sub(V('단계'), 1), 3))), setv('기준x', rnd(-215, 215)), setv('각', rnd(0, 360)),
             setv('낙하', add(div(rnd(18, 28), 10), mul(sub(20, V('남은시간')), 0.07))),
             xy(V('기준x'), 150), rot(rnd(-30, 30)), show(),
             until(or_(lt(obj_y(), -140), eq(V('게임중'), 0)),
@@ -241,8 +271,8 @@ def g02(P, ctx):
 def g03(P, ctx):
     m = MG(P, 3, ctx, time_limit=15, status='힘 0')
     m.S('나', ctx['BUST']['me'], -168, 4, scale=0.6)
-    op = m.S('상대', ctx['BUST']['u1'], 168, 4, scale=0.6)
-    m.S('상대이름', K.badge('첫째 큰아버지', 80, 18, 'red'), 168, -50)
+    op = m.rival('상대', '1', 168, 4, scale=0.6)
+    m.rival_badge('상대이름', '첫째 큰아버지', 168, -50, 80, 'red')
     m.S('내이름', K.badge('나 (막내)', 70, 18, 'royal'), -168, -50)
     ar = m.S('팔', A.arms(), 0, -44)
     m.S('탁자', A.table_top(300, 46), 0, -66)
@@ -403,10 +433,12 @@ def g06(P, ctx):
 # ================================================================== 7. 조치원 퀴즈
 def g07(P, ctx):
     Q = D.QUIZ
+    QA = list(D.QUIZ) + list(D2.QUIZ2) + list(D2.QUIZ3)
     m = MG(P, 7, ctx, status='문제 1/%d' % len(Q), dim=110)
-    P.list('퀴즈문제', [q[0] for q in Q])
-    P.list('퀴즈보기', [o for q in Q for o in q[1]])
-    P.list('퀴즈정답', [q[2] for q in Q])
+    P.list('퀴즈문제', [q[0] for q in QA])
+    P.list('퀴즈보기', [o for q in QA for o in q[1]])
+    P.list('퀴즈정답', [q[2] for q in QA])
+    qn_ = add(V('문제'), mul(sub(V('단계'), 1), len(Q)))
     panel(P, m.sc, '문제판', 0, 56, 420, 70, 'glass', header='royal')
     qn = m.T('문제번호', '', -170, 78, 10, C_WHITE, F_NUM, False, 1, w=80, h=14)
     qt = m.T('문제글', '', 0, 50, 13, C_WHITE, F_BODY, True, 0, w=390, h=36)
@@ -418,7 +450,7 @@ def g07(P, ctx):
         G.hover_scripts(c, 105)
         m.S('보기번호%d' % k, K.badge(str(k), 20, 18, 'royal'), xs[k - 1] - 50, -18)
         at = m.T('보기글%d' % k, '', xs[k - 1], -44, 12, C_WHITE, F_NUM, False, 0, w=116, h=40)
-        idx = add(mul(sub(V('문제'), 1), 3), k)
+        idx = add(mul(sub(qn_, 1), 3), k)
         at.on(on_msg('새문제'), write(LGET('퀴즈보기', idx)))
         c.on(on_msg('새문제'), shape('n'))
         c.on(on_msg('정답공개'), ifelse(eq(V('정답'), k), [shape('ok')], [if_(eq(V('선택'), k), shape('no'))]))
@@ -435,12 +467,12 @@ def g07(P, ctx):
                  setv('미니표시', join('문제 ', V('문제'), '/', len(Q))), cast('새문제'),
                  setv('선택', 0), setv('대기', 1), setv('_mt', 10),
                  until(or_(eq(V('대기'), 0), le(V('_mt'), 0)), wait(0.05), chg('_mt', -0.05)),
-                 setv('대기', 0), setv('정답', LGET('퀴즈정답', V('문제'))),
+                 setv('대기', 0), setv('정답', LGET('퀴즈정답', qn_)),
                  if_(eq(V('선택'), V('정답')), chg('맞춤', 1)),
                  cast('정답공개'), wait(1.5), chg('문제', 1)),
            *m.end_blocks(mul(V('맞춤'), 100.0 / len(Q))))
     qn.on(on_msg('새문제'), write(join('Q', V('문제'), '.')))
-    qt.on(on_msg('새문제'), write(LGET('퀴즈문제', V('문제'))))
+    qt.on(on_msg('새문제'), write(LGET('퀴즈문제', qn_)))
     m.on_start(setv('맞춤', 0), setv('대기', 0), setv('_mt', 10), setv('문제', 1))
     m.snd('정답공개', ifelse(eq(V('선택'), V('정답')), [play('good')], [play('bad')]))
     m.finish('조치원에 대한 퀴즈 5문제!\n문제마다 10초 안에 정답을 고르세요.',
@@ -732,8 +764,8 @@ def g14(P, ctx):
     NR = 5
     m = MG(P, 14, ctx, status='1/%d판' % NR, dim=70)
     m.S('나', ctx['BUST']['me'], -168, 40, scale=0.55)
-    m.S('상대', ctx['BUST']['u2'], 168, 40, scale=0.55)
-    m.S('상대이름', K.badge('둘째 큰아버지 (응원단장)', 120, 18, 'purple'), 168, -14)
+    m.rival('상대', '2', 168, 40, scale=0.55)
+    m.rival_badge('상대이름', '둘째 큰아버지 (응원단장)', 168, -14, 120, 'purple')
     hands = ['rock', 'paper', 'scissors']
     mine = m.S('내손', [(h_, A.rps_hand(h_, 'me')) for h_ in hands], -78, -36, scale=1.35)
     his = m.S('상대손', [(h_, A.rps_hand(h_, 'op')) for h_ in hands], 78, -36, scale=1.35)

@@ -1603,3 +1603,67 @@ def signal_light(on):
         col = (255, 60, 80, 255) if (on and (k == (on - 1))) else (70, 20, 30, 255)
         d.ellipse(((x - 5) * S_, 5 * S_, (x + 5) * S_, 15 * S_), fill=col)
     return _fin(im, w, h, name)
+
+
+# ================================================================== 2번 받기: 시장(단풍잎) · 대통령(감귤) 단계 물건
+def maple(kind):
+    """kind: leaf / gold / dry (단풍잎)"""
+    name = 'maple_' + kind
+    if _cached(name):
+        return _cached(name)
+    w = h = 30
+    im = _cv(w, h)
+    W, H = im.size
+    s = S_
+    cx, cy = W / 2, H * 0.52
+    m, d = _mask(im.size)
+    pts = []
+    for k in range(10):
+        a = math.radians(-90 + k * 36)
+        r = W * (0.46 if k % 2 == 0 else 0.2)
+        if k in (4, 6):
+            r *= 0.8
+        pts.append((cx + r * math.cos(a), cy + r * math.sin(a)))
+    d.polygon(pts, fill=255)
+    col = {'leaf': ((255, 110, 70), (200, 30, 30)), 'gold': ((255, 220, 120), (240, 90, 30)),
+           'dry': ((150, 100, 70), (90, 50, 30))}[kind]
+    _fill(im, m, col[0], col[1])
+    d2 = ImageDraw.Draw(im)
+    for k in (0, 2, 8):
+        a = math.radians(-90 + k * 36)
+        d2.line([(cx, cy), (cx + W * 0.4 * math.cos(a), cy + W * 0.4 * math.sin(a))], fill=(120, 20, 20, 150), width=int(0.6 * s))
+    d2.line([(cx, cy), (cx, H - 1.5 * s)], fill=(110, 40, 20, 255), width=int(1.4 * s))
+    _outline(im, m, (60, 10, 10), 1.2 * s)
+    if kind == 'gold':
+        im = _glow(im, m, (255, 220, 160), 3 * s, 230)
+    return _fin(im, w, h, name)
+
+
+def tangerine(kind):
+    """kind: leaf(보통 감귤) / gold(황금 한라봉) / dry(상한 귤)"""
+    name = 'tangerine_' + kind
+    if _cached(name):
+        return _cached(name)
+    w = h = 30
+    im = _cv(w, h)
+    W, H = im.size
+    s = S_
+    cx, cy = W / 2, H * 0.56
+    R = W * 0.36
+    m, d = _mask(im.size)
+    d.ellipse((cx - R, cy - R * 0.9, cx + R, cy + R * 0.9), fill=255)
+    if kind == 'gold':
+        d.ellipse((cx - R * 0.35, cy - R * 1.25, cx + R * 0.35, cy - R * 0.6), fill=255)
+    col = {'leaf': ((255, 190, 60), (240, 120, 10)), 'gold': ((255, 236, 140), (250, 160, 20)),
+           'dry': ((140, 130, 80), (80, 80, 50))}[kind]
+    _fill(im, m, col[0], col[1])
+    d2 = ImageDraw.Draw(im)
+    d2.ellipse((cx - R * 0.5, cy - R * 0.6, cx - R * 0.1, cy - R * 0.25), fill=(255, 240, 200, 150))
+    d2.polygon([(cx, cy - R * 0.85), (cx + R * 0.7, cy - R * 1.25), (cx + R * 0.3, cy - R * 0.75)], fill=(40, 140, 60, 255))
+    if kind == 'dry':
+        for (px, py) in ((0.4, 0.6), (0.62, 0.5), (0.55, 0.72)):
+            d2.ellipse((W * px - 2 * s, H * py - 2 * s, W * px + 2 * s, H * py + 2 * s), fill=(60, 70, 40, 220))
+    _outline(im, m, (90, 40, 0) if kind != 'dry' else (40, 40, 20), 1.2 * s)
+    if kind == 'gold':
+        im = _glow(im, m, (255, 230, 150), 3 * s, 230)
+    return _fin(im, w, h, name)

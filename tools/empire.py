@@ -90,7 +90,9 @@ def majority_pop(P, sc):
     G.big_pop(P, sc, '과반팝', K.big_text('지배 자본 과반 확보!', 30, 'royal'), 0, 30, '지배과반', hold=1.4)
     t = text(P, sc, '과반안내', '이제 지지율도 50%를 넘겨야 군수 자리에 앉아요!', 0, -2, 11, C_WHITE, F_BODY, True, 0, w=360, h=18,
              visible=False, bg=C_BOX)
-    t.on(on_msg('지배과반'), to_front(), show(), wait(2.6), hide())
+    t.on(on_msg('지배과반'), ifelse(eq(V('단계'), 1), [write('이제 지지율도 50%를 넘겨야 군수 자리에 앉아요!')],
+                                   [write('지배 자본 과반! 10초마다 시가총액의 0.3%를 배당받아요')]),
+         to_front(), show(), wait(2.6), hide())
 
 
 # ================================================================== 계열사 쟁탈전 장면
@@ -197,7 +199,7 @@ def build_group(P, ctx):
                                   [setv('회사알림', '돈이 부족해요!'), G.sfx('bad')])])]),
            *stats_blocks(), cast('회사알림'), cast('계열사갱신'))
     mgr.on(on_scene(), *stats_blocks(), cast('계열사갱신'))
-    button(P, sc, '지도로', '지도로', -204, -112, 60, 22, 'navy', icon='back', actions=go(ctx['S_MAP']))
+    button(P, sc, '지도로', '돌아가기', -204, -112, 60, 22, 'navy', icon='back', actions=ctx['GO_HOME']())
     G.hud(P, sc, ctx['PORT'])
     G.sound_hub(P, sc, 'bgm_map')
     G.fader(P, sc, ctx['BLACK'])
@@ -335,7 +337,7 @@ def build_nego(P, ctx):
                                                           text_color(C_RED)],
                                   [write('이번 유세 기간에는 이미 협상했어요.\n유세를 하고 다시 오세요'), text_color(C_DIM)])])]))
     phase_show(res, 4)
-    back = button(P, sc, '그만두기', '지도로', -200, -121, 66, 22, 'navy', icon='back', actions=go(ctx['S_MAP']))
+    back = button(P, sc, '그만두기', '돌아가기', -200, -121, 66, 22, 'navy', icon='back', actions=ctx['GO_HOME']())
     mgr = text(P, sc, '협상담당', '', -300, -300, 8, visible=False)
     mgr.on(on_scene(), setv('협상결과', 0),
            ifelse(or_(gt(V('협상금지턴'), 0), eq(V('협상기회'), 0)),

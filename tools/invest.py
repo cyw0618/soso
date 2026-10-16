@@ -31,7 +31,13 @@ def setup(P):
 
 
 def reset_blocks():
-    return [lst_set(nm, k, 0) for nm in ('투자부채', '투자만기', '투자결렬') for k in (1, 2, 3)]
+    return [lst_set(nm, k, 0) for nm in ('투자부채', '투자만기', '투자결렬') for k in (1, 2, 3)] + scale_blocks()
+
+
+def scale_blocks():
+    """투자 금액을 지금 단계 규모로 (시장 선거 ×50, 대선 ×1000)."""
+    amts = [a for i in INVESTORS for a in i[2]]
+    return [lst_set('투자금액', k, mul(a, LGET('상점배율', V('단계')))) for k, a in enumerate(amts, 1)]
 
 
 def debt_total():

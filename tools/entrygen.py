@@ -38,6 +38,13 @@ SIG.setdefault('count_match_string', {
     'def': {'params': [{'type': 'text', 'params': ['엔트리봇']}, None, {'type': 'text', 'params': ['엔트리']}, None],
             'type': 'count_match_string'},
     'paramsKeyMap': {'STRING': 0, 'TARGET': 2}, 'cls': 'calc_string', 'skeleton': 'basic_string_field', 'statements': 0})
+SIG.setdefault('replace_string', {
+    'params': [{'type': 'Text', 'text': ''}, {'type': 'Block'}, {'type': 'Text', 'text': '의'}, {'type': 'Block'},
+               {'type': 'Text', 'text': '을(를)'}, {'type': 'Block'}, {'type': 'Text', 'text': '(으)로 바꾼 값'}],
+    'def': {'params': [None, {'type': 'text', 'params': ['안녕 엔트리!']}, None, {'type': 'text', 'params': ['안녕']}, None,
+                       {'type': 'text', 'params': ['반가워']}, None], 'type': 'replace_string'},
+    'paramsKeyMap': {'STRING': 1, 'OLD_WORD': 3, 'NEW_WORD': 5}, 'cls': 'calc_string', 'skeleton': 'basic_string_field',
+    'statements': 0})
 
 # ---------------------------------------------------------------- ids
 _rng = random.Random(20260101)
@@ -223,6 +230,22 @@ def str_index(s, t):
 def str_count(s, t):
     """s 안에 t 가 몇 번 들어 있는지."""
     return B('count_match_string', STRING=s, TARGET=t)
+
+
+def str_replace(s, old, new):
+    """s 안의 old 를 모두 new 로 (엔트리는 old 를 정규식으로 쓰므로 특수 문자는 피할 것)."""
+    return B('replace_string', STRING=s, OLD_WORD=old, NEW_WORD=new)
+
+
+def date_(kind):
+    """현재 YEAR / MONTH / DAY / DAY_OF_WEEK / HOUR / MINUTE / SECOND."""
+    return B('get_date', VALUE=kind)
+
+
+def now_sec():
+    """실제 시계로 잰 초 (달이 바뀌어도 줄어들지 않게 한 달 = 31일로 계산)."""
+    days = add(add(mul(date_('YEAR'), 372), mul(date_('MONTH'), 31)), date_('DAY'))
+    return add(mul(add(mul(add(mul(days, 24), date_('HOUR')), 60), date_('MINUTE')), 60), date_('SECOND'))
 
 
 def user_id():

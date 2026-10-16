@@ -29,10 +29,27 @@ TRUNK = (20, 18, 36)
 WATER = (20, 46, 120)
 
 
+# 시간대: 그림은 밤 색으로 그리고, 마지막에 색 보정(GRADE: 채널별 a*v+b)으로 낮/노을/해 질 녘을 만든다.
+# 하늘은 보정 뒤 색(SKY_MOOD)이 나오도록 거꾸로 계산해서 칠한다.
+GRADE = {'night': ((1, 1, 1), (0, 0, 0), 1.0),
+         'dusk': ((1.35, 1.2, 1.15), (16, 6, 12), 1.1),
+         'sunset': ((1.9, 1.45, 1.15), (34, 14, 6), 1.15),
+         'day': ((2.15, 2.15, 1.75), (34, 42, 36), 1.25)}
+SKY_MOOD = {'dusk': ((24, 20, 70), (190, 110, 170)),
+            'sunset': ((60, 70, 150), (255, 150, 90)),
+            'day': ((80, 150, 235), (190, 225, 255))}
+
+
+def _ungrade(col, mood):
+    a, b, _ = GRADE[mood]
+    return tuple(int(max(0, min(255, (c - bb) / aa))) for c, aa, bb in zip(col, a, b))
+
+
 class Canvas:
-    def __init__(self, seed):
+    def __init__(self, seed, mood='night'):
         self.im = Image.new('RGBA', (W * S, H * S), (0, 0, 0, 255))
         self.rng = random.Random(seed)
+        self.mood = mood
 
     # ---- 레이어
     def new(self):
@@ -57,6 +74,8 @@ class Canvas:
 
     # ---- 배경 요소
     def sky(self, top=SKY_TOP, low=SKY_LOW, horizon=0.62):
+        if self.mood != 'night':
+            top, low = (_ungrade(c, self.mood) for c in SKY_MOOD[self.mood])
         h = int(H * S * horizon)
         a = np.zeros((H * S, W * S, 4), np.uint8)
         t = np.clip(np.arange(H * S) / max(1, h), 0, 1) ** 1.4
@@ -66,6 +85,11 @@ class Canvas:
         self.im.alpha_composite(Image.fromarray(a, 'RGBA'))
 
     def stars(self, n=90, ymax=0.45):
+        if self.mood in ('day', 'sunset'):
+            return self.clouds()
+        if self.mood == 'dusk':
+            n = n // 3
+
         def f(p):
             for _ in range(n):
                 x, y = self.rng.uniform(0, W), self.rng.uniform(0, H * ymax)
@@ -74,7 +98,24 @@ class Canvas:
                 p.ell(x, y, r, r, (210, 225, 255, a))
         self.pen(f)
 
+    def clouds(self, n=6):
+        rng = self.rng
+        col = _ungrade((255, 255, 255) if self.mood == 'day' else (255, 200, 170), self.mood)
+
+        def f(p):
+            for _ in range(n):
+                cx, cy = rng.uniform(0, W), rng.uniform(30, 170)
+                for k in range(5):
+                    p.ell(cx + (k - 2) * 26, cy + rng.uniform(-8, 8), rng.uniform(26, 44), rng.uniform(12, 20), col + (150,))
+        self.pen(f, blur=4)
+
     def moon(self, x, y, r=22):
+        if self.mood in ('day', 'sunset'):      # 해
+            y = y if self.mood == 'day' else max(y, 200)
+            core = _ungrade((255, 250, 225) if self.mood == 'day' else (255, 200, 120), self.mood)
+            self.pen(lambda p: p.ell(x, y, r * 3, r * 3, core + (90,)), blur=24)
+            self.pen(lambda p: p.ell(x, y, r * 1.2, r * 1.2, core + (255,)), glow=(8, 0.9))
+            return
         self.pen(lambda p: p.ell(x, y, r * 2.6, r * 2.6, (90, 130, 255, 70)), blur=18)
         self.pen(lambda p: p.ell(x, y, r, r, (226, 234, 255, 255)), glow=(6, 0.8))
         self.pen(lambda p: p.ell(x + r * 0.35, y - r * 0.15, r * 0.82, r * 0.82, (0, 0, 0, 0)))
@@ -273,6 +314,14 @@ class Canvas:
     def finish(self):
         from make_places import finish_place
         im = self.im.convert('RGB').resize((W, H), Image.LANCZOS)
+        if self.mood != 'night':
+            a, b, sat = GRADE[self.mood]
+            arr = np.asarray(im, np.float32)
+            for c in range(3):
+                arr[..., c] = arr[..., c] * a[c] + b[c]
+            im = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
+            from PIL import ImageEnhance
+            im = ImageEnhance.Color(im).enhance(sat)
         return finish_place(im)
 
 
@@ -286,6 +335,8 @@ class Pen:
         self.d.polygon([(x * S, y * S) for x, y in pts], fill=col)
 
     def rect(self, x0, y0, x1, y1, col, r=0):
+        x0, x1 = min(x0, x1), max(x0, x1)
+        y0, y1 = min(y0, y1), max(y0, y1)
         if r:
             self.d.rounded_rectangle((x0 * S, y0 * S, x1 * S, y1 * S), r * S, fill=col)
         else:
@@ -840,7 +891,8 @@ def build_all(only=None, force=False):
         if not force and not only and os.path.exists(path) and os.path.getmtime(path) > me:
             out[k] = path
             continue
-        c = Canvas(k)
+        from place_art2 import T1_MOODS, MOOD_CODE
+        c = Canvas(k, MOOD_CODE[T1_MOODS[k]])
         fn(c)
         out[k] = save(c.finish(), 'place_%02d' % k)
     return out
