@@ -309,7 +309,7 @@ def scene_result():
     rows[3].on(on_msg('결과줄'), wait(0.75), *fmt_money(V('계열사수입'), '표시글'),
                write(join('+', V('표시글'), ' (', V('계열사수'), '개)')), show())
     news_ = text(P, sc, '계열사소식', '', 40, -78, 9, C_RED, F_BODY, True, 0, w=280, h=13, visible=False)
-    news_.on(on_msg('결과줄'), wait(0.9), if_(gt(slen(V('계열사소식')), 0), write(V('계열사소식')), show()))
+    news_.on(on_msg('결과줄'), wait(0.9), if_(gt(slen(V('계열사소식')), 0), write(CR.rival_text(V('계열사소식'))), show()))
     nxt.on(on_msg('결과줄'), wait(1.0), show())
     # 할아버지 한마디
     gp = sprite(P, sc, '할아버지', BUST['gp'], -200, -40, scale=0.62, visible=False)

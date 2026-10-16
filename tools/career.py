@@ -312,8 +312,8 @@ def build_office(P, ctx):
             ('거래소', 'blue', 'chart', ctx['S_STOCK']), ('작전 본부', 'steel', 'bolt', ctx['S_SHOP']))
     for k, (lbl, col, ic, to) in enumerate(menu):
         c, r = k % 2, k // 2
-        button(P, sc, '투자메뉴%d' % k, lbl, 74 + c * 100, 72 - r * 28, 94, 24, col, icon=ic, actions=go(to))
-    inc = text(P, sc, '시간수입', '', 124, -12, 9, '#7CFFB2', F_NUM, False, 0, w=210, h=14)
+        button(P, sc, '투자메뉴%d' % k, lbl, 74 + c * 100, 50 - r * 26, 94, 24, col, icon=ic, actions=go(to))
+    inc = text(P, sc, '시간수입', '', 124, -18, 9, '#7CFFB2', F_NUM, False, 0, w=210, h=14)
     inc.on(on_scene(), *G.live_write(inc, [*fmt_money(V('주기수입'), '_m'), setv('_o4', join('10초마다 +', V('_m')))], '_o4', 0.5))
     # ---- 오른쪽 아래: 다음 선거
     panel(P, sc, '출마판', 124, -70, 220, 82, 'glass', header='red')
@@ -322,7 +322,7 @@ def build_office(P, ctx):
     cond = text(P, sc, '출마조건', '', 124, -62, 8, C_DIM, F_BODY, True, 0, w=210, h=26)
     goal.on(on_scene(), ifelse(ge(V('직위'), 3), [write('대한민국 정상에 섰다!')],
                                [ifelse(eq(V('캠페인중'), 1), [write(join(LGET('단계이름', V('단계')), ' 선거 유세 중'))],
-                                       [write(join('다음 목표: ', LGET('출마목표말', V('직위'))))])]))
+                                       [write(join('다음 목표: ', LGET('출마목표말', add(V('직위'), 1))))])]))
     cond.on(on_scene(), *G.live_write(cond, [
         ifelse(or_(ge(V('직위'), 3), eq(V('캠페인중'), 1)),
                [ifelse(ge(V('직위'), 3), [setv('_o6', '엔딩 뒤에도 계속 투자하며\n재산을 불릴 수 있어요')],
@@ -338,7 +338,7 @@ def build_office(P, ctx):
                                    [ifelse(ge(V('직위'), 3), [setv('경제알림', '이미 대통령이에요!'), cast('경제알림')],
                                            [ifelse(and_(ge(V('총자산'), LGET('출마조건', tgt)), ge(V('공천'), tgt)),
                                                    EC.contract_go(ctx, 6, tgt, 0, '후보자 등록 신청서',
-                                                                  join('1. 을은 ', LGET('출마목표말', V('직위')), ' 선거에 「',
+                                                                  join('1. 을은 ', LGET('출마목표말', add(V('직위'), 1)), ' 선거에 「',
                                                                        V('정당이름'), '」 공천 후보로 등록한다.\n'
                                                                        '2. 을은 선거법을 지키며 40곳을 돌며 유세한다.\n'
                                                                        '3. 후보 셋 가운데 지지율 1등이 당선된다.'),
@@ -411,8 +411,8 @@ def build_party(P, ctx):
     nom.on(on_msg('정당갱신'),
            ifelse(ge(V('직위'), 3), [write('대통령을 배출한 정당!\n당원이 늘수록 후원금도 늘어요')],
                   [*fmt_comma(LGET('공천조건', EC.ifelse_min3(tgt)), '_q'),
-                   ifelse(ge(V('공천'), tgt), [write(join(LGET('출마목표말', EC.clamp13(V('직위'))), ' 선거 공천 완료 ✔'))],
-                          [write(join(LGET('출마목표말', EC.clamp13(V('직위'))), ' 공천 조건: 당원 ', V('_q'), '명'))])]))
+                   ifelse(ge(V('공천'), tgt), [write(join(LGET('출마목표말', EC.ifelse_min3(tgt)), ' 선거 공천 완료 ✔'))],
+                          [write(join(LGET('출마목표말', EC.ifelse_min3(tgt)), ' 공천 조건: 당원 ', V('_q'), '명'))])]))
     gb = button(P, sc, '공천버튼', '공천 받기', -112, -60, 120, 26, 'red', icon='ballot',
                 actions=[if_(lt(V('직위'), 3),
                              ifelse(ge(V('공천'), tgt), [setv('경제알림', '이미 공천을 받았어요!')],

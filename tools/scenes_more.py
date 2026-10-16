@@ -108,7 +108,7 @@ def name_asker(P, sc, x=200, y=-64):
     o = sprite(P, sc, '이름입력', p, x, y)
     o.on(on_msg('이름입력'),
          ifelse(gt(slen(V('등록이름')), 0), [setv('플레이어이름', V('등록이름'))],
-                [ask('랭킹에 올릴 이름을 입력!'), setv('플레이어이름', answer())]),
+                [ask('랭킹에 올릴 이름을 입력!'), setv('플레이어이름', str_replace(answer(), '[|§]', ''))]),
          if_(eq(slen(V('플레이어이름')), 0), setv('플레이어이름', '막내')),
          if_(gt(slen(V('플레이어이름')), 12), setv('플레이어이름', substr(V('플레이어이름'), 1, 12))),
          # 이전 내 기록 지우기
