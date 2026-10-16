@@ -46,6 +46,7 @@ P.var('랭킹쪽', 1)
 import scene_stock as ST
 import empire as E
 import invest as IV
+import savegame as SG
 VARS.update(ST.STOCK_VARS)
 VARS.update(E.EMPIRE_VARS)
 VARS.update(IV.INVEST_VARS)
@@ -109,6 +110,21 @@ def scene_title():
                                   ('게임 방법', -6, 'blue', 'map', go(S_HOWTO)),
                                   ('랭킹', -46, 'purple', 'trophy', go(S_RANK))]:
         button(P, sc, '버튼' + lbl, lbl, 170, yy, 120, 32, col, icon=ic, actions=act, first_scene=True)
+    # 이어하기: 같은 계정으로 하던 게임이 저장돼 있으면 보인다 (게임을 끝내기 전까지 자동 저장)
+    cont = button(P, sc, '버튼이어하기', '이어하기', 170, 74, 120, 32, 'red', icon='back', visible=False, first_scene=True,
+                  actions=[if_(eq(V('저장있음'), 1), cast_wait('초기화'), *SG.load_blocks(), *go(S_MAP))])
+    save_t = text(P, sc, '저장안내', '', 170, -76, 8, C_DIM, F_BODY, True, 0, w=150, h=24)
+    check = [hide(), wait(0.3), *SG.find_blocks(), cast('저장확인')]
+    chk_o = text(P, sc, '저장확인담당', '', -300, -300, 8, visible=False)
+    chk_o.on(on_run(), *check)
+    chk_o.on(on_scene(), *check)
+    cont.on(on_scene(), hide())
+    cont.on(on_run(), hide())
+    cont.on(on_msg('저장확인'), if_(eq(V('저장있음'), 1), show()))
+    save_t.on(on_msg('저장확인'),
+              ifelse(eq(V('저장있음'), 1), [write('하던 게임이 저장돼 있어요.\n새로 시작하면 덮어써요.')],
+                     [ifelse(SG.logged_in(), [write('게임을 끝내기 전까지\n자동 저장돼요.')],
+                             [write('로그인하면 나갔다 와도\n이어서 할 수 있어요.')])]))
     G.sound_hub(P, sc, 'bgm_title', first_scene=True)
     G.fader(P, sc, BLACK, first_scene=True)
 
@@ -299,6 +315,9 @@ def scene_map():
         o.on(on_scene(), hide())
     E.majority_pop(P, sc)
     # 모든 지역을 돌았으면 개표로
+    # 자동 저장 (게임이 끝나는 상황이 아니면)
+    sv = text(P, sc, '자동저장', '', -300, -300, 8, visible=False)
+    sv.on(on_scene(), wait(0.7), *ST.assets_blocks(), if_(and_(lt(V('유세횟수'), N_PL), gt(V('총자산'), 0)), *SG.save_blocks()))
     chk = text(P, sc, '진행검사', '', -300, -300, 8, visible=False)
     chk.on(on_scene(), setv('개표창', 0), setv('호버지역', 0), *E.stats_blocks(), wait(0.4), *ST.assets_blocks(),
            if_(ge(V('유세횟수'), N_PL), *go(S_VOTE)), if_(le(V('총자산'), 0), *go(S_BANKRUPT)))
@@ -404,6 +423,7 @@ def scene_result():
 ST.setup(P)
 E.setup(P)
 IV.setup(P)
+SG.setup(P)
 STOCK_RESET = ST.reset_blocks()
 
 

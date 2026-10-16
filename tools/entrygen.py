@@ -26,6 +26,18 @@ from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SIG = json.load(open(os.path.join(HERE, 'blocks_sig.json'), encoding='utf-8'))
+# blocks_sig.json 에 빠진 글자 블록 (엔트리 block_calc 정의 그대로)
+SIG.setdefault('index_of_string', {
+    'params': [{'type': 'Text', 'text': ''}, {'type': 'Block'}, {'type': 'Text', 'text': '에서'}, {'type': 'Block'},
+               {'type': 'Text', 'text': '의 시작 위치'}],
+    'def': {'params': [None, {'type': 'text', 'params': ['안녕 엔트리!']}, None, {'type': 'text', 'params': ['엔트리']}, None],
+            'type': 'index_of_string'},
+    'paramsKeyMap': {'LEFTHAND': 1, 'RIGHTHAND': 3}, 'cls': 'calc_string', 'skeleton': 'basic_string_field', 'statements': 0})
+SIG.setdefault('count_match_string', {
+    'params': [{'type': 'Block'}, {'type': 'Text', 'text': '에서'}, {'type': 'Block'}, {'type': 'Text', 'text': '의 개수'}],
+    'def': {'params': [{'type': 'text', 'params': ['엔트리봇']}, None, {'type': 'text', 'params': ['엔트리']}, None],
+            'type': 'count_match_string'},
+    'paramsKeyMap': {'STRING': 0, 'TARGET': 2}, 'cls': 'calc_string', 'skeleton': 'basic_string_field', 'statements': 0})
 
 # ---------------------------------------------------------------- ids
 _rng = random.Random(20260101)
@@ -201,6 +213,21 @@ def slen(s):
 
 def char_at(s, i):
     return B('char_at', LEFTHAND=s, RIGHTHAND=i)
+
+
+def str_index(s, t):
+    """s 안에서 t 가 처음 나오는 위치 (1부터, 없으면 0)."""
+    return B('index_of_string', LEFTHAND=s, RIGHTHAND=t)
+
+
+def str_count(s, t):
+    """s 안에 t 가 몇 번 들어 있는지."""
+    return B('count_match_string', STRING=s, TARGET=t)
+
+
+def user_id():
+    """로그인한 엔트리 계정 아이디 (로그인 안 했으면 ' ')."""
+    return B('get_user_name')
 
 
 # ---- 판단

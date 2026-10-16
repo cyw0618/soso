@@ -12,6 +12,7 @@ from art_common import save, ensure_out
 import data as D
 import scene_stock as ST
 import empire as E
+import savegame as SG
 
 W, H = 960, 540
 
@@ -347,6 +348,7 @@ def scene_shop(P, ctx):
 # ================================================================== 개표
 def scene_vote(P, ctx):
     sc = ctx['S_VOTE']
+    text(P, sc, '저장지움', '', -300, -300, 8, visible=False).on(on_scene(), *SG.clear_blocks())
     for v in ('개표율', '표시나', '표시A', '표시B'):
         P.var(v, 0)
     G.bg(P, sc, ctx['ART']('story_bg'))
@@ -411,6 +413,7 @@ def scene_vote(P, ctx):
 # ================================================================== 조치원 장악 (최종 승리: 지지율 + 지배 자본 둘 다 과반)
 def scene_control(P, ctx):
     sc = ctx['S_CONTROL']
+    text(P, sc, '저장지움', '', -300, -300, 8, visible=False).on(on_scene(), *SG.clear_blocks())
     G.bg(P, sc, ctx['ART']('title_bg'))
     sprite(P, sc, '어둡게', _tint('fx_dark_navy', (2, 4, 16, 200)), 0, 0)
     glow = sprite(P, sc, '청색빛', _edge_glow('fx_edge_blue', (20, 50, 200), 170), 0, 0)
@@ -494,6 +497,7 @@ def scene_rank(P, ctx):
 # ================================================================== 파산
 def scene_bankrupt(P, ctx):
     sc = ctx['S_BANKRUPT']
+    text(P, sc, '저장지움', '', -300, -300, 8, visible=False).on(on_scene(), *SG.clear_blocks())
     G.bg(P, sc, ctx['ART']('story_bg'))
     sprite(P, sc, '붉은빛', _tint('fx_dark_red2', (8, 0, 4, 205)), 0, 0)
     sprite(P, sc, '경보빛', _edge_glow('fx_alert_red_dim', (150, 10, 30), 150), 0, 0)
