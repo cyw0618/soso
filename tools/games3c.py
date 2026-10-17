@@ -563,3 +563,75 @@ def g25(P, ctx):
     m.finish('같은 색 점끼리 칸을 따라 선으로 이으세요! 선끼리\n겹치면 안 돼요. 모든 칸을 채우면 보너스! (3판)',
              '조작: 점에서 마우스를 누른 채 끌기  ·  선을 다시 누르면 거기서부터 고치기')
     return True
+
+
+# ================================================================== 26. 관광객 통역
+K26_GREET = ['Konnichiwa!', 'Arigatou!', 'Ni hao!', 'Xie xie!', 'Hello!', 'Hi there!', 'Bonjour!', 'Merci!', 'Hola!', 'Gracias!',
+             'Guten Tag!', 'Danke!', 'Ciao!', 'Grazie!', 'Xin chao!', 'Cam on!', 'Sawasdee!', 'Khob khun!', 'Namaste!',
+             'Dhanyavaad!', 'Privet!', 'Spasibo!', 'Ola! Tudo bem?', 'Obrigado!']
+
+
+@game(26)
+def g26(P, ctx):
+    TL, NO = 35, 6
+    TX, TY = 40, -2
+    m = mg(P, ctx, T, 26, time_limit=TL, status='통역 0명', dim=70)
+    vars_(P, *['k26_' + v for v in ('a', 'v', 'sty', 'pat', 'pt', 'ans', 'rdy', 'mood', 'n')])
+    W = lambda n: V('k26_' + n)
+    S_ = lambda n, v: setv('k26_' + n, v)
+    P.list('k26_greet', K26_GREET)
+    P.list('k26_all', list(range(1, 13)))
+    P.list('k26_opt', [1, 2, 3, 4, 5, 6])
+    m.S('안내소', K.badge('명동 통역 안내소', 116, 20, 'royal'), -164, 84)
+    m.S('나', ctx['BUST']['me'], -190, 6, scale=0.45)
+    itp = m.S('통역사', AC.interpreter(), -150, -6, visible=False)
+    itp.on(on_msg('k26_맞음'), xy(-150, -6), show(), glide(0.3, TX - 32, TY - 4), wait(0.3), hide())
+    tour = m.S('관광객', [('t%d%s' % (i, md), AC.tourist(i, md)) for i in range(4) for md in 'nhs'], 300, TY)
+    tour.on(on_msg('k26_새손님'), shape(add(mul(sub(W('sty'), 1), 3), 1)), xy(300, TY), show(), glide(0.3, TX, TY))
+    tour.on(on_msg('k26_맞음'), shape(add(mul(sub(W('sty'), 1), 3), 2)), wait(0.6), glide(0.25, -300, TY))
+    tour.on(on_msg('k26_틀림'), shape(add(mul(sub(W('sty'), 1), 3), 3)), wait(0.4),
+            if_(eq(W('rdy'), 1), shape(add(mul(sub(W('sty'), 1), 3), 1))))
+    tour.on(on_msg('k26_떠남'), shape(add(mul(sub(W('sty'), 1), 3), 3)), wait(0.2), glide(0.3, 300, TY))
+    bub = m.S('말풍선', AC.speech_bubble(), 8, 66, visible=False)
+    say_ = m.T('인사말', '', 8, 70, 15, '#1A2050', F_BODY, True, 0, w=140, h=24)
+    bub.on(on_msg('k26_새손님'), wait(0.3), show())
+    say_.on(on_msg('k26_새손님'), write(''), wait(0.3), write(LGET('k26_greet', add(mul(sub(W('a'), 1), 2), W('v')))))
+    for o in (bub, say_):
+        o.on(on_msg('k26_끝'), hide() if o is bub else write(''))
+    pat = m.S('인내', [('p%d' % i, AC.patience_bar(i)) for i in range(11)], TX, TY - 50, visible=False)
+    pat.on(on_msg('k26_새손님'), wait(0.3), show(), until(eq(W('rdy'), 0), ifelse(gt(W('pat'), 0), [shape(add(ceil_(W('pat')), 1))], [shape(1)]), wait(0.1)), hide())
+    for j in range(NO):
+        fx_ = -175 + 70 * j
+        fl = m.S('국기%d' % (j + 1), [('f%d' % k, AC.flag_btn(k)) for k in range(12)], fx_, -100)
+        fl.on(on_msg('k26_새손님'), shape(LGET('k26_opt', j + 1)))
+        fl.on(on_click(), if_(eq(W('rdy'), 1),
+                              ifelse(eq(LGET('k26_opt', j + 1), W('a')),
+                                     [S_('ans', 1)],
+                                     [chg('합계', -3), chg('틀림', 1), chg('k26_pat', -3), cast('k26_틀림'),
+                                      fx('brightness', -40), wait(0.25), fx('brightness', 0)])))
+        G.hover_scripts(fl)
+    mgr = hidden(m, '통역담당')
+    new = [rep(12, setv('_ma', rnd(1, 12)), setv('_mb', rnd(1, 12)), setv('_mk', LGET('k26_all', V('_ma'))),
+               lst_set('k26_all', V('_ma'), LGET('k26_all', V('_mb'))), lst_set('k26_all', V('_mb'), V('_mk'))),
+           S_('a', rnd(1, 12)), S_('v', rnd(1, 2)), S_('sty', rnd(1, 4)),
+           *[lst_set('k26_opt', j, LGET('k26_all', j)) for j in range(1, NO + 1)],
+           if_(not_(lst_has('k26_opt', W('a'))), lst_set('k26_opt', rnd(1, NO), W('a'))),
+           S_('pat', 10), S_('ans', 0), cast('k26_새손님'), wait(0.3), S_('rdy', 1)]
+    mgr.on(on_msg('게임시작'),
+           until(eq(V('게임중'), 0),
+                 *new,
+                 until(or_(ne(W('ans'), 0), le(W('pat'), 0)), wait(0.05), chg('k26_pat', mul(-0.5, div(1, W('pt'))))),
+                 S_('rdy', 0), cast('k26_끝'),
+                 ifelse(eq(W('ans'), 1),
+                        [chg('합계', add(8, mul(W('pat'), 0.3))), chg('맞춤', 1), cast('k26_맞음'), wait(0.85)],
+                        [cast('k26_떠남'), wait(0.6)]),
+                 setv('미니표시', join('통역 ', V('맞춤'), '명 · ', rounded(V('합계')), '점')),
+                 S_('pt', sub(5.5, mul(V('맞춤'), 0.2))), if_(lt(W('pt'), 3), S_('pt', 3))))
+    mgr.on(on_msg('시간끝'), S_('rdy', 0), *m.end_blocks(V('합계')))
+    m.on_start(setv('합계', 0), setv('맞춤', 0), setv('틀림', 0), S_('rdy', 0), S_('pt', 5.5))
+    m.snd('k26_맞음', play('coin'))
+    m.snd('k26_틀림', play('bad'))
+    m.snd('k26_떠남', play('fail_big'))
+    m.finish('명동에 온 관광객의 인사말을 보고 어느 나라 사람인지\n국기를 눌러 통역사를 보내세요! 빠를수록 점수 UP',
+             '조작: 국기 클릭  ·  틀리면 -3점  ·  35초')
+    return True

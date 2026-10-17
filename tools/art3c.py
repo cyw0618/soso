@@ -593,3 +593,113 @@ def patience_bar(i, n=10, w=46, h=7):
             col = (80, 220, 120) if i > 6 else ((250, 200, 50) if i > 3 else (240, 70, 80))
             d.rounded_rectangle((1.5 * s, 1.5 * s, 1.5 * s + max(fw, H - 3 * s), H - 1.5 * s), (H - 3 * s) / 2, fill=_c(col))
     return art('k26_pat%d' % i, w, h, f)
+
+
+# ================================================================== 27 장바구니 기억
+ITEMS = ['사과', '배추', '무', '고추', '달걀', '생선', '떡', '옥수수', '감자', '버섯', '포도', '당근', '수박', '감', '두부', '파']
+
+
+def market_item(k, sz=36):
+    def f(d, im, s):
+        W = im.width
+        c = W / 2
+        u = W / 36
+        P = lambda x, y: (x * u, y * u)
+        if k == 0:     # 사과
+            d.ellipse((*P(6, 9), *P(30, 32)), fill=(220, 40, 50, 255))
+            d.line([P(18, 10), P(20, 3)], fill=(110, 70, 30, 255), width=int(2.4 * u))
+            d.ellipse((*P(20, 3), *P(29, 9)), fill=(70, 170, 70, 255))
+            d.ellipse((*P(10, 13), *P(15, 19)), fill=(255, 255, 255, 110))
+        elif k == 1:   # 배추
+            d.ellipse((*P(8, 3), *P(28, 34)), fill=(120, 200, 90, 255))
+            d.ellipse((*P(11, 12), *P(25, 34)), fill=(240, 245, 210, 255))
+            d.line([P(18, 8), P(18, 33)], fill=(200, 220, 160, 255), width=int(1.6 * u))
+        elif k == 2:   # 무
+            d.polygon([P(10, 12), P(26, 12), P(20, 34), P(16, 34)], fill=(245, 245, 240, 255))
+            d.rectangle((*P(10, 12), *P(26, 17)), fill=(170, 220, 140, 255))
+            for x in (12, 18, 24):
+                d.polygon([P(x - 3, 13), P(x + 3, 13), P(x, 1)], fill=(70, 160, 70, 255))
+        elif k == 3:   # 고추
+            d.line([P(8, 30), P(16, 22), P(24, 12), P(27, 6)], fill=(220, 30, 30, 255), width=int(6 * u), joint='curve')
+            d.line([P(27, 6), P(31, 3)], fill=(70, 150, 60, 255), width=int(3 * u))
+        elif k == 4:   # 달걀
+            d.ellipse((*P(10, 4), *P(26, 32)), fill=(250, 240, 220, 255), outline=(200, 180, 150, 255), width=int(1 * u))
+            d.ellipse((*P(13, 9), *P(17, 15)), fill=(255, 255, 255, 200))
+        elif k == 5:   # 생선
+            d.ellipse((*P(4, 11), *P(28, 26)), fill=(110, 150, 200, 255))
+            d.polygon([P(26, 18), P(34, 10), P(34, 27)], fill=(90, 130, 180, 255))
+            d.ellipse((*P(8, 15), *P(12, 19)), fill=(20, 20, 30, 255))
+            d.line([P(14, 13), P(14, 24)], fill=(80, 110, 160, 255), width=int(1.2 * u))
+        elif k == 6:   # 떡
+            for i, col in enumerate(((250, 250, 250), (250, 180, 200), (160, 210, 140))):
+                d.rounded_rectangle((*P(5, 6 + i * 9), *P(31, 14 + i * 9)), 3 * u, fill=_c(col), outline=(180, 170, 170, 255),
+                                    width=max(1, int(0.8 * u)))
+        elif k == 7:   # 옥수수
+            d.ellipse((*P(11, 3), *P(25, 33)), fill=(250, 210, 60, 255))
+            for y in range(6, 32, 4):
+                d.line([P(12, y), P(24, y)], fill=(220, 170, 30, 255), width=max(1, int(0.8 * u)))
+            d.polygon([P(8, 33), P(12, 14), P(17, 34)], fill=(110, 180, 80, 255))
+            d.polygon([P(28, 33), P(24, 14), P(19, 34)], fill=(90, 160, 70, 255))
+        elif k == 8:   # 감자
+            d.ellipse((*P(5, 9), *P(31, 29)), fill=(200, 160, 100, 255))
+            for x, y in ((12, 15), (20, 22), (24, 14)):
+                d.ellipse((*P(x, y), *P(x + 2, y + 2)), fill=(140, 100, 60, 255))
+        elif k == 9:   # 버섯
+            d.rounded_rectangle((*P(14, 16), *P(22, 33)), 3 * u, fill=(240, 230, 210, 255))
+            d.chord((*P(4, 4), *P(32, 28)), 180, 360, fill=(160, 100, 60, 255))
+        elif k == 10:  # 포도
+            for x, y in ((12, 10), (19, 10), (26, 10), (15, 17), (22, 17), (12, 24) if False else (18, 24), (15, 30) if False else (18, 30)):
+                d.ellipse((*P(x - 4, y - 4), *P(x + 4, y + 4)), fill=(130, 60, 170, 255))
+            d.ellipse((*P(8, 13), *P(16, 21)), fill=(130, 60, 170, 255))
+            d.ellipse((*P(22, 20), *P(30, 28)), fill=(130, 60, 170, 255))
+            d.line([P(19, 6), P(21, 1)], fill=(110, 70, 30, 255), width=int(2 * u))
+        elif k == 11:  # 당근
+            d.polygon([P(12, 10), P(24, 10), P(19, 34)], fill=(250, 130, 30, 255))
+            for x in (14, 18, 22):
+                d.polygon([P(x - 2, 11), P(x + 2, 11), P(x, 1)], fill=(70, 170, 70, 255))
+        elif k == 12:  # 수박
+            d.ellipse((*P(3, 5), *P(33, 33)), fill=(40, 140, 60, 255))
+            for x in (10, 18, 26):
+                d.arc((*P(x - 6, 5), *P(x + 6, 33)), 250, 290, fill=(20, 80, 30, 255), width=int(2 * u))
+                d.line([P(x, 6), P(x - 1, 32)], fill=(20, 80, 30, 255), width=int(2 * u))
+        elif k == 13:  # 감
+            d.ellipse((*P(5, 9), *P(31, 33)), fill=(250, 140, 30, 255))
+            d.polygon([P(12, 9), P(18, 5), P(24, 9), P(18, 13)], fill=(70, 130, 50, 255))
+        elif k == 14:  # 두부
+            d.polygon([P(5, 14), P(20, 8), P(31, 13), P(16, 19)], fill=(255, 255, 250, 255))
+            d.polygon([P(5, 14), P(16, 19), P(16, 32), P(5, 27)], fill=(230, 230, 220, 255))
+            d.polygon([P(16, 19), P(31, 13), P(31, 26), P(16, 32)], fill=(215, 215, 205, 255))
+        elif k == 15:  # 파
+            d.line([P(10, 34), P(24, 4)], fill=(240, 250, 240, 255), width=int(5 * u))
+            d.line([P(17, 19), P(24, 4)], fill=(80, 180, 80, 255), width=int(5 * u))
+            d.line([P(17, 19), P(30, 6)], fill=(60, 160, 70, 255), width=int(4 * u))
+    return art('k27_item%d' % k, sz, sz, f)
+
+
+def item_card(w=56, h=56, sel=False):
+    def f(d, im, s):
+        d.rounded_rectangle((1 * s, 1 * s, im.width - 1 * s, im.height - 1 * s), 8 * s, fill=(236, 240, 252, 255),
+                            outline=(110, 140, 255, 255) if not sel else (90, 230, 140, 255), width=int(2 * s))
+    return art('k27_card%d' % sel, w, h, f)
+
+
+def basket(w=232, h=196):
+    def f(d, im, s):
+        W, H = im.width, im.height
+        d.rounded_rectangle((0, 18 * s, W - 1, H - 1), 18 * s, fill=(170, 110, 50, 255), outline=(110, 64, 24, 255), width=int(2 * s))
+        d.rounded_rectangle((8 * s, 26 * s, W - 8 * s, H - 8 * s), 12 * s, fill=(250, 236, 200, 255))
+        for y in range(int(30 * s), int(H - 8 * s), int(9 * s)):
+            d.line((8 * s, y, W - 8 * s, y), fill=(236, 214, 170, 255), width=int(1 * s))
+        d.arc((W * 0.15, 0, W * 0.85, 60 * s), 180, 360, fill=(140, 86, 36, 255), width=int(5 * s))
+    return art('k27_basket', w, h, f)
+
+
+def cloth(w=232, h=178):
+    def f(d, im, s):
+        W, H = im.width, im.height
+        d.rounded_rectangle((0, 0, W - 1, H - 1), 14 * s, fill=(200, 50, 70, 255))
+        for x in range(0, int(W), int(16 * s)):
+            d.line((x, 0, x, H), fill=(240, 240, 240, 140), width=int(2 * s))
+        for y in range(0, int(H), int(16 * s)):
+            d.line((0, y, W, y), fill=(240, 240, 240, 140), width=int(2 * s))
+    return art('k27_cloth', w, h, f, colors=32)

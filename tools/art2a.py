@@ -382,3 +382,74 @@ def s04_receipt():
             for x in range(int(6 * s), int(W - 6 * s), int(5 * s)):
                 d.line([(x, y), (x + 2.5 * s, y)], fill=(140, 140, 150, 255), width=int(0.8 * s))
     return art('s04_receipt', 140, 132, f)
+
+
+# ================================================================== 5. 라떼 아트
+def s05_paths(step=19):
+    """하트·튤립·별 경로를 같은 간격 점으로 (무대 px, 잔 가운데 기준). 닫힌 경로: 마지막 점 = 첫 점."""
+    def resample(pts):
+        pts = pts + [pts[0]]
+        seg = [math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(pts, pts[1:])]
+        L = sum(seg)
+        n = max(8, int(round(L / step)))
+        out, acc, i = [], 0.0, 0
+        for k in range(n):
+            target = L * k / n
+            while acc + seg[i] < target:
+                acc += seg[i]
+                i += 1
+            f = (target - acc) / seg[i] if seg[i] else 0
+            a, b = pts[i], pts[i + 1]
+            out.append((round(a[0] + (b[0] - a[0]) * f, 1), round(a[1] + (b[1] - a[1]) * f, 1)))
+        return out + [out[0]]
+    heart = []
+    for k in range(200):
+        t = 2 * math.pi * k / 200
+        x = 16 * math.sin(t) ** 3
+        y = 13 * math.cos(t) - 5 * math.cos(2 * t) - 2 * math.cos(3 * t) - math.cos(4 * t)
+        heart.append((x * 4.3, y * 4.3 + 10))
+    tul = [(-0.5, -0.3), (-0.64, 0.12), (-0.58, 0.62), (-0.26, 0.3), (0, 0.72), (0.26, 0.3), (0.58, 0.62), (0.64, 0.12),
+           (0.5, -0.3), (0.26, -0.52), (0, -0.58), (-0.26, -0.52)]
+    tulip = [(x * 100, y * 100 + 6) for x, y in tul]
+    star = []
+    for k in range(10):
+        a = math.pi / 2 - k * math.pi / 5
+        r = 76 if k % 2 == 0 else 32
+        star.append((r * math.cos(a), r * math.sin(a) - 4))
+    return [resample(p) for p in (heart, tulip, star)]
+
+
+def s05_cup():
+    def f(d, im, s):
+        W = im.width
+        c = W / 2
+        d.ellipse((0, 0, W, W), fill=(236, 238, 246, 255), outline=(150, 160, 190, 255), width=int(2 * s))
+        d.ellipse((7 * s, 7 * s, W - 7 * s, W - 7 * s), fill=(200, 206, 222, 255))
+        r = c - 11 * s
+        d.ellipse((c - r, c - r, c + r, c + r), fill=(176, 116, 66, 255))
+        r2 = r - 7 * s
+        d.ellipse((c - r2, c - r2, c + r2, c + r2), fill=(142, 86, 44, 255))
+        r3 = r2 - 18 * s
+        d.ellipse((c - r3, c - r3, c + r3, c + r3), fill=(132, 78, 40, 255))
+    return art('s05_cup', 212, 212, f)
+
+
+def s05_guide(k, pts):
+    def f(d, im, s):
+        W = im.width
+        c = W / 2
+        P = [(c + x * s, c - y * s) for x, y in pts]
+        for a, b in zip(P, P[1:]):
+            for j in range(3):
+                t0, t1 = j / 3.0, j / 3.0 + 0.17
+                d.line([(a[0] + (b[0] - a[0]) * t0, a[1] + (b[1] - a[1]) * t0), (a[0] + (b[0] - a[0]) * t1, a[1] + (b[1] - a[1]) * t1)],
+                       fill=(255, 236, 200, 230), width=int(2.2 * s))
+    return art('s05_guide_%d' % k, 190, 190, f)
+
+
+def s05_ring():
+    def f(d, im, s):
+        W = im.width
+        d.ellipse((1 * s, 1 * s, W - 1 * s, W - 1 * s), outline=(80, 255, 170, 255), width=int(2.4 * s))
+        d.ellipse((W * 0.36, W * 0.36, W * 0.64, W * 0.64), fill=(80, 255, 170, 255))
+    return art('s05_ring', 22, 22, f)

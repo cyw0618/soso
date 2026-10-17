@@ -8,6 +8,15 @@ import mg_art3 as A3
 art = A3.art
 
 
+def qart(name, w, h, f, colors=48):
+    """색 수를 줄인(팔레트) PNG — 모양이 많은 그림의 용량 절약."""
+    p = A3.art(name, w, h, f)
+    im = Image.open(p)
+    if im.mode != 'P':
+        im.convert('RGBA').quantize(colors=colors, method=Image.FASTOCTREE).save(p, optimize=True)
+    return p
+
+
 def _c(col, a=255):
     return tuple(col[:3]) + (a,)
 
@@ -527,3 +536,73 @@ def s25_marker(col):
         W, H = im.size
         d.polygon([(W, 0), (W, H), (0, H / 2)], fill=_c(col), outline=(10, 10, 20, 255))
     return art('s25_marker_%d_%d_%d' % col, 9, 9, f)
+
+
+# ================================================================== 26. 미아 찾기
+S26_HAT = [None, (226, 52, 64), (250, 204, 40), (50, 100, 236)]
+S26_SHIRT = [(226, 52, 64), (52, 176, 90), (250, 204, 40), (50, 100, 236)]
+
+
+def s26_kid(hat, shirt, item):
+    """26x44, 발 = 아래. item: 0 빈손, 1 풍선, 2 아이스크림, 3 가방."""
+    def f(d, im, s):
+        P = lambda x, y: (x * s, y * s)
+        skin = (242, 208, 176, 255)
+        sc = S26_SHIRT[shirt]
+        # 다리·신발
+        d.line([P(10, 34), P(10, 42)], fill=(40, 44, 70, 255), width=int(2.6 * s))
+        d.line([P(15, 34), P(15, 42)], fill=(40, 44, 70, 255), width=int(2.6 * s))
+        d.ellipse((*P(7.5, 41), *P(12, 44)), fill=(30, 30, 40, 255))
+        d.ellipse((*P(13, 41), *P(17.5, 44)), fill=(30, 30, 40, 255))
+        # 몸 (옷)
+        d.rounded_rectangle((*P(7, 23), *P(18, 36)), 3 * s, fill=_c(sc), outline=_c(_shade(sc, 0.4)), width=max(1, int(0.6 * s)))
+        d.line([P(8, 25), P(5, 33)], fill=_c(sc), width=int(2.4 * s))
+        d.line([P(17, 25), P(20, 31)], fill=_c(sc), width=int(2.4 * s))
+        d.ellipse((*P(3.6, 32), *P(6.6, 35)), fill=skin)
+        d.ellipse((*P(18.6, 30), *P(21.6, 33)), fill=skin)
+        # 머리
+        d.ellipse((*P(6.5, 13), *P(18.5, 25)), fill=skin, outline=(90, 60, 40, 255), width=max(1, int(0.5 * s)))
+        d.chord((*P(6.5, 12.5), *P(18.5, 22)), 180, 360, fill=(46, 32, 26, 255))
+        d.ellipse((*P(9.5, 19), *P(11, 20.5)), fill=(20, 20, 30, 255))
+        d.ellipse((*P(14, 19), *P(15.5, 20.5)), fill=(20, 20, 30, 255))
+        if hat:
+            hc = S26_HAT[hat]
+            d.chord((*P(6, 10), *P(19, 21)), 180, 360, fill=_c(hc), outline=_c(_shade(hc, 0.4)), width=max(1, int(0.5 * s)))
+            d.rounded_rectangle((*P(4.5, 15), *P(20.5, 17)), 1 * s, fill=_c(_shade(hc, 0.8)))
+        if item == 1:     # 풍선
+            d.line([P(20, 31), P(22, 9)], fill=(230, 230, 240, 255), width=max(1, int(0.5 * s)))
+            d.ellipse((*P(17, 0.5), *P(25.5, 10)), fill=(196, 90, 230, 255), outline=(80, 20, 110, 255), width=max(1, int(0.5 * s)))
+            d.ellipse((*P(19, 2), *P(21, 4.5)), fill=(255, 255, 255, 150))
+        elif item == 2:   # 아이스크림
+            d.polygon([P(18.5, 29), P(22.5, 29), P(20.5, 35)], fill=(214, 160, 90, 255), outline=(110, 70, 30, 255))
+            d.ellipse((*P(17.8, 24.5), *P(23.2, 30)), fill=(255, 236, 240, 255), outline=(200, 120, 140, 255),
+                      width=max(1, int(0.5 * s)))
+            d.ellipse((*P(19, 23), *P(22, 26)), fill=(255, 140, 170, 255))
+        elif item == 3:   # 가방
+            d.line([P(9, 23), P(19, 31)], fill=(90, 50, 20, 255), width=max(1, int(0.9 * s)))
+            d.rounded_rectangle((*P(16.5, 30), *P(24, 37)), 1.5 * s, fill=(160, 100, 50, 255), outline=(70, 40, 16, 255),
+                                width=max(1, int(0.6 * s)))
+            d.line([P(17, 32.5), P(23.5, 32.5)], fill=(70, 40, 16, 255), width=max(1, int(0.5 * s)))
+    return qart('s26_kid_%d%d%d' % (hat, shirt, item), 26, 44, f)
+
+
+def s26_mom():
+    def f(d, im, s):
+        P = lambda x, y: (x * s, y * s)
+        skin = (242, 208, 176, 255)
+        d.polygon([P(9, 30), P(25, 30), P(29, 60), P(5, 60)], fill=(150, 80, 170, 255), outline=(60, 20, 70, 255))
+        d.rounded_rectangle((*P(9, 18), *P(25, 34)), 4 * s, fill=(236, 230, 246, 255), outline=(60, 50, 80, 255),
+                            width=max(1, int(0.6 * s)))
+        d.line([P(24, 21), P(30, 10)], fill=(236, 230, 246, 255), width=int(3 * s))
+        d.ellipse((*P(28, 6), *P(33, 11)), fill=skin)
+        d.line([P(10, 21), P(7, 33)], fill=(236, 230, 246, 255), width=int(3 * s))
+        d.ellipse((*P(9, 2), *P(25, 18)), fill=skin, outline=(90, 60, 40, 255), width=max(1, int(0.5 * s)))
+        d.chord((*P(8.5, 1), *P(25.5, 13)), 180, 360, fill=(50, 30, 24, 255))
+        d.ellipse((*P(18, -1), *P(26, 6)), fill=(50, 30, 24, 255))
+        d.arc((*P(12, 8), *P(16, 12)), 200, 340, fill=(20, 20, 30, 255), width=max(1, int(0.6 * s)))
+        d.arc((*P(18, 8), *P(22, 12)), 200, 340, fill=(20, 20, 30, 255), width=max(1, int(0.6 * s)))
+        d.ellipse((*P(12.5, 12), *P(14.5, 15)), fill=(120, 190, 255, 255))
+        d.arc((*P(14, 13), *P(20, 17)), 200, 340, fill=(150, 50, 60, 255), width=max(1, int(0.6 * s)))
+        d.ellipse((*P(9, 58), *P(15, 62)), fill=(30, 30, 40, 255))
+        d.ellipse((*P(19, 58), *P(25, 62)), fill=(30, 30, 40, 255))
+    return art('s26_mom', 34, 62, f)

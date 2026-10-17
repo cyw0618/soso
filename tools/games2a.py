@@ -469,3 +469,105 @@ def g04(P, ctx):
     m.finish('받은 돈 − 물건값 = 거스름돈! 지폐·동전을 눌러\n딱 맞게 건네세요. 적은 장수로 주면 보너스!',
              '조작: 돈 클릭 = 쟁반에 올리기 · "하나 빼기" · "건네기"  (손님 7명)')
     return True
+
+
+# ================================================================== 5. 라떼 아트 그리기 (그리기)
+@game(5)
+def g05(P, ctx):
+    SEC = 16
+    paths = AA.s05_paths()
+    NS = len(paths)
+    names = ['하트', '튤립', '별']
+    m = mg(P, ctx, T, 5, status='하트 1/3', dim=90)
+    CX, CY = -40, -14
+    xs, ys, st, cnt = [], [], [], []
+    for p in paths:
+        st.append(len(xs) + 1)
+        cnt.append(len(p))
+        xs += [CX + x for x, y in p]
+        ys += [CY + y for x, y in p]
+    P.list('s05_x', xs)
+    P.list('s05_y', ys)
+    P.list('s05_시작', st)
+    P.list('s05_수', cnt)
+    P.list('s05_이름', names)
+    vars_(P, 's05_판', 's05_다음', 's05_끝번', 's05_좋음', 's05_나쁨', 's05_그리기', 's05_ax', 's05_ay', 's05_vx', 's05_vy',
+          's05_L2', 's05_t', 's05_d2', 's05_점', 's05_정확', 's05_진행', 's05_펜')
+    m.S('잔', AA.s05_cup(), CX, CY)
+    gd = m.S('도안', [('%d' % (k + 1), AA.s05_guide(k, paths[k])) for k in range(NS)], CX, CY)
+    gd.on(on_msg('s05_새판'), shape(V('s05_판')), show())
+    # 붓 (우유 거품)
+    pen = m.S('우유붓', K.icon_img('star', 2), 0, -300)
+    mx, my = V('_mx'), V('_my')
+    inside = lt(add(mul(sub(mx, CX), sub(mx, CX)), mul(sub(my, CY), sub(my, CY))), 96 * 96)
+    seg = [setv('s05_ax', LGET('s05_x', sub(V('s05_다음'), 1))), setv('s05_ay', LGET('s05_y', sub(V('s05_다음'), 1))),
+           setv('s05_vx', sub(LGET('s05_x', V('s05_다음')), V('s05_ax'))), setv('s05_vy', sub(LGET('s05_y', V('s05_다음')), V('s05_ay'))),
+           setv('s05_L2', add(mul(V('s05_vx'), V('s05_vx')), mul(V('s05_vy'), V('s05_vy')))), if_(lt(V('s05_L2'), 1), setv('s05_L2', 1))]
+    nx, ny = LGET('s05_x', V('s05_다음')), LGET('s05_y', V('s05_다음'))
+    near = lt(add(mul(sub(mx, nx), sub(mx, nx)), mul(sub(my, ny), sub(my, ny))), 15 * 15)
+    started = gt(V('s05_다음'), LGET('s05_시작', V('s05_판')))
+    measure = [setv('s05_t', div(add(mul(sub(mx, V('s05_ax')), V('s05_vx')), mul(sub(my, V('s05_ay')), V('s05_vy'))), V('s05_L2'))),
+               if_(lt(V('s05_t'), 0), setv('s05_t', 0)), if_(gt(V('s05_t'), 1), setv('s05_t', 1)),
+               setv('s05_d2', add(mul(sub(mx, add(V('s05_ax'), mul(V('s05_t'), V('s05_vx')))), sub(mx, add(V('s05_ax'), mul(V('s05_t'), V('s05_vx'))))),
+                                  mul(sub(my, add(V('s05_ay'), mul(V('s05_t'), V('s05_vy')))), sub(my, add(V('s05_ay'), mul(V('s05_t'), V('s05_vy'))))))),
+               ifelse(lt(V('s05_d2'), 12 * 12), [chg('s05_좋음', 1)], [chg('s05_나쁨', 1)])]
+    draw = [setv('_mx', mouse_x()), setv('_my', mouse_y()),
+            ifelse(and_(and_(mouse_down(), eq(V('s05_그리기'), 1)), inside),
+                   [ifelse(eq(V('s05_펜'), 0), [xy(mx, my), pen_down(), setv('s05_펜', 1)], [xy(mx, my)]),
+                    if_(started, *measure),
+                    if_(near, chg('s05_다음', 1),
+                        ifelse(gt(V('s05_다음'), V('s05_끝번')), [setv('s05_그리기', 0)], [*seg, cast('s05_점이동')]))],
+                   [if_(eq(V('s05_펜'), 1), pen_up(), setv('s05_펜', 0))])]
+    pen.on(on_scene(), pen_up(), pen_clear(), setv('s05_펜', 0))
+    pen.on(on_msg('s05_새판'), pen_up(), pen_clear(), setv('s05_펜', 0), pen_color('#FFF6E6'), pen_size(7), xy(0, -300))
+    pen.on(on_msg('게임시작'), until(eq(V('게임중'), 0), *draw), pen_up())
+    ring = m.S('다음점', AA.s05_ring(), 0, -300, visible=False)
+    ring.on(on_msg('s05_점이동'), xy(nx, ny), show())
+    ring.on(on_msg('s05_판끝'), hide())
+    ring.on(on_msg('게임시작'), until(eq(V('게임중'), 0), ring.pct(130), wait(0.12), ring.pct(100), wait(0.12)))
+    hint = m.T('시작안내', '여기서 시작!', 0, -300, 9, '#7DFFB4', F_BODY, True, 0, w=80, h=14, visible=False)
+    hint.on(on_msg('s05_새판'), xy(LGET('s05_x', V('s05_다음')), add(LGET('s05_y', V('s05_다음')), 16)), show())
+    hint.on(on_msg('s05_점이동'), if_(gt(V('s05_다음'), add(LGET('s05_시작', V('s05_판')), 1)), hide()))
+    hint.on(on_msg('s05_판끝'), hide())
+    # 오른쪽 판
+    PX = 160
+    panel(P, m.sc, '주문판', PX, -6, 140, 196, 'glass', header='royal')
+    m.T('주문제목', '오늘의 주문', PX, 78, 10, C_WHITE, F_NUM, False, 0, w=120, h=16)
+    od = m.T('주문이름', '', PX, 54, 15, '#FFD9A8', F_NUM, False, 0, w=130, h=22)
+    od.on(on_msg('s05_새판'), write(join(LGET('s05_이름', V('s05_판')), ' 라떼')))
+    info = m.T('진행글', '', PX, 22, 10, C_WHITE, F_BODY, True, 0, w=130, h=36)
+    info.on(on_msg('게임시작'), until(eq(V('게임중'), 0),
+                                    setv('s05_진행', sub(V('s05_다음'), LGET('s05_시작', V('s05_판')))),
+                                    setv('s05_정확', rounded(mul(100, div(V('s05_좋음'), add(add(V('s05_좋음'), V('s05_나쁨')), 0.001))))),
+                                    write(join('따라 그린 점 ', V('s05_진행'), '/', sub(LGET('s05_수', V('s05_판')), 1), '\n정확도 ',
+                                               V('s05_정확'), '%')), wait(0.2)))
+    res = m.T('판결과', '', PX, -42, 10, '#B9C7FF', F_BODY, True, 0, w=130, h=60)
+    res.on(on_scene(), write(''))
+    res.on(on_msg('s05_판끝'), append_text(join(LGET('s05_이름', V('s05_판')), '  ', rounded(V('s05_점')), '점\n')))
+    _pop(m, '판팝', [('a', K.big_text('훌륭해요!', 28, 'green')), ('b', K.big_text('좋아요!', 28, 'royal')),
+                    ('c', K.big_text('아쉬워요', 26, 'red'))], 's05_판팝', CX, CY, hold=0.7, rise=False)
+    mgr = hidden(m, '라떼담당')
+    acc = div(V('s05_좋음'), add(add(V('s05_좋음'), V('s05_나쁨')), 0.001))
+    mgr.on(on_msg('게임시작'), setv('s05_판', 1),
+           until(or_(gt(V('s05_판'), NS), eq(V('게임중'), 0)),
+                 setv('s05_다음', LGET('s05_시작', V('s05_판'))), setv('s05_끝번', sub(add(V('s05_다음'), LGET('s05_수', V('s05_판'))), 1)),
+                 setv('s05_좋음', 0), setv('s05_나쁨', 0),
+                 cast('s05_새판'), cast('s05_점이동'), wait(0.1), setv('s05_그리기', 1), reset_timer(),
+                 until(or_(eq(V('s05_그리기'), 0), gt(timer(), SEC)),
+                       setv('미니표시', join(LGET('s05_이름', V('s05_판')), ' ', V('s05_판'), '/', NS, ' · ', ceil_(sub(SEC, timer())), '초')),
+                       wait(0.1)),
+                 setv('s05_그리기', 0), wait(0.1),
+                 setv('s05_t', mul(acc, 1.15)), if_(gt(V('s05_t'), 1), setv('s05_t', 1)),
+                 setv('s05_점', mul(100.0 / NS, mul(div(sub(V('s05_다음'), LGET('s05_시작', V('s05_판'))), sub(LGET('s05_수', V('s05_판')), 1)),
+                                                 V('s05_t')))),
+                 chg('합계', V('s05_점')),
+                 ifelse(ge(V('s05_점'), 27), [setv('_mv', 1)], [ifelse(ge(V('s05_점'), 17), [setv('_mv', 2)], [setv('_mv', 3)])]),
+                 cast('s05_판끝'), cast('s05_판팝'), wait(1.6), chg('s05_판', 1)),
+           *m.end_blocks(V('합계')))
+    m.on_start(setv('합계', 0), setv('s05_판', 1), setv('s05_그리기', 0), setv('s05_다음', 1), setv('s05_좋음', 0), setv('s05_나쁨', 0),
+               cast('s05_새판'))
+    m.snd('s05_점이동', play('tick'))
+    m.snd('s05_판팝', ifelse(eq(V('_mv'), 3), [play('bad')], [play('good')]))
+    m.finish('마우스를 누른 채 초록 점을 따라 점선을 그려요!\n하트·튤립·별 3잔, 한 잔에 %d초. 정확할수록 점수 UP' % SEC,
+             '조작: 마우스 누른 채 끌기 (초록 점 → 다음 초록 점)')
+    return True

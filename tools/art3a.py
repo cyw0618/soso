@@ -71,8 +71,8 @@ def k01_mark(on):
             dd.ellipse((c - 9 * s, c - 9 * s, c + 9 * s, c + 9 * s), fill=_rgba(col, 220))
         _glow_layer(im, g, 3 * s)
         d.ellipse((c - 8 * s, c - 8 * s, c + 8 * s, c + 8 * s), fill=(20, 20, 40, 255), outline=_rgba(col), width=int(2 * s))
-        d.text((c, c + 0.5 * s), '♪', font=font('nanum', int(12 * s)), fill=(255, 255, 255, 255), anchor='mm')
-    return art('k01_mark_%d' % on, 28, 28, f)
+        d.ellipse((c - 4 * s, c - 4 * s, c + 4 * s, c + 4 * s), fill=_rgba(col))
+    return art('k01_mk_%d' % on, 28, 28, f)
 
 
 def k01_dot(on):
@@ -458,12 +458,12 @@ def k09_stall():
         d.rectangle((6 * s, 18 * s, 10 * s, H), fill=(100, 70, 40, 255))
         d.rectangle((W - 10 * s, 18 * s, W - 6 * s, H), fill=(100, 70, 40, 255))
         d.rectangle((2 * s, H - 34 * s, W - 2 * s, H - 2 * s), fill=(150, 100, 56, 255), outline=(60, 36, 14, 255), width=int(1.4 * s))
-        d.text((W / 2, H - 18 * s), '평창 감자', font=font('jalnan', int(11 * s)), fill=(255, 245, 220, 255), anchor='mm')
+        d.text((W / 2, H - 18 * s), '평창 감자', font=font('nsr', int(11 * s)), fill=(255, 245, 220, 255), anchor='mm')
         rng = random.Random(4)
         for _ in range(26):
             x, y = rng.uniform(16, W / s - 16), rng.uniform(H / s - 48, H / s - 34)
             d.ellipse(((x - 7) * s, (y - 5) * s, (x + 7) * s, (y + 5) * s), fill=(196, 150, 90, 255), outline=(110, 70, 30, 255))
-    return art('k09_stall', 150, 96, f)
+    return art('k09_stall2', 150, 96, f)
 
 
 def k09_weather(k):
@@ -592,11 +592,11 @@ def k10_gauge():
         r = 22 * s
         d.ellipse((c - r, c - r, c + r, c + r), fill=(6, 10, 30, 220), outline=(120, 140, 220, 255), width=int(2 * s))
         # 입수 구간: 오른쪽 아래 (frame 1~2 사이 → 각도 45~90, 엔트리 회전과 맞춤)
-        d.pieslice((c - r + 3 * s, c - r + 3 * s, c + r - 3 * s, c + r - 3 * s), 34, 86, fill=(60, 220, 120, 255))
-        d.pieslice((c - r + 3 * s, c - r + 3 * s, c + r - 3 * s, c + r - 3 * s), 20, 34, fill=(40, 120, 80, 255))
-        d.pieslice((c - r + 3 * s, c - r + 3 * s, c + r - 3 * s, c + r - 3 * s), 86, 100, fill=(40, 120, 80, 255))
+        bb = (c - r + 3 * s, c - r + 3 * s, c + r - 3 * s, c + r - 3 * s)
+        d.pieslice(bb, -35, 75, fill=(40, 120, 80, 255))
+        d.pieslice(bb, -10, 50, fill=(60, 230, 120, 255))
         d.ellipse((c - 9 * s, c - 9 * s, c + 9 * s, c + 9 * s), fill=(6, 10, 30, 255))
-    return art('k10_gauge', 50, 50, f)
+    return art('k10_gauge2', 50, 50, f)
 
 
 def k10_needle():

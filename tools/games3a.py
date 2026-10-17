@@ -345,7 +345,7 @@ def g03(P, ctx):
     lt_.on(on_msg('k03_open'), write('경매 시작! 입찰하세요'), text_color(C_ACC))
     pt.on(on_msg('k03_bid'), write(join('현재가 ', V('k03_price'), '만원')))
     lt_.on(on_msg('k03_bid'), ifelse(eq(V('k03_lead'), 1), [write('최고 입찰: 나'), text_color('#7CFFB0')],
-                                     [write(join('최고 입찰: ', V('k03_lead') if False else sub(V('k03_lead'), 1), '번 후보')),
+                                     [write(join('최고 입찰: ', sub(V('k03_lead'), 1), '번 후보')),
                                       text_color(C_RED)]))
     cd = m.S('카운트', [('a', K.big_text('하나!', 16, 'white')), ('b', K.big_text('둘!', 16, 'white')),
                        ('c', K.big_text('낙찰!', 18, 'red'))], 98, -44, visible=False)
@@ -377,8 +377,8 @@ def g03(P, ctx):
     rv.on(on_msg('k03_sold'), wait(0.3),
           ifelse(eq(V('k03_lead'), 1),
                  [ifelse(ge(V('k03_gain'), 0), [text_color('#7CFFB0')], [text_color(C_RED)]),
-                  write(join('진짜 시세 ', cur('k03_val'), '만원!\n', V('k03_price'), '만원에 샀으니 ',
-                             V('k03_gain'), '만원 ', ('이득')))],
+                  write(join('진짜 시세 ', cur('k03_val'), '만원!\n', V('k03_price'), '만원에 샀어요 → 이익 ',
+                             V('k03_gain'), '만원'))],
                  [text_color(C_WHITE), write(join(sub(V('k03_lead'), 1), '번 후보가 ', V('k03_price'), '만원에 낙찰\n진짜 시세는 ',
                                                   cur('k03_val'), '만원'))]),
           to_front(), show(), wait(1.6), hide())

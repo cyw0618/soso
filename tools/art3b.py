@@ -348,3 +348,250 @@ def k14_cheer():
                   outline=(30, 30, 60, 255))
         d.rectangle((cx + 14 * s, 49 * s, cx + 19 * s, 59 * s), fill=(230, 40, 60, 255))
     return art('k14_cheer', 64, 76, f)
+
+
+# ================================================================== 15. 물통 나누기
+U15 = 11      # 1L = 11px
+
+
+def k15_jug(cap):
+    w, h = 54, cap * U15 + 16
+    def f(d, im, s):
+        W, H = im.size
+        top = 2 * s
+        bot = H - 14 * s
+        d.rectangle((3 * s, bot, W - 3 * s, H), fill=(40, 46, 70, 255))
+        d.rectangle((3 * s, bot, W - 3 * s, bot + 3 * s), fill=(150, 170, 220, 255))
+        d.rounded_rectangle((3 * s, top, W - 3 * s, bot + 2 * s), 4 * s, fill=(200, 230, 255, 40), outline=(220, 236, 255, 255),
+                            width=int(2 * s))
+        d.rectangle((8 * s, top + 4 * s, 11 * s, bot - 4 * s), fill=(255, 255, 255, 70))
+        for L in range(1, cap):
+            y = bot - L * U15 * s
+            d.line([(W - 14 * s, y), (W - 4 * s, y)], fill=(255, 255, 255, 200), width=int(1 * s))
+            d.text((W - 16 * s, y), str(L), font=font('nsr', int(6 * s)), fill=(255, 255, 255, 220), anchor='rm')
+    return art('k15_jug%d' % cap, w, h, f)
+
+
+def k15_water(cap):
+    w, h = 46, cap * U15
+    def f(d, im, s):
+        W, H = im.size
+        for y in range(0, H, s):
+            t = y / H
+            d.rectangle((0, y, W, y + s), fill=(int(70 - 30 * t), int(150 - 40 * t), int(255 - 50 * t), 210))
+        d.rectangle((0, 0, W, 2 * s), fill=(200, 236, 255, 255))
+    return art('k15_water%d' % cap, w, h, f)
+
+
+def k15_stream():
+    def f(d, im, s):
+        W, H = im.size
+        d.rounded_rectangle((W / 2 - 3 * s, 0, W / 2 + 3 * s, H), 3 * s, fill=(90, 170, 255, 220))
+        d.line([(W / 2 - 1 * s, 0), (W / 2 - 1 * s, H)], fill=(220, 240, 255, 200), width=int(1 * s))
+    return art('k15_stream', 10, 80, f)
+
+
+# ================================================================== 16. 패러글라이딩 착지
+def k16_field():
+    def f(d, im, s):
+        import random
+        W, H = im.size
+        r = random.Random(16)
+        d.rounded_rectangle((0, 0, W - 1, H - 1), 14 * s, fill=(70, 140, 80, 235), outline=(200, 230, 255, 200), width=int(1.5 * s))
+        for i in range(14):
+            x, y = r.uniform(0, W), r.uniform(0, H)
+            rx, ry = r.uniform(20, 50) * s, r.uniform(14, 30) * s
+            d.ellipse((max(4 * s, x - rx), max(4 * s, y - ry), min(W - 4 * s, x + rx), min(H - 4 * s, y + ry)),
+                      fill=r.choice([(86, 156, 86, 255), (60, 124, 72, 255), (110, 160, 80, 255)]))
+        d.line([(0, H * 0.7), (W * 0.4, H * 0.62), (W, H * 0.8)], fill=(214, 190, 140, 255), width=int(5 * s))
+        for i in range(22):
+            x, y = r.uniform(10 * s, W - 10 * s), r.uniform(10 * s, H - 10 * s)
+            rr = r.uniform(3, 6) * s
+            d.ellipse((x - rr + s, y - rr + 2 * s, x + rr + s, y + rr + 2 * s), fill=(20, 50, 30, 120))
+            d.ellipse((x - rr, y - rr, x + rr, y + rr), fill=(34, 96, 56, 255))
+    return art('k16_field', 340, 214, f, colors=64)
+
+
+def k16_target():
+    def f(d, im, s):
+        W = im.width
+        c = W / 2
+        for k, col in enumerate([(255, 255, 255), (230, 50, 60), (255, 255, 255), (230, 50, 60)]):
+            r = W / 2 * (1 - k * 0.24) - 1 * s
+            d.ellipse((c - r, c - r, c + r, c + r), fill=col + (230,))
+        d.line([(c - 4 * s, c), (c + 4 * s, c)], fill=(20, 20, 40, 255), width=int(1 * s))
+        d.line([(c, c - 4 * s), (c, c + 4 * s)], fill=(20, 20, 40, 255), width=int(1 * s))
+    return art('k16_target', 44, 44, f)
+
+
+def k16_thermal():
+    def f(d, im, s):
+        W = im.width
+        c = W / 2
+        d.ellipse((2 * s, 2 * s, W - 2 * s, W - 2 * s), fill=(255, 160, 60, 50))
+        for k in range(12):
+            a0 = k * 30
+            d.arc((3 * s, 3 * s, W - 3 * s, W - 3 * s), a0, a0 + 16, fill=(255, 190, 90, 230), width=int(2 * s))
+        for k in range(3):
+            a = math.radians(k * 120)
+            d.arc((c - 14 * s, c - 14 * s, c + 14 * s, c + 14 * s), k * 120, k * 120 + 70, fill=(255, 220, 140, 220), width=int(2 * s))
+        d.text((c, c), '상승', font=font('jalnan', int(8 * s)), fill=(255, 240, 210, 255), anchor='mm')
+    return art('k16_thermal', 60, 60, f)
+
+
+def k16_glider(shadow=False):
+    def f(d, im, s):
+        W, H = im.size
+        if shadow:
+            d.chord((2 * s, 4 * s, W - 2 * s, H * 1.4), 190, 350, fill=(0, 0, 0, 90))
+            return
+        d.chord((2 * s, 2 * s, W - 2 * s, H * 1.25), 188, 352, fill=(255, 90, 60, 255), outline=(60, 10, 10, 255))
+        d.chord((10 * s, 6 * s, W - 10 * s, H * 1.25), 192, 348, fill=(255, 200, 70, 255))
+        for k in (-1, 1):
+            d.line([(W / 2 + k * 14 * s, H * 0.25), (W / 2, H - 4 * s)], fill=(240, 240, 255, 200), width=int(0.6 * s))
+        d.ellipse((W / 2 - 3 * s, H - 8 * s, W / 2 + 3 * s, H - 2 * s), fill=(40, 60, 160, 255))
+    return art('k16_glider%s' % ('S' if shadow else ''), 44, 26, f)
+
+
+def k16_wind():
+    def f(d, im, s):
+        W = im.width
+        c = W / 2
+        d.ellipse((1 * s, 1 * s, W - 1 * s, W - 1 * s), fill=(10, 16, 40, 200), outline=(140, 170, 255, 255), width=int(1 * s))
+        d.polygon([(c, 5 * s), (c + 8 * s, 18 * s), (c + 3 * s, 18 * s), (c + 3 * s, W - 6 * s), (c - 3 * s, W - 6 * s),
+                   (c - 3 * s, 18 * s), (c - 8 * s, 18 * s)], fill=(140, 220, 255, 255))
+    return art('k16_wind', 40, 40, f)
+
+
+# ================================================================== 17. 드론 대형 기억
+DRONE_COL = [(120, 200, 255), (255, 110, 170), (120, 255, 150), (255, 220, 90)]
+
+
+def k17_drone(k):
+    col = DRONE_COL[k - 1]
+    def f(d, im, s):
+        W = im.width
+        c = W / 2
+        for r in range(10, 0, -1):
+            rr = W / 2 * r / 10
+            d.ellipse((c - rr, c - rr, c + rr, c + rr), fill=col + (int(14 + 4 * (10 - r)),))
+        d.ellipse((c - 5 * s, c - 5 * s, c + 5 * s, c + 5 * s), fill=(255, 255, 255, 255))
+        d.ellipse((c - 3.5 * s, c - 3.5 * s, c + 3.5 * s, c + 3.5 * s), fill=col + (255,))
+    return art('k17_d%d' % k, 22, 22, f)
+
+
+# ================================================================== 18. 리버시
+def k18_board(n=6, pitch=36):
+    size = n * pitch + 12
+    def f(d, im, s):
+        W = im.width
+        d.rounded_rectangle((0, 0, W - 1, W - 1), 8 * s, fill=(196, 150, 92, 255), outline=(60, 34, 12, 255), width=int(2 * s))
+        d.rectangle((6 * s, 6 * s, W - 6 * s, W - 6 * s), fill=(214, 172, 110, 255))
+        for k in range(n + 1):
+            p = (6 + k * pitch) * s
+            d.line([(p, 6 * s), (p, W - 6 * s)], fill=(90, 56, 24, 255), width=int(1.2 * s))
+            d.line([(6 * s, p), (W - 6 * s, p)], fill=(90, 56, 24, 255), width=int(1.2 * s))
+    return art('k18_board', size, size, f, colors=48)
+
+
+def k18_hint():
+    def f(d, im, s):
+        W = im.width
+        d.rectangle((0, 0, W, W), fill=(255, 255, 255, 2))
+        d.ellipse((W / 2 - 5 * s, W / 2 - 5 * s, W / 2 + 5 * s, W / 2 + 5 * s), fill=(20, 30, 60, 110), outline=(255, 255, 255, 160))
+    return art('k18_hint', 34, 34, f)
+
+
+# ================================================================== 19. 수문장 교대식
+def k19_guard(pose):
+    """pose: idle up down left right — 수문장이 깃발 든 팔을 그 방향으로."""
+    def f(d, im, s):
+        W, H = im.size
+        cx = W / 2
+        red, dark = (200, 40, 50, 255), (60, 10, 16, 255)
+        # 몸 (붉은 철릭)
+        d.polygon([(cx - 18 * s, 54 * s), (cx + 18 * s, 54 * s), (cx + 26 * s, H - 8 * s), (cx - 26 * s, H - 8 * s)], fill=red, outline=dark)
+        d.rectangle((cx - 20 * s, 74 * s, cx + 20 * s, 78 * s), fill=(250, 200, 60, 255))
+        d.rectangle((cx - 12 * s, H - 8 * s, cx - 4 * s, H), fill=(30, 30, 40, 255))
+        d.rectangle((cx + 4 * s, H - 8 * s, cx + 12 * s, H), fill=(30, 30, 40, 255))
+        # 머리 + 전립(모자)
+        d.ellipse((cx - 12 * s, 28 * s, cx + 12 * s, 54 * s), fill=(255, 216, 186, 255), outline=(60, 30, 20, 255))
+        d.ellipse((cx - 22 * s, 24 * s, cx + 22 * s, 32 * s), fill=(20, 20, 26, 255))
+        d.chord((cx - 12 * s, 10 * s, cx + 12 * s, 36 * s), 180, 360, fill=(20, 20, 26, 255))
+        d.line([(cx, 10 * s), (cx + 2 * s, 2 * s)], fill=(240, 60, 60, 255), width=int(2 * s))
+        for ex in (-5, 5):
+            d.ellipse((cx + ex * s - 1.5 * s, 39 * s, cx + ex * s + 1.5 * s, 42 * s), fill=(20, 20, 20, 255))
+        d.line([(cx - 4 * s, 48 * s), (cx + 4 * s, 48 * s)], fill=(120, 40, 40, 255), width=int(1 * s))
+        # 왼팔은 허리, 오른팔이 깃발
+        sh = (cx + 16 * s, 60 * s)
+        tip = {'idle': (cx + 22 * s, 92 * s), 'up': (cx + 22 * s, 14 * s), 'down': (cx + 34 * s, 104 * s),
+               'left': (cx - 48 * s, 58 * s), 'right': (cx + 48 * s, 58 * s)}[pose]
+        if pose == 'left':
+            sh = (cx - 16 * s, 60 * s)
+        d.line([sh, tip], fill=red, width=int(7 * s))
+        d.ellipse((tip[0] - 4 * s, tip[1] - 4 * s, tip[0] + 4 * s, tip[1] + 4 * s), fill=(255, 216, 186, 255))
+        if pose != 'idle':
+            fx_, fy_ = tip
+            dx, dy = {'up': (0, -1), 'down': (0, 1), 'left': (-1, 0), 'right': (1, 0)}[pose]
+            px, py = -dy, dx
+            p0 = (fx_ + dx * 4 * s, fy_ + dy * 4 * s)
+            p1 = (fx_ + dx * 24 * s, fy_ + dy * 24 * s)
+            d.line([(fx_ - dx * 6 * s, fy_ - dy * 6 * s), p1], fill=(90, 60, 30, 255), width=int(2 * s))
+            d.polygon([p0, p1, (p1[0] + px * 18 * s, p1[1] + py * 18 * s), (p0[0] + px * 18 * s, p0[1] + py * 18 * s)],
+                      fill=(255, 220, 60, 255), outline=(90, 60, 0, 255))
+        d.line([(cx - 16 * s, 60 * s), (cx - 18 * s, 80 * s)] if pose != 'left' else [(cx + 16 * s, 60 * s), (cx + 18 * s, 80 * s)],
+               fill=red, width=int(7 * s))
+    return art('k19_g_%s' % pose, 170, 134, f)
+
+
+def k19_arrow(k, on):
+    """k 0 ← 1 ↑ 2 → 3 ↓ 화살표 단추."""
+    def f(d, im, s):
+        W = im.width
+        c = W / 2
+        d.rounded_rectangle((1 * s, 1 * s, W - 1 * s, W - 1 * s), 7 * s, fill=(60, 110, 255, 255) if on else (14, 20, 48, 230),
+                            outline=(255, 255, 255, 255) if on else (110, 130, 200, 255), width=int(1.4 * s))
+        pts = [(0, -11), (10, 1), (4, 1), (4, 10), (-4, 10), (-4, 1), (-10, 1)]
+        ang = {0: -90, 1: 0, 2: 90, 3: 180}[k]
+        a = math.radians(ang)
+        P_ = [(c + (x * math.cos(a) - y * math.sin(a)) * s, c + (x * math.sin(a) + y * math.cos(a)) * s) for x, y in pts]
+        d.polygon(P_, fill=(255, 255, 255, 255))
+    return art('k19_a%d%d' % (k, on), 34, 34, f)
+
+
+# ================================================================== 20. 흑두루미 세기
+def k20_bird(kind, fr):
+    """kind: crane(흑두루미: 회흑색 몸, 흰 목) egret(백로: 하양) duck(청둥오리: 초록 머리). fr 0/1 날갯짓."""
+    w, h = {'crane': (66, 40), 'egret': (60, 38), 'duck': (42, 30)}[kind]
+    def f(d, im, s):
+        W, H = im.size
+        cy = H * 0.55
+        if kind == 'crane':
+            body, wing, neck, head = (70, 72, 84), (40, 42, 52), (245, 245, 245), (245, 245, 245)
+        elif kind == 'egret':
+            body, wing, neck, head = (250, 250, 252), (226, 230, 240), (250, 250, 252), (250, 250, 252)
+        else:
+            body, wing, neck, head = (150, 120, 90), (110, 90, 70), (40, 140, 70), (30, 120, 60)
+        out = (20, 20, 30, 255)
+        # 다리 (뒤로)
+        if kind != 'duck':
+            d.line([(W * 0.32, cy), (2 * s, cy + 2 * s)], fill=(40, 40, 40, 255), width=int(1.2 * s))
+        # 몸
+        d.ellipse((W * 0.26, cy - H * 0.16, W * 0.66, cy + H * 0.16), fill=body + (255,), outline=out, width=int(0.8 * s))
+        # 목 + 머리 (앞으로 쭉)
+        nx = W * 0.86 if kind != 'duck' else W * 0.78
+        d.line([(W * 0.62, cy - 1 * s), (nx, cy - 2 * s)], fill=neck + (255,), width=int((2.6 if kind != 'duck' else 4) * s))
+        hr = (3.2 if kind != 'duck' else 3.8) * s
+        d.ellipse((nx - hr, cy - 2 * s - hr, nx + hr, cy - 2 * s + hr), fill=head + (255,), outline=out, width=int(0.6 * s))
+        if kind == 'crane':
+            d.ellipse((nx - 1.4 * s, cy - 2 * s - hr, nx + 1.4 * s, cy - 2 * s - hr + 2.2 * s), fill=(220, 30, 40, 255))
+        beak = (230, 180, 40) if kind != 'crane' else (90, 90, 70)
+        d.polygon([(nx + hr * 0.8, cy - 3 * s), (W - 1 * s, cy - 1.5 * s), (nx + hr * 0.8, cy - 0.5 * s)], fill=beak + (255,))
+        # 날개
+        wy = -1 if fr == 0 else 1
+        tip_y = cy + wy * H * 0.48
+        d.polygon([(W * 0.28, cy), (W * 0.62, cy), (W * 0.46, tip_y), (W * 0.36, tip_y)], fill=wing + (255,), outline=out)
+        if kind == 'crane':
+            d.polygon([(W * 0.33, tip_y - wy * 5 * s), (W * 0.48, tip_y - wy * 5 * s), (W * 0.46, tip_y), (W * 0.36, tip_y)],
+                      fill=(10, 10, 14, 255))
+    return art('k20_%s%d' % (kind, fr), w, h, f)

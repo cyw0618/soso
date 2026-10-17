@@ -409,3 +409,90 @@ def g24(P, ctx):
     m.finish('빛의 빨강·초록·파랑을 섞어 목표 색을 만드세요! (시약 5개)\n빨강+초록=노랑, 초록+파랑=하늘, 빨강+파랑=보라',
              '조작: ▲▼ 버튼 클릭 (키: Q·W·E 올리기, A·S·D 내리기)  ·  적게 누를수록 보너스')
     return True
+
+
+# ================================================================== 25. 널뛰기 (타이밍)
+@game(25)
+def g25(P, ctx):
+    TL = 25
+    LOW, HIGH, VS = -96, -66, 0.72          # 발 높이: 낮은 끝 / 높은 끝, 화면 높이 배율
+    m = mg(P, ctx, T, 25, time_limit=TL, status='최고 0.0m', dim=40)
+    vars_(P, 's25_H', 's25_Hp', 's25_상태', 's25_t0', 's25_T', 's25_착지', 's25_눌림', 's25_누른때', 's25_대기',
+          's25_내발', 's25_상대발', 's25_최고', 's25_u')
+    ME, OP = -92, 92
+    m.S('짚단', AC.s25_straw(), 0, -103)
+    pl = m.S('널', AC.s25_plank(), 0, -86)
+    pl.on(on_scene(), rot(-8))
+    pl.on(on_msg('s25_상대뜀'), rot(-8))
+    pl.on(on_msg('s25_내뜀'), rot(8))
+    chars = []
+    for who, x, col, face, fv in (('나', ME, (50, 96, 230), ctx['PORT']['me'], 's25_내발'),
+                                  ('상대', OP, (214, 52, 74), ctx['PORT']['m2'], 's25_상대발')):
+        body = m.S(who + '몸', [('stand', AC.s25_body(col, 'stand')), ('jump', AC.s25_body(col, 'jump'))], x, LOW + 24)
+        head = m.S(who + '얼굴', face, x, LOW + 56, scale=1.05)
+        fly = 's25_내뜀' if who == '나' else 's25_상대뜀'
+        land = 's25_상대뜀' if who == '나' else 's25_내뜀'
+        body.on(on_msg(fly), shape('jump'))
+        body.on(on_msg(land), shape('stand'))
+        for o, dy in ((body, 24), (head, 56)):
+            o.on(on_scene(), ly(LOW + dy))
+            o.on(on_msg('게임시작'), until(eq(V('게임중'), 0), ly(add(V(fv), dy))))
+        chars.append(body)
+    m.S('내이름', K.badge('나', 40, 16, 'royal'), ME, -122)
+    m.S('상대이름', K.badge('2번 후보', 64, 16, 'red'), OP, -122)
+    # 높이 자
+    RY0 = -60
+    m.S('높이자', AC.s25_ruler(), 214, RY0 + 2)
+    m.T('높이자글', '높이', 214, RY0 + 76, 8, C_DIM, F_BODY, True, 0, w=40, h=12)
+    mk = m.S('내높이', AC.s25_marker((90, 140, 255)), 228, RY0 - 62)
+    mk.on(on_msg('게임시작'), until(eq(V('게임중'), 0), ly(add(RY0 - 62, mul(sub(V('s25_내발'), LOW), 0.8)))))
+    best = m.S('최고높이', AC.s25_marker((255, 90, 110)), 200, RY0 - 62, visible=False)
+    best.on(on_msg('s25_판정'), ly(add(RY0 - 62, mul(V('s25_최고'), VS * 0.8))), show())
+    best.on(on_scene(), rot(180))
+    hgt = m.T('높이글', '', ME, 40, 13, C_WHITE, F_NUM, False, 0, w=90, h=18, visible=False)
+    hgt.on(on_msg('s25_판정'), write(join(div(rounded(div(V('s25_H'), 10)), 10), 'm')), show(), wait(0.9), hide())
+    u = V('s25_u')
+    arc = lambda Hv: add(add(HIGH, mul(LOW - HIGH, u)), mul(mul(Hv, VS * 4), mul(u, sub(1, u))))
+    flight = lambda Hv, foot: [setv('s25_t0', timer()), setv('s25_T', add(0.5, mul(V(Hv), 0.0045))),
+                               setv('s25_착지', add(V('s25_t0'), V('s25_T'))), setv('s25_u', 0),
+                               until(or_(ge(V('s25_u'), 1), eq(V('게임중'), 0)),
+                                     setv('s25_u', div(sub(timer(), V('s25_t0')), V('s25_T'))),
+                                     if_(gt(V('s25_u'), 1), setv('s25_u', 1)), setv(foot, arc(V(Hv)))),
+                               setv(foot, LOW)]
+    mgr = hidden(m, '널담당')
+    mgr.on(on_key(K_SPACE), if_(and_(eq(V('s25_대기'), 1), eq(V('s25_눌림'), 0)),
+                                ifelse(lt(timer(), sub(V('s25_착지'), 0.3)), [setv('s25_눌림', 2)],
+                                       [setv('s25_눌림', 1), setv('s25_누른때', timer())]), cast('s25_쿵')))
+    mgr.on(on_msg('게임시작'), setv('s25_H', 40), setv('s25_Hp', 40),
+           until(eq(V('게임중'), 0),
+                 # 상대가 뛰는 동안: 내려오는 순간에 맞춰 SPACE
+                 setv('s25_눌림', 0), setv('s25_대기', 1), setv('s25_상태', 1), cast('s25_상대뜀'),
+                 *flight('s25_Hp', 's25_상대발'),
+                 wait_until(or_(ne(V('s25_눌림'), 0), gt(timer(), add(V('s25_착지'), 0.2)))),
+                 setv('s25_대기', 0),
+                 setv('_ma', abs_(sub(V('s25_누른때'), V('s25_착지')))),
+                 ifelse(eq(V('s25_눌림'), 1),
+                        [ifelse(lt(V('_ma'), 0.08), [setv('_mv', 1), chg('s25_H', 24)],
+                                [ifelse(lt(V('_ma'), 0.17), [setv('_mv', 2), chg('s25_H', 6)], [setv('_mv', 3), chg('s25_H', -10)])])],
+                        [ifelse(eq(V('s25_눌림'), 2), [setv('_mv', 4)], [setv('_mv', 5)]), setv('s25_H', mul(V('s25_H'), 0.5))]),
+                 *clamp_('s25_H', 15, 170),
+                 chg('합계', sub(V('s25_H'), 15)), if_(gt(V('s25_H'), V('s25_최고')), setv('s25_최고', V('s25_H'))),
+                 cast('s25_판정'),
+                 setv('미니표시', join('최고 ', div(rounded(div(V('s25_최고'), 10)), 10), 'm')),
+                 # 내가 뛴다
+                 setv('s25_상태', 2), cast('s25_내뜀'),
+                 *flight('s25_H', 's25_내발'),
+                 setv('s25_Hp', add(mul(V('s25_H'), 0.85), 8))))
+    mgr.on(on_msg('시간끝'), setv('s25_대기', 0), *m.end_blocks(div(V('합계'), 13)))
+    judge_pop(m, '널판정', [('최고!', 30, 'royal'), ('좋아!', 26, 'green'), ('아쉬워!', 24, 'white'),
+                         ('너무 빨라요!', 22, 'red'), ('놓쳤다!', 24, 'red')], 0, 48, 's25_판정', hold=0.35)
+    tip = m.T('널안내', '상대(빨강)가 널에 닿는 순간 SPACE!', 0, 84, 10, C_WHITE, F_BODY, True, 0, w=250, h=16, bg=C_BOX)
+    tip.on(on_msg('s25_판정'), hide())
+    m.on_start(setv('합계', 0), setv('s25_최고', 0), setv('s25_대기', 0), setv('s25_내발', LOW), setv('s25_상대발', LOW),
+               setv('s25_H', 40), setv('s25_눌림', 0), setv('s25_착지', 999))
+    m.snd('s25_쿵', play('hit'))
+    m.snd('s25_내뜀', play('jump'))
+    m.snd('s25_판정', ifelse(le(V('_mv'), 2), [play('good')], [ifelse(eq(V('_mv'), 3), [play('pop')], [play('bad')])]))
+    m.finish('2번 후보와 널뛰기 한판! 상대가 널에 내려앉는 순간\nSPACE 를 누르면 내가 더 높이 올라가요. 박자가 생명!',
+             '조작: SPACE (너무 빠르거나 늦으면 낮아져요)  ·  25초, 높이 뛸수록 점수 UP')
+    return True

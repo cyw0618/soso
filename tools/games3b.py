@@ -549,6 +549,7 @@ def g14(P, ctx):
 
 
 def gt_num(a, b):
-    """a > b 이면 1, 아니면 0 (숫자 계산으로: 정수 a, b)."""
+    """정수 a > b 이면 1, 아니면 0 (숫자 계산으로)."""
     d = sub(a, b)
-    return div(add(abs_(d), d), add(mul(abs_(d), 2), 0.000001)) if False else floor(div(add(abs_(d), d), add(mul(abs_(d), 2), 0.5)))
+    mm = div(add(abs_(d), d), 2)
+    return div(sub(add(mm, 1), abs_(sub(mm, 1))), 2)

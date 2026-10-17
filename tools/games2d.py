@@ -447,3 +447,210 @@ def g37(P, ctx):
     m.finish('스페이스로 떡메를 내리쳐 떡을 쳐요! 손이 들리면(!) 곧 떡을\n뒤집으러 들어와요. 손이 빠졌을 때만 치세요. 손을 치면 -7점!',
              '조작: 스페이스 = 떡메 치기  ·  손이 들어오는 동안은 멈추기')
     return True
+
+
+# ================================================================== 38. 간판 글자 맞추기 (단어)
+S38_WORDS = [('행복약국', '아플 때 약을 사요', '방'), ('세종서점', '책을 사요', '문'), ('도담분식', '떡볶이·김밥', '밥'),
+             ('한솔치킨', '바삭한 닭튀김', '피'), ('새롬안경', '눈이 잘 보이게', '눈'), ('보람꽃집', '꽃다발을 사요', '화'),
+             ('나성제과', '빵과 케이크', '빵'), ('아름미용실', '머리를 잘라요', '발'), ('종촌세탁소', '옷을 깨끗하게', '빨'),
+             ('고운문구', '공책·연필', '점'), ('소담수산', '싱싱한 생선', '어'), ('다정반찬', '집밥 반찬', '국'),
+             ('대평떡집', '떡을 팔아요', '방'), ('가람정육점', '고기를 팔아요', '고')]
+
+
+@game(38)
+def g38(P, ctx):
+    TL, NW, NT = 60, 8, 6
+    NWORD = len(S38_WORDS)
+    m = mg(P, ctx, T, 38, time_limit=TL, status='간판 0/%d' % NW, dim=90)
+    P.list('s38_단어', [w for w, h, x in S38_WORDS])
+    P.list('s38_힌트', [h for w, h, x in S38_WORDS])
+    P.list('s38_글자', [w + x for w, h, x in S38_WORDS])
+    P.list('s38_순서', list(range(1, NWORD + 1)))
+    P.list('s38_타일', [''] * NT)
+    P.list('s38_씀', [0] * NT)
+    vars_(P, 's38_번째', 's38_진행', 's38_개수', 's38_길이', 's38_누른', 's38_틀림')
+    for v in ('s38_말', 's38_답'):
+        P.var(v, '')
+    sign = m.S('s38_간판', [('off', AD.s38_sign('off')), ('on', AD.s38_sign('on'))], 0, 52)
+    sign.on(on_msg('s38_새단어'), shape('off'))
+    sign.on(on_msg('s38_정답'), shape('on'))
+    word = m.T('s38_간판글', '', 0, 52, 26, C_WHITE, F_NUM, False, 0, w=280, h=36)
+    shown = join(substr(V('s38_답'), 1, V('s38_진행')), substr('○○○○○', 1, sub(V('s38_길이'), V('s38_진행'))))
+    word.on(on_msg('s38_갱신'), ifelse(eq(V('s38_진행'), 0), [write(substr('○○○○○', 1, V('s38_길이')))], [write(shown)]))
+    hint = m.T('s38_힌트글', '', 0, 6, 13, C_ACC, F_BODY, True, 0, w=360, h=20)
+    hint.on(on_msg('s38_새단어'), write(join('힌트: ', LGET('s38_힌트', LGET('s38_순서', V('s38_번째'))), ' (', V('s38_길이'), '글자)')))
+    m.T('s38_도움', '글자 하나는 가짜예요!', 0, -14, 9, C_DIM, F_BODY, True, 0, w=200, h=14)
+    TY = -56
+    for k in range(1, NT + 1):
+        tx = mul(sub(k, div(add(V('s38_개수'), 1), 2)), 54)
+        tl = m.S('s38_타일%d' % k, [('n', AD.s38_tile('n')), ('u', AD.s38_tile('u')), ('x', AD.s38_tile('x')), ('g', AD.s38_tile('g'))], 0, TY)
+        tt = m.T('s38_타일글%d' % k, '', 0, TY + 3, 22, '#1A1F3A', F_NUM, False, 0, w=44, h=40)
+        act = [if_(and_(eq(V('게임중'), 1), eq(V('입력가능'), 1)), if_(eq(LGET('s38_씀', k), 0), setv('s38_누른', k), cast('s38_누름')))]
+        for o in (tl, tt):
+            o.on(on_msg('s38_새단어'), ifelse(le(k, V('s38_개수')), [lx(tx), show()], [hide()]))
+            o.on(on_click(), *act)
+            o.on(on_scene(), hide())
+        tt.on(on_msg('s38_새단어'), write(LGET('s38_타일', k)))
+        tl.on(on_msg('s38_갱신'), ifelse(eq(LGET('s38_씀', k), 1), [shape('u')], [shape('n')]))
+        tl.on(on_msg('s38_틀림'), if_(eq(V('s38_누른'), k), shape('x'), rep(3, mvx(4), wait(0.03), mvx(-4), wait(0.03))))
+        tl.on(on_msg('s38_정답'), shape('g'))
+        tl.on(on_click(), if_(eq(V('입력가능'), 1), tl.pct(90), wait(0.06), tl.pct(100)))
+    # 단어 시작: 글자를 섞어 늘어놓기
+    gl = LGET('s38_글자', LGET('s38_순서', V('s38_번째')))
+    newword = [setv('s38_답', LGET('s38_단어', LGET('s38_순서', V('s38_번째')))), setv('s38_길이', slen(V('s38_답'))),
+               setv('s38_개수', add(V('s38_길이'), 1)), setv('s38_진행', 0),
+               *[lst_set('s38_타일', k, char_at(gl, k)) for k in range(1, NT + 1)],
+               *[lst_set('s38_씀', k, 0) for k in range(1, NT + 1)]]
+    for k in range(NT, 1, -1):
+        newword.append(if_(le(k, V('s38_개수')), setv('_mk', rnd(1, k)), setv('_mv', LGET('s38_타일', k)),
+                           lst_set('s38_타일', k, LGET('s38_타일', V('_mk'))), lst_set('s38_타일', V('_mk'), V('_mv'))))
+    newword += [cast('s38_새단어'), cast('s38_갱신'), setv('입력가능', 1)]
+    status = setv('미니표시', join('간판 ', V('맞춤'), '/', NW))
+    mgr = hidden(m, 's38_담당')
+    mgr.on(on_msg('s38_누름'),
+           ifelse(eq(LGET('s38_타일', V('s38_누른')), char_at(V('s38_답'), add(V('s38_진행'), 1))),
+                  [lst_set('s38_씀', V('s38_누른'), 1), chg('s38_진행', 1), cast('s38_갱신'), cast('s38_딸깍'),
+                   if_(eq(V('s38_진행'), V('s38_길이')), setv('입력가능', 0), chg('맞춤', 1), status, cast('s38_정답'))],
+                  [chg('s38_틀림', 1), setv('입력가능', 0), cast('s38_틀림'), wait(0.35),
+                   setv('s38_진행', 0), *[lst_set('s38_씀', k, 0) for k in range(1, NT + 1)], cast('s38_갱신'), setv('입력가능', 1)]))
+    mgr.on(on_msg('s38_정답'), wait(0.9), setv('s38_진행', 0), cast('s38_다음'))
+    mgr.on(on_msg('s38_다음'), if_(eq(V('게임중'), 1),
+                                  ifelse(ge(V('s38_번째'), NW), [*m.end_blocks(add(mul(V('맞춤'), 11), mul(V('남은시간'), 0.4)))],
+                                         [chg('s38_번째', 1), *newword])))
+    skip = [if_(and_(eq(V('게임중'), 1), eq(V('입력가능'), 1)), setv('입력가능', 0), cast('s38_다음'))]
+    button(P, m.sc, 's38_넘기기', '모르겠어요 → 넘기기', 0, -100, 150, 24, 'steel', actions=skip)
+    mgr.on(on_msg('게임시작'), setv('s38_번째', 1), *newword)
+    mgr.on(on_msg('시간끝'), setv('입력가능', 0), *m.end_blocks(mul(V('맞춤'), 11)))
+    shuffle = []
+    for k in range(NWORD, 1, -1):
+        shuffle += [setv('_mk', rnd(1, k)), setv('_mv', LGET('s38_순서', k)), lst_set('s38_순서', k, LGET('s38_순서', V('_mk'))),
+                    lst_set('s38_순서', V('_mk'), V('_mv'))]
+    m.on_start(setv('맞춤', 0), setv('s38_틀림', 0), setv('입력가능', 0), setv('s38_번째', 1), setv('s38_진행', 0), setv('s38_길이', 4),
+               *shuffle)
+    m.snd('s38_딸깍', play('tick'))
+    m.snd('s38_틀림', play('bad'))
+    m.snd('s38_정답', play('good'))
+    m.finish('도담동 상가 간판 글자가 뒤죽박죽! 힌트를 보고 가게 이름을\n알아내 첫 글자부터 차례로 누르세요. 가짜 글자도 하나 있어요.',
+             '조작: 글자 클릭  ·  틀리면 그 간판은 처음부터  ·  간판 8개, 60초')
+    return True
+
+
+# ================================================================== 39. 숫자 합 10 (숫자 퍼즐)
+def _s39_boards(n=6, C=10, R=6):
+    rng = random.Random(3939)
+
+    def parts(k):
+        while True:
+            p = [rng.randint(1, 9) for _ in range(k - 1)]
+            if sum(p) <= 10 - 1:
+                p.append(10 - sum(p))
+                if max(p) <= 9:
+                    rng.shuffle(p)
+                    return p
+    out = []
+    while len(out) < n:
+        g = [[0] * C for _ in range(R)]
+        ok = True
+        for r in range(R):
+            for c in range(C):
+                if g[r][c]:
+                    continue
+                shapes = [(1, 2), (2, 1), (1, 2), (2, 1), (1, 3), (3, 1), (2, 2)]
+                rng.shuffle(shapes)
+                for h, w in shapes:
+                    if r + h <= R and c + w <= C and all(g[r + i][c + j] == 0 for i in range(h) for j in range(w)):
+                        p = parts(h * w)
+                        for i in range(h):
+                            for j in range(w):
+                                g[r + i][c + j] = p[i * w + j]
+                        break
+                else:
+                    ok = False
+                    break
+            if not ok:
+                break
+        if ok:
+            out.append(''.join(str(g[r][c]) for r in range(R) for c in range(C)))
+    return out
+
+
+@game(39)
+def g39(P, ctx):
+    TL, C, R, CL = 60, 10, 6, 30
+    X0, Y0 = -135 - 20, 70
+    m = mg(P, ctx, T, 39, time_limit=TL, status='지운 칸 0', dim=90)
+    boards = _s39_boards()
+    P.list('s39_판들', boards)
+    P.list('s39_칸', [0] * (C * R))
+    P.list('s39_x', [X0 + (k % C) * CL for k in range(C * R)])
+    P.list('s39_y', [Y0 - (k // C) * CL for k in range(C * R)])
+    vars_(P, 's39_x1', 's39_y1', 's39_c1', 's39_c2', 's39_r1', 's39_r2', 's39_합', 's39_끌기', 's39_k', 's39_r', 's39_c', 's39_px', 's39_py')
+    P.var('s39_판', '')
+    panel(P, m.sc, 's39_판넬', X0 + (C - 1) * CL / 2, Y0 - (R - 1) * CL / 2, C * CL + 14, R * CL + 14, 'glass')
+    dg = m.S('s39_숫자', [('d%d' % k, AD.s39_digit(k)) for k in range(10)], -300, -300)
+    dg.on(on_msg('s39_그리기'), pen_clear(), show(), setv('s39_k', 0),
+          rep(C * R, chg('s39_k', 1), xy(LGET('s39_x', V('s39_k')), LGET('s39_y', V('s39_k'))),
+              shape(add(LGET('s39_칸', V('s39_k')), 1)), B('brush_stamp')), xy(-300, -300))
+    pop = m.S('s39_펑', AD.s39_pop(), -300, -300, visible=False)
+    pop.on(on_msg('s39_펑'), clone_self())
+    pop.on(on_clone(), xy(V('s39_px'), V('s39_py')), pop.pct(50), fx('transparency', 0), show(),
+           rep(8, pop.grow_pct(12), fx_add('transparency', 12), wait(0.025)), del_clone())
+    # 지우기: 네모 안 칸을 빈칸 그림으로 덮어 찍는다
+    idx = add(add(mul(V('s39_r'), C), V('s39_c')), 1)
+    dg.on(on_msg('s39_지우기'),
+          setv('s39_r', V('s39_r1')),
+          until(gt(V('s39_r'), V('s39_r2')),
+                setv('s39_c', V('s39_c1')),
+                until(gt(V('s39_c'), V('s39_c2')),
+                      if_(gt(LGET('s39_칸', idx), 0),
+                          lst_set('s39_칸', idx, 0), chg('합계', 1), xy(LGET('s39_x', idx), LGET('s39_y', idx)), shape('d0'),
+                          B('brush_stamp'), setv('s39_px', obj_x()), setv('s39_py', obj_y()), cast('s39_펑')),
+                      chg('s39_c', 1)),
+                chg('s39_r', 1)),
+          xy(-300, -300), setv('미니표시', join('지운 칸 ', V('합계'))))
+    # 끌어서 네모 고르기
+    cx = lambda x: floor(div(add(sub(x, X0), CL / 2.0), CL))
+    ry = lambda y: floor(div(add(sub(Y0, y), CL / 2.0), CL))
+    clampc = lambda v, hi: [if_(lt(V(v), 0), setv(v, 0)), if_(gt(V(v), hi), setv(v, hi))]
+    rng_ = [setv('s39_c1', cx(V('s39_x1'))), setv('s39_c2', cx(mouse_x())),
+            if_(gt(V('s39_c1'), V('s39_c2')), setv('_mk', V('s39_c1')), setv('s39_c1', V('s39_c2')), setv('s39_c2', V('_mk'))),
+            setv('s39_r1', ry(V('s39_y1'))), setv('s39_r2', ry(mouse_y())),
+            if_(gt(V('s39_r1'), V('s39_r2')), setv('_mk', V('s39_r1')), setv('s39_r1', V('s39_r2')), setv('s39_r2', V('_mk'))),
+            *clampc('s39_c1', C - 1), *clampc('s39_c2', C - 1), *clampc('s39_r1', R - 1), *clampc('s39_r2', R - 1)]
+    total = [setv('s39_합', 0)]
+    for k in range(C * R):
+        c, r = k % C, k // C
+        total.append(if_(and_(le(V('s39_c1'), c), ge(V('s39_c2'), c), le(V('s39_r1'), r), ge(V('s39_r2'), r)),
+                         chg('s39_합', LGET('s39_칸', k + 1))))
+    sel = m.S('s39_선택', A.clear_dot(), -300, -300)
+    sel.local('_ls', -1)
+    L, Rr = sub(mul(V('s39_c1'), CL), CL / 2.0 - X0), add(mul(V('s39_c2'), CL), CL / 2.0 + X0)
+    Tt, Bb = sub(Y0 + CL / 2.0, mul(V('s39_r1'), CL)), sub(Y0 - CL / 2.0, mul(V('s39_r2'), CL))
+    rect = [pen_up(), pen_clear(), ifelse(eq(V('s39_합'), 10), [pen_color('#5CFF9A')], [pen_color('#BFD0FF')]), pen_size(3),
+            xy(L, Tt), pen_down(), xy(Rr, Tt), xy(Rr, Bb), xy(L, Bb), xy(L, Tt), pen_up()]
+    sumt = m.T('s39_합글', '', 196, 10, 22, C_WHITE, F_NUM, False, 0, w=80, h=30)
+    m.T('s39_합이름', '고른 합', 196, 36, 9, C_DIM, F_BODY, True, 0, w=80, h=14)
+    m.T('s39_목표', '목표 10', 196, -16, 10, C_ACC, F_NUM, False, 0, w=80, h=14)
+    sel.on(on_msg('게임시작'),
+           until(eq(V('게임중'), 0),
+                 if_(eq(V('s39_끌기'), 1),
+                     ifelse(mouse_down(), [*rng_, *total, *rect, if_(ne(V('s39_합'), V('_ls')), setv('_ls', V('s39_합')), cast('s39_합갱신'))],
+                            [setv('s39_끌기', 0), pen_clear(),
+                             ifelse(eq(V('s39_합'), 10), [cast('s39_좋음'), cast_wait('s39_지우기')],
+                                    [if_(gt(V('s39_합'), 0), cast('s39_아님'))]),
+                             setv('s39_합', 0), setv('_ls', -1), cast('s39_합갱신')])),
+                 wait(0.016)))
+    sumt.on(on_msg('s39_합갱신'), ifelse(eq(V('s39_합'), 0), [write('')], [write(V('s39_합'))]),
+            ifelse(eq(V('s39_합'), 10), [text_color('#5CFF9A')], [ifelse(gt(V('s39_합'), 10), [text_color('#FF5C70')], [text_color('#FFFFFF')])]))
+    mgr = hidden(m, 's39_담당')
+    mgr.on(on_mouse_down(), if_(and_(eq(V('게임중'), 1), eq(V('s39_끌기'), 0)),
+                                setv('s39_x1', mouse_x()), setv('s39_y1', mouse_y()), setv('s39_끌기', 1)))
+    mgr.on(on_msg('시간끝'), setv('s39_끌기', 0), *m.end_blocks(mul(V('합계'), 2.2)))
+    m.on_start(setv('합계', 0), setv('s39_끌기', 0), setv('s39_합', 0),
+               setv('s39_판', LGET('s39_판들', rnd(1, len(boards)))),
+               *[lst_set('s39_칸', k, char_at(V('s39_판'), k)) for k in range(1, C * R + 1)], cast('s39_그리기'))
+    m.snd('s39_좋음', play('coin'))
+    m.snd('s39_아님', play('beep'))
+    m.finish('마우스로 끌어 네모를 그려서, 안에 든 숫자의 합이 딱 10이면\n그 칸들이 사라져요! 60초 동안 칸을 많이 지우세요.',
+             '조작: 마우스를 누른 채 끌었다 놓기  ·  여러 칸을 한 번에 지울수록 이득')
+    return True
