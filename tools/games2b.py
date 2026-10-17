@@ -265,10 +265,10 @@ def g13(P, ctx):
                          status, wait(0.1), shape('closed'), setv('s13_busy', 0)))))
     # 오른쪽 조작판
     panel(P, m.sc, 's13판', 196, -12, 64, 228, 'glass')
-    disp = m.T('s13층표시', ' ', 196, 88, 10, '#FFD27A', F_NUM, False, 0, w=60, h=14)
+    disp = m.T('s13층표시', ' ', 196, 84, 10, '#FFD27A', F_NUM, False, 0, w=60, h=14)
     disp.on(on_scene(), *G.live_write(disp, setv('_mv', join(V('s13_at'), '층 · ', V('s13_load'), '/', CAP)), '_mv', 0.1))
     for k in range(1, 6):
-        b = m.S('s13버튼%d' % k, [(st, AB.s13_button(k, st)) for st in ('off', 'ride', 'go')], 196, FL[k - 1] + 19)
+        b = m.S('s13버튼%d' % k, [(st, AB.s13_button(k, st)) for st in ('off', 'ride', 'go')], 196, -82 + 36 * (k - 1))
         b.local('s13_v', 0)
         b.local('s13_w', 0)
         b.on(on_click(), if_(eq(V('게임중'), 1), setv('s13_tg', k), setv('s13_need', 1), cast('s13누름')),

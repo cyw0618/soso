@@ -687,7 +687,7 @@ def g16(P, ctx):
     in_th = lt(add(mul(sub(x, V('k16_hx')), sub(x, V('k16_hx'))), mul(sub(y, V('k16_hy')), sub(y, V('k16_hy')))), 28 * 28)
     mgr = hidden(m, '비행담당')
     fi = lambda k: LGET('k16_비행', add(mul(sub(V('라운드'), 1), 7), k))
-    mgr.on(on_msg('게임시작'), setv('라운드', 1),
+    mgr.on(on_msg('게임시작'), setv('라운드', 1), reset_timer(), start_timer(),
            until(or_(gt(V('라운드'), R), eq(V('게임중'), 0)),
                  setv('k16_x', fi(1)), setv('k16_y', fi(2)), setv('k16_각', fi(3)), setv('k16_tx', fi(4)), setv('k16_ty', fi(5)),
                  setv('k16_hx', fi(6)), setv('k16_hy', fi(7)), setv('k16_고도', 70),
@@ -767,7 +767,7 @@ def g17(P, ctx):
     pos = lambda i: [LGET('k17_sx', LGET('k17_자리', i)), LGET('k17_sy', LGET('k17_자리', i))]
     mgr = hidden(m, '드론담당')
     say_ = lambda t: [setv('_mt', t), cast('k17_안내')]
-    mgr.on(on_msg('게임시작'), setv('라운드', 1),
+    mgr.on(on_msg('게임시작'), setv('라운드', 1), reset_timer(), start_timer(),
            until(or_(gt(V('라운드'), R), eq(V('게임중'), 0)),
                  setv('k17_n', LGET('k17_개수', V('라운드'))),
                  until(eq(LLEN('k17_자리'), 0), lst_del('k17_자리', 1), lst_del('k17_색', 1)),
