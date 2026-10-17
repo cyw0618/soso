@@ -3,6 +3,7 @@
 import random
 from games_common import *
 import mg_art3 as A3
+import art2a as AA
 
 T = 2
 GAMES, game = registry()
@@ -93,4 +94,255 @@ def g01(P, ctx):
     m.snd('조명성공', play('good'))
     m.finish('조명을 누르면 그 조명과 위·아래·양옆 조명이 함께\n켜지거나 꺼져요. 16개를 모두 켜면 다음 무대! (3라운드)',
              '조작: 마우스로 조명 클릭  ·  막히면 "처음 상태로"')
+    return True
+
+
+# ================================================================== 공통 도우미 (2~10번)
+
+
+def _spawn(o, n, var='번호'):
+    """장면 시작 때 복제본 n 개를 만든다 (복제본마다 지역 변수 var = 1..n, 원본은 0)."""
+    o.local(var, 0)
+    o.on(on_scene(), hide(), setv(var, 0), rep(n, chg(var, 1), clone_self()), setv(var, 0))
+
+
+def _pop(m, base, pics, msg, x=None, y=None, hold=0.5, rise=True):
+    """신호 msg 를 받으면 (x, y) 또는 (_mx, _my) 자리에서 튀어나왔다 사라지는 글자/그림. pics 가 여럿이면 _mv 번째 모양."""
+    multi = isinstance(pics, list)
+    o = m.S(base, pics, 0, 0, visible=False)
+    px = V('_mx') if x is None else x
+    py = V('_my') if y is None else y
+    o.on(on_msg(msg), *([shape(V('_mv'))] if multi else []), xy(px, py), to_front(), o.pct(40), fx('transparency', 0), show(),
+         rep(5, o.grow_pct(14), wait(0.016)), rep(2, o.grow_pct(-5), wait(0.016)), wait(hold),
+         rep(8, fx_add('transparency', 12), *([mvy(1.5)] if rise else []), wait(0.02)), hide())
+    return o
+
+
+# ================================================================== 2. 수목원 물주기 (관리)
+@game(2)
+def g02(P, ctx):
+    N, TL = 6, 40
+    m = mg(P, ctx, T, 2, time_limit=TL, status='자람 0%', dim=70)
+    vars_(P, 's02_배', 's02_햇볕', 's02_평균', 's02_꽃')
+    P.list('s02_물', [50] * N)
+    P.list('s02_자람', [0] * N)
+    P.list('s02_상태', [1] * N)
+    P.list('s02_속도', [2.6, 3.8, 3.2, 4.4, 3.0, 3.6])
+    start = [58, 50, 62, 48, 56, 52]
+    X0, DX, PY, MY = -196, 78, -48, -46
+    MB, MH = MY - 31, 62
+    WATER = 28
+    k = V('번호')
+    xk = add(X0 - DX, mul(k, DX))
+    W_, G_ = LGET('s02_물', k), LGET('s02_자람', k)
+
+    def water():
+        return [if_(and_(gt(k, 0), eq(V('게임중'), 1)),
+                    lst_set('s02_물', k, add(W_, WATER)), if_(gt(W_, 100), lst_set('s02_물', k, 100)),
+                    setv('_mx', xk), cast('s02_물줌'))]
+    m.S('화단', A3.box('s02_bed', 476, 26, (96, 62, 40), rim=(60, 36, 20), r=5), 0, -104)
+    # 화분 (복제본 6개)
+    pl = m.S('화분', [('%d' % (i + 1), AA.s02_plant(i // 4, i % 4 + 1)) for i in range(12)], 0, PY, visible=False)
+    for v in ('t0', 'dt', 'w', '상태', '단계', '종', 'ns'):
+        pl.local(v, 0)
+    _spawn(pl, N)
+    pl.on(on_clone(), setv('종', mod(sub(k, 1), 3)), setv('단계', 1), setv('상태', 1), xy(xk, PY),
+          shape(add(mul(V('종'), 4), 1)), fx_clear(), show())
+    tick = [setv('dt', sub(timer(), V('t0'))), setv('t0', timer()),
+            if_(lt(V('dt'), 0), setv('dt', 0)), if_(gt(V('dt'), 0.3), setv('dt', 0.3)),
+            setv('w', sub(W_, mul(mul(LGET('s02_속도', k), V('dt')), V('s02_배')))),
+            if_(lt(V('w'), 0), setv('w', 0)),
+            lst_set('s02_물', k, V('w')),
+            ifelse(gt(V('w'), 80), [setv('ns', 3), lst_set('s02_자람', k, sub(G_, mul(6, V('dt'))))],
+                   [ifelse(lt(V('w'), 30), [setv('ns', 2), lst_set('s02_자람', k, sub(G_, mul(1.5, V('dt'))))],
+                           [setv('ns', 1), lst_set('s02_자람', k, add(G_, mul(3.0, V('dt'))))])]),
+            if_(lt(G_, 0), lst_set('s02_자람', k, 0)), if_(gt(G_, 100), lst_set('s02_자람', k, 100)),
+            # 상태가 바뀔 때만 효과
+            if_(ne(V('ns'), V('상태')), setv('상태', V('ns')), lst_set('s02_상태', k, V('상태')), fx_clear(),
+                if_(eq(V('상태'), 2), fx('brightness', -30)),
+                if_(eq(V('상태'), 3), fx('color', 55), fx('brightness', -15), setv('_mx', xk), cast('s02_썩음'))),
+            # 자란 단계
+            ifelse(ge(G_, 100), [setv('ns', 4)], [setv('ns', add(1, floor(div(G_, 34))))]),
+            if_(ne(V('ns'), V('단계')),
+                if_(and_(eq(V('ns'), 4), lt(V('단계'), 4)), setv('_mx', xk), setv('_my', PY + 40), cast('s02_꽃핌')),
+                setv('단계', V('ns')), shape(add(mul(V('종'), 4), V('단계'))))]
+    pl.on(on_msg('게임시작'), if_(gt(k, 0), setv('t0', timer()), until(eq(V('게임중'), 0), *tick, wait(0.05))))
+    pl.on(on_click(), *water())
+    pl.on(on_click(), if_(and_(gt(k, 0), eq(V('게임중'), 1)), pl.pct(93), wait(0.06), pl.pct(100)))
+    # 물 막대 + 눈금
+    mt = m.S('물막대', AA.s02_meter(), 0, MY, visible=False)
+    _spawn(mt, N)
+    mt.on(on_clone(), xy(add(xk, 31), MY), show())
+    mt.on(on_click(), *water())
+    mk = m.S('물눈금', AA.s02_marker(), 0, MY, visible=False)
+    _spawn(mk, N)
+    mk.on(on_clone(), lx(add(xk, 24)), show(), forever(ly(add(MB, mul(W_, MH / 100.0))), wait(0.03)))
+    # 말풍선 (목말라요 / 과습)
+    bb = m.S('말풍선', [('dry', AA.s02_bubble('dry')), ('wet', AA.s02_bubble('wet'))], 0, 0, visible=False)
+    bb.local('st', 1)
+    _spawn(bb, N)
+    bb.on(on_clone(), setv('st', 1), xy(sub(xk, 6), PY + 58),
+          forever(if_(ne(LGET('s02_상태', k), V('st')), setv('st', LGET('s02_상태', k)),
+                      ifelse(eq(V('st'), 1), [hide()], [shape(sub(V('st'), 1)), show()])), wait(0.06)))
+    bb.on(on_click(), *water())
+    # 자람 막대
+    gb = m.S('자람막대', K.bar_set('s02_grow', 46, 7, 'green'), 0, -108, visible=False)
+    gb.local('ls', 0)
+    _spawn(gb, N)
+    gb.on(on_clone(), setv('ls', 0), xy(add(xk, 4), -110), shape(1), show(),
+          forever(if_(ne(add(1, floor(mul(G_, 0.4))), V('ls')), setv('ls', add(1, floor(mul(G_, 0.4)))), shape(V('ls'))),
+                  wait(0.12)))
+    # 물뿌리개
+    can = m.S('물뿌리개', AA.s02_can(), 0, 0, visible=False)
+    can.on(on_msg('s02_물줌'), xy(add(V('_mx'), 26), PY + 46), rot(-20), show(), rep(4, rot_by(5), wait(0.04)), wait(0.12), hide())
+    _pop(m, '꽃글', K.big_text('활짝!', 20, 'pink'), 's02_꽃핌', hold=0.5)
+    _pop(m, '썩음글', K.big_text('물이 넘쳐요!', 14, 'purple'), 's02_썩음', y=PY + 30, hold=0.4)
+    # 햇볕 쨍쨍 (잠깐 빨리 마름)
+    sun = m.S('해', AA.s02_sun(), -150, 76, visible=False)
+    sun.on(on_msg('s02_해'), show(), until(eq(V('s02_햇볕'), 1), rot_by(3), wait(0.03)), hide())
+    sun_t = m.S('해글', K.badge('햇볕 쨍쨍! 빨리 말라요', 150, 20, 'red'), -40, 76, visible=False)
+    sun_t.on(on_msg('s02_해'), show(), wait_until(eq(V('s02_햇볕'), 1)), hide())
+    total = add(*[LGET('s02_자람', i) for i in range(1, N + 1)])
+    mgr = hidden(m, '물주기담당')
+    count_bloom = [setv('s02_꽃', 0)] + [if_(ge(LGET('s02_자람', i), 100), chg('s02_꽃', 1)) for i in range(1, N + 1)]
+    mgr.on(on_msg('게임시작'), setv('s02_햇볕', 1), wait(0.1),
+           until(eq(V('게임중'), 0),
+                 setv('s02_배', mul(add(1, div(timer(), 60)), V('s02_햇볕'))),
+                 setv('s02_평균', div(total, N)), *count_bloom,
+                 setv('미니표시', join('자람 ', floor(V('s02_평균')), '% · 꽃 ', V('s02_꽃'), '/', N)),
+                 wait(0.2)))
+    sun_ev = []
+    for t0, dur in ((12, 4.5), (9.5, 4.5)):
+        sun_ev += [wait(t0), if_(eq(V('게임중'), 1), setv('s02_햇볕', 1.6), cast('s02_해')), wait(dur), setv('s02_햇볕', 1)]
+    mgr.on(on_msg('게임시작'), *sun_ev)
+    mgr.on(on_msg('시간끝'), setv('s02_평균', div(total, N)), *m.end_blocks(V('s02_평균')))
+    m.on_start(setv('s02_배', 1), setv('s02_햇볕', 1), setv('s02_꽃', 0), setv('s02_평균', 0),
+               *[lst_set('s02_물', i + 1, start[i]) for i in range(N)],
+               *[lst_set('s02_자람', i + 1, 0) for i in range(N)],
+               *[lst_set('s02_상태', i + 1, 1) for i in range(N)])
+    m.snd('s02_물줌', play('splash'))
+    m.snd('s02_꽃핌', play('good'))
+    m.snd('s02_썩음', play('bad'))
+    m.snd('s02_해', play('alarm'))
+    m.finish('화분 6개의 물 막대를 초록 칸 안에 지켜 주세요!\n초록 칸이면 쑥쑥 자라고, 보라 칸(과습)은 썩어요.',
+             '조작: 화분 클릭 = 물 한 번 (막대 1/4쯤 올라가요)  ·  햇볕이 나면 빨리 말라요')
+    return True
+
+
+def _wonv(e):
+    """1,000 이상 정수 금액을 '12,500' 꼴 글자로 (값 블록, 1,000,000 미만)."""
+    return join(floor(div(e, 1000)), ',', substr(join('', add(1000, mod(e, 1000))), 2, 4))
+
+
+def _won(e, dst):
+    """금액 → 변수 dst 에 '12,500' / '700' 꼴 글자 (블록 목록)."""
+    return [ifelse(lt(e, 1000), [setv(dst, e)], [setv(dst, _wonv(e))])]
+
+
+# ================================================================== 3. 장터 흥정 (흥정)
+@game(3)
+def g03(P, ctx):
+    NI, TL = 5, 80
+    m = mg(P, ctx, T, 3, time_limit=TL, status='물건 1/%d' % NI, dim=60)
+    names = ['뻥튀기 한 봉지', '참기름 한 병', '꽃무늬 고무신', '대나무 소쿠리', '무쇠 호미']
+    prices = [6000, 18000, 12000, 24000, 15000]
+    P.list('s03_이름', names)
+    P.list('s03_정가표', prices)
+    vars_(P, 's03_물건', 's03_정가', 's03_최저', 's03_상인가', 's03_제안', 's03_인내', 's03_거래', 's03_산값', 's03_말',
+          's03_점', 's03_비율')
+    IX, IY = 100, 50
+    # 상인
+    face = m.S('상인', [(f, AA.s03_merchant(f)) for f in ('smile', 'sweat', 'frown', 'angry')], -168, -36)
+    face.on(on_msg('s03_반응'), shape(V('_mv')), if_(eq(V('_mv'), 4), rep(3, mvx(5), wait(0.03), mvx(-5), wait(0.03))))
+    face.on(on_msg('s03_새물건'), shape(1))
+    m.S('상인이름', K.badge('부강장터 사장님', 96, 18, 'red'), -168, -108)
+    m.S('말풍선', AA.s03_bubble(), -128, 72)
+    say_ = m.T('상인말', '', -128, 76, 10, '#1A2050', F_BODY, True, 0, w=204, h=34)
+    say_.on(on_msg('s03_반응'), write(V('s03_말')))
+    say_.on(on_msg('s03_새물건'), write(V('s03_말')))
+    m.T('인내글', '인내심', -116, -76, 8, C_DIM, F_BODY, True, 0, w=50, h=12)
+    for j in range(1, 5):
+        hj = m.S('하트%d' % j, [('on', AA.s03_heart(1)), ('off', AA.s03_heart(0))], -136 + j * 17, -92)
+        hj.on(on_msg('s03_갱신'), ifelse(ge(V('s03_인내'), j), [shape('on')], [shape('off')]))
+    # 물건 카드
+    panel(P, m.sc, '물건판', IX, IY, 236, 84, 'glass')
+    item = m.S('물건', [('%d' % (k + 1), AA.s03_item(k)) for k in range(NI)], IX - 72, IY)
+    item.on(on_msg('s03_새물건'), shape(V('s03_물건')), item.pct(60), rep(4, item.grow_pct(10), wait(0.02)))
+    nm = m.T('물건이름', '', IX + 34, IY + 22, 13, C_WHITE, F_NUM, False, 0, w=150, h=20)
+    nm.on(on_msg('s03_새물건'), write(LGET('s03_이름', V('s03_물건'))))
+    lp = m.T('정가글', '', IX + 34, IY, 10, C_DIM, F_BODY, True, 0, w=150, h=16)
+    lp.on(on_msg('s03_새물건'), write(join('정가 ', _wonv(V('s03_정가')), '원')))
+    cp = m.T('상인가글', '', IX + 34, IY - 20, 10, '#FF9AAA', F_BODY, True, 0, w=160, h=16)
+    cp.on(on_msg('s03_갱신'), write(join('사장님 부른 값 ', _wonv(V('s03_상인가')), '원')))
+    # 내 제안
+    panel(P, m.sc, '제안판', IX, -52, 236, 108, 'glass')
+    m.T('제안이름', '내가 부를 값', IX, -12, 9, C_DIM, F_BODY, True, 0, w=120, h=14)
+    of = m.T('제안글', '', IX, -32, 20, C_WHITE, F_NUM, False, 0, w=200, h=26)
+    of.on(on_msg('s03_갱신'), write(join(_wonv(V('s03_제안')), '원')))
+    ok = eq(V('입력가능'), 1)
+    clampo = [if_(lt(V('s03_제안'), 1000), setv('s03_제안', 1000)),
+              if_(gt(V('s03_제안'), V('s03_상인가')), setv('s03_제안', V('s03_상인가')))]
+    for j, d in enumerate((-2000, -500, 500, 2000)):
+        button(P, m.sc, '값%d' % j, ('%+d' % d).replace('+', '+'), IX - 84 + j * 56, -60, 52, 22,
+               'steel' if d < 0 else 'royal', actions=[if_(ok, chg('s03_제안', d), *clampo, cast('s03_갱신'))])
+    # 제안하기
+    r_ = div(V('s03_제안'), V('s03_최저'))
+    lower = lambda frac: [setv('s03_상인가', mul(ceil_(div(sub(V('s03_상인가'), mul(sub(V('s03_상인가'), V('s03_최저')), frac)), 500)), 500)),
+                          if_(lt(V('s03_상인가'), V('s03_최저')), setv('s03_상인가', V('s03_최저')))]
+    offer = [if_(ok, setv('입력가능', 0),
+                 ifelse(ge(V('s03_제안'), V('s03_최저')),
+                        [setv('s03_산값', V('s03_제안')), setv('_mv', 1), setv('s03_말', '좋아요, 가져가요!\n장사 잘하시네~'), setv('s03_거래', 1)],
+                        [ifelse(ge(r_, 0.9),
+                                [setv('_mv', 2), chg('s03_인내', -1), *lower(0.45),
+                                 setv('s03_말', join('아이고~ 조금만 더 쳐 줘요!\n', _wonv(V('s03_상인가')), '원이면 드릴게.'))],
+                                [ifelse(ge(r_, 0.75),
+                                        [setv('_mv', 3), chg('s03_인내', -1), *lower(0.25),
+                                         setv('s03_말', join('에이, 그 값엔 안 돼요.\n', _wonv(V('s03_상인가')), '원은 받아야지.'))],
+                                        [setv('_mv', 4), chg('s03_인내', -2), setv('s03_말', '장난해요?!\n그 값엔 어림없어요!')])]),
+                         if_(le(V('s03_인내'), 0), setv('s03_인내', 0), setv('_mv', 4), setv('s03_말', '에잇, 안 팔아요!\n다음 손님~'),
+                             setv('s03_거래', 2)),
+                         *clampo]),
+                 cast('s03_반응'), cast('s03_갱신'),
+                 if_(eq(V('s03_거래'), 0), wait(0.3), setv('입력가능', 1)))]
+    button(P, m.sc, '제안버튼', '이 값에 주세요!', IX - 50, -92, 116, 26, 'green', actions=offer)
+    take = [if_(ok, setv('입력가능', 0), setv('s03_산값', V('s03_상인가')), setv('_mv', 1),
+                setv('s03_말', '그래요, 그 값에 가져가요!'), setv('s03_거래', 1), cast('s03_반응'))]
+    button(P, m.sc, '수락버튼', '부른 값에 사기', IX + 66, -92, 104, 26, 'red', actions=take)
+    # 결과 띠
+    res = m.T('결과글', '', 0, 6, 12, C_WHITE, F_BODY, True, 0, w=420, h=40, visible=False, bg=C_BOX)
+    res.on(on_msg('s03_결과'), write(V('s03_말')), to_front(), show(), wait(1.6), hide())
+    _pop(m, '점수팝', [('ok', K.big_text('거래 성공!', 26, 'green')), ('no', K.big_text('흥정 실패', 26, 'red'))], 's03_끝', 0, 40,
+         hold=0.9, rise=False)
+    mgr = hidden(m, '흥정담당')
+    mgr.on(on_msg('게임시작'), setv('s03_물건', 1),
+           until(or_(gt(V('s03_물건'), NI), eq(V('게임중'), 0)),
+                 setv('s03_정가', LGET('s03_정가표', V('s03_물건'))),
+                 setv('s03_최저', mul(ceil_(div(mul(V('s03_정가'), div(rnd(56, 78), 100)), 500)), 500)),
+                 setv('s03_상인가', V('s03_정가')), setv('s03_제안', V('s03_정가')), setv('s03_인내', 4), setv('s03_거래', 0),
+                 setv('s03_말', join('어서 와요! ', LGET('s03_이름', V('s03_물건')), '?\n정가 ', _wonv(V('s03_정가')), '원이에요~')),
+                 setv('미니표시', join('물건 ', V('s03_물건'), '/', NI, ' · ', rounded(V('합계')), '점')),
+                 cast('s03_새물건'), cast('s03_갱신'), setv('입력가능', 1),
+                 wait_until(or_(ne(V('s03_거래'), 0), eq(V('게임중'), 0))),
+                 setv('입력가능', 0),
+                 if_(eq(V('게임중'), 1),
+                     wait(0.7),
+                     ifelse(eq(V('s03_거래'), 1),
+                            [setv('s03_점', mul(20, div(sub(V('s03_정가'), V('s03_산값')), sub(V('s03_정가'), V('s03_최저'))))),
+                             chg('합계', V('s03_점')), chg('맞춤', 1), setv('_mv', 1),
+                             setv('s03_말', join('정가 ', _wonv(V('s03_정가')), '원 → ', _wonv(V('s03_산값')), '원에 샀어요!  +',
+                                                rounded(V('s03_점')), '점\n(사장님 최저가는 ', _wonv(V('s03_최저')), '원)'))],
+                            [setv('_mv', 2), setv('s03_말', join('흥정 실패! 0점\n(사장님 최저가는 ', _wonv(V('s03_최저')), '원)'))]),
+                     cast('s03_끝'), cast('s03_결과'), wait(2.2)),
+                 chg('s03_물건', 1)),
+           setv('미니표시', join('흥정 끝 · ', rounded(V('합계')), '점')),
+           *m.end_blocks(V('합계')))
+    mgr.on(on_msg('시간끝'), *m.end_blocks(V('합계')))
+    m.on_start(setv('합계', 0), setv('맞춤', 0), setv('입력가능', 0), setv('s03_물건', 1), setv('s03_정가', prices[0]),
+               setv('s03_상인가', prices[0]), setv('s03_제안', prices[0]), setv('s03_최저', prices[0]), setv('s03_인내', 4),
+               setv('s03_말', '어서 와요~ 구경하고 가요!'), cast('s03_새물건'), cast('s03_갱신'))
+    m.snd('s03_반응', ifelse(eq(V('_mv'), 1), [play('cash')],
+                             [ifelse(eq(V('_mv'), 4), [play('bad')], [ifelse(eq(V('_mv'), 2), [play('tone3')], [play('tone1')])])]))
+    m.snd('s03_끝', ifelse(eq(V('_mv'), 1), [play('coin')], [play('fail_big')]))
+    m.finish('사장님이 속으로 정한 최저가에 가깝게 살수록 점수 UP!\n너무 깎으면 화내요 (인내심 0이면 안 팔아요).',
+             '조작: −/+ 로 값을 정하고 "이 값에 주세요!"  ·  사장님 표정이 힌트예요')
     return True
