@@ -496,3 +496,105 @@ def g25(P, ctx):
     m.finish('2번 후보와 널뛰기 한판! 상대가 널에 내려앉는 순간\nSPACE 를 누르면 내가 더 높이 올라가요. 박자가 생명!',
              '조작: SPACE (너무 빠르거나 늦으면 낮아져요)  ·  25초, 높이 뛸수록 점수 UP')
     return True
+
+
+# ================================================================== 26. 미아 찾기 (사람 찾기)
+S26_HATW = ['모자를 안 썼어요', '빨간 모자를 썼어요', '노란 모자를 썼어요', '파란 모자를 썼어요']
+S26_SHIRTW = ['빨간 옷을 입었어요', '초록 옷을 입었어요', '노란 옷을 입었어요', '파란 옷을 입었어요']
+S26_ITEMW = ['손에 아무것도 없어요', '풍선을 들고 있어요', '아이스크림을 들고 있어요', '가방을 메고 있어요']
+
+
+@game(26)
+def g26(P, ctx):
+    R, VAR, NP = 5, 3, 21
+    rng = random.Random(2626)
+    combo = lambda h, s, i: h * 16 + s * 4 + i + 1
+    people, targets, c1, c2, c3 = [], [], [], [], []
+    for r in range(R):
+        for v in range(VAR):
+            th, ts, ti = rng.randrange(4), rng.randrange(4), rng.randrange(4)
+            tgt = combo(th, ts, ti)
+            others = []
+            near = 7 + r * 2          # 라운드가 갈수록 비슷한 아이가 많아진다
+            while len(others) < NP - 1:
+                if len(others) < near:      # 두 가지만 같은 아이
+                    h, s, i = th, ts, ti
+                    k = rng.randrange(3)
+                    if k == 0:
+                        h = rng.choice([x for x in range(4) if x != th])
+                    elif k == 1:
+                        s = rng.choice([x for x in range(4) if x != ts])
+                    else:
+                        i = rng.choice([x for x in range(4) if x != ti])
+                else:
+                    h, s, i = rng.randrange(4), rng.randrange(4), rng.randrange(4)
+                c = combo(h, s, i)
+                if c != tgt:
+                    others.append(c)
+            lst = others + [tgt]
+            rng.shuffle(lst)
+            people += lst
+            targets.append(tgt)
+            c1.append(S26_HATW[th])
+            c2.append(S26_SHIRTW[ts])
+            c3.append(S26_ITEMW[ti])
+    m = mg(P, ctx, T, 26, time_limit=60, status='찾은 아이 0/%d' % R, dim=60)
+    vars_(P, 's26_판', 's26_목표', 's26_대기', 's26_찾음', 's26_속도')
+    P.list('s26_사람', people)
+    P.list('s26_목표들', targets)
+    P.list('s26_단서1', c1)
+    P.list('s26_단서2', c2)
+    P.list('s26_단서3', c3)
+    # 엄마와 단서 말풍선
+    mom = m.S('엄마', AC.s26_mom(), -206, 40)
+    mom.on(on_msg('s26_새판'), rep(3, mvy(4), wait(0.05), mvy(-4), wait(0.05)))
+    panel(P, m.sc, '단서판', -60, 66, 250, 72, 'glass', header='red')
+    m.T('단서제목', '엄마: "우리 아이를 찾아 주세요!"', -60, 90, 10, C_WHITE, F_NUM, False, 0, w=230, h=15)
+    for k in range(3):
+        t_ = m.T('단서%d' % (k + 1), '', -60, 70 - k * 15, 10, C_WHITE, F_BODY, True, 0, w=230, h=14)
+        t_.on(on_msg('s26_새판'), write(join('· ', LGET('s26_단서%d' % (k + 1), V('s26_판')))))
+    # 군중 (복제본 21명)
+    pics = [('c%d%d%d' % (h, s, i), AC.s26_kid(h, s, i)) for h in range(4) for s in range(4) for i in range(4)]
+    kid = m.S('아이', pics, 0, -300, scale=1.1, visible=False)
+    for v in ('k', 'c', 'vx', 'vy', '복제'):
+        kid.local(v, 0)
+    kid.on(on_msg('게임시작'), *[flat(setv('k', k + 1), clone_self()) for k in range(NP)])
+    kid.on(on_clone(), setv('복제', 1),
+           until(eq(V('게임중'), 0),
+                 if_(le(rnd(1, 100), 3), setv('vx', mul(div(rnd(-10, 10), 10), V('s26_속도'))),
+                     setv('vy', mul(div(rnd(-10, 10), 10), mul(V('s26_속도'), 0.6)))),
+                 mvx(V('vx')), mvy(V('vy')),
+                 if_(lt(obj_x(), -150), lx(-150), setv('vx', abs_(V('vx')))), if_(gt(obj_x(), 222), lx(222), setv('vx', mul(abs_(V('vx')), -1))),
+                 if_(lt(obj_y(), -110), ly(-110), setv('vy', abs_(V('vy')))), if_(gt(obj_y(), 8), ly(8), setv('vy', mul(abs_(V('vy')), -1)))),
+           del_clone())
+    kid.on(on_msg('s26_새판'), if_(eq(V('복제'), 1),
+                                setv('c', LGET('s26_사람', add(mul(sub(V('s26_판'), 1), NP), V('k')))), shape(V('c')),
+                                fx('color', 0), fx('brightness', 0),
+                                xy(add(-146, mul(mod(sub(V('k'), 1), 7), 60)), add(-104, mul(floor(div(sub(V('k'), 1), 7)), 50))),
+                                mvx(rnd(-14, 14)), mvy(rnd(-10, 10)), setv('vx', 0), setv('vy', 0), show()))
+    kid.on(on_click(), if_(and_(eq(V('복제'), 1), and_(eq(V('s26_대기'), 1), eq(V('게임중'), 1))),
+                           ifelse(eq(V('c'), V('s26_목표')),
+                                  [setv('s26_대기', 0), setv('s26_찾음', 1), setv('_mv', 1), cast('s26_판정'),
+                                   rep(3, mvy(8), wait(0.04), mvy(-8), wait(0.04))],
+                                  [chg('틀림', 1), setv('_mv', 2), cast('s26_판정'), fx('brightness', -40),
+                                   rep(3, mvx(3), wait(0.03), mvx(-3), wait(0.03))])))
+    judge_pop(m, '미아판정', [('찾았다!', 30, 'green'), ('우리 애가 아니에요!', 20, 'red')], 40, 30, 's26_판정', hold=0.4)
+    mgr = hidden(m, '미아담당')
+    score = add(sub(mul(V('맞춤'), 16), mul(V('틀림'), 4)), mul(V('남은시간'), 0.34))
+    mgr.on(on_msg('게임시작'), setv('라운드', 1), wait(0.1),
+           until(or_(gt(V('라운드'), R), eq(V('게임중'), 0)),
+                 setv('s26_판', add(mul(sub(V('라운드'), 1), VAR), rnd(1, VAR))),
+                 setv('s26_목표', LGET('s26_목표들', V('s26_판'))), setv('s26_속도', add(0.15, mul(V('라운드'), 0.12))),
+                 setv('s26_찾음', 0), cast('s26_새판'), setv('s26_대기', 1),
+                 setv('미니표시', join('찾은 아이 ', V('맞춤'), '/', R, ' · ', V('라운드'), '번째')),
+                 wait_until(or_(eq(V('s26_찾음'), 1), eq(V('게임중'), 0))),
+                 if_(eq(V('s26_찾음'), 1), chg('맞춤', 1), wait(1.1)),
+                 chg('라운드', 1)),
+           setv('미니표시', join('찾은 아이 ', V('맞춤'), '/', R)),
+           *m.end_blocks(score))
+    mgr.on(on_msg('시간끝'), setv('s26_대기', 0), *m.end_blocks(score))
+    m.on_start(setv('맞춤', 0), setv('틀림', 0), setv('s26_대기', 0), setv('s26_판', 1), setv('s26_속도', 0))
+    m.snd('s26_판정', ifelse(eq(V('_mv'), 1), [play('good')], [play('bad')]))
+    m.finish('엄마가 알려 준 세 가지 단서(모자·옷·손에 든 것)에\n모두 맞는 아이는 딱 한 명! 찾아서 클릭하세요. (5명)',
+             '조작: 마우스 클릭  ·  잘못 누르면 감점, 빨리 찾을수록 보너스')
+    return True

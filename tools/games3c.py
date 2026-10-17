@@ -635,3 +635,97 @@ def g26(P, ctx):
     m.finish('명동에 온 관광객의 인사말을 보고 어느 나라 사람인지\n국기를 눌러 통역사를 보내세요! 빠를수록 점수 UP',
              '조작: 국기 클릭  ·  틀리면 -3점  ·  35초')
     return True
+
+
+# ================================================================== 27. 장바구니 기억
+@game(27)
+def g27(P, ctx):
+    R = 6
+    NS = [5, 6, 7, 7, 8, 9]
+    STIME = [3.0, 3.2, 3.5, 3.3, 3.8, 4.0]
+    BX, BY = -62, -20
+    SX = [BX - 72, BX, BX + 72]
+    SY = [BY + 54, BY + 2, BY - 50]
+    OX, OY = [132, 198, 132, 198], [8, 8, -58, -58]
+    m = mg(P, ctx, T, 27, status='라운드 1/%d' % R, dim=70)
+    vars_(P, *['k27_' + v for v in ('n', 'mi', 'miss', 'c', 'ans', 'rdy', 't0', 'rt', 'pos', 'j')])
+    W = lambda n: V('k27_' + n)
+    S_ = lambda n, v: setv('k27_' + n, v)
+    P.list('k27_deck', list(range(1, 17)))
+    P.list('k27_show', [0] * 9)
+    P.list('k27_opt', [1, 2, 3, 4])
+    P.list('k27_ns', NS)
+    P.list('k27_st', STIME)
+    m.S('바구니', AC.basket(), BX, BY - 4)
+    items = [('i%d' % k, AC.market_item(k)) for k in range(16)]
+    it = m.S('물건', items, 0, -300, scale=1.25, visible=False)
+    it.local('k27_s', 0)
+    it.local('복제', 0)
+    it.on(on_scene(), setv('k27_s', 0), rep(9, chg('k27_s', 1), clone_self()))
+    it.on(on_clone(), setv('복제', 1),
+          xy(add(SX[0], mul(mod(sub(V('k27_s'), 1), 3), 72)), sub(SY[0], mul(floor(div(sub(V('k27_s'), 1), 3)), 52))))
+    it.on(on_msg('k27_그림'), if_(eq(V('복제'), 1),
+                                ifelse(gt(LGET('k27_show', V('k27_s')), 0), [shape(LGET('k27_show', V('k27_s'))), it.pct(60), show(),
+                                                                            rep(4, it.grow_pct(10), wait(0.016))], [hide()])))
+    cl = m.S('보자기', AC.cloth(), BX, BY - 8, visible=False)
+    cl.on(on_msg('k27_덮기'), xy(BX, BY + 100), show(), glide(0.2, BX, BY - 8))
+    cl.on(on_msg('k27_열기'), glide(0.2, BX, BY + 100), hide())
+    cl.on(on_msg('k27_시작'), hide())
+    msg = m.T('안내글', '', BX, 90, 13, C_WHITE, F_BODY, True, 0, w=240, h=20)
+    q = m.T('질문글', '빠진 물건은?', 165, 52, 12, C_ACC, F_BODY, True, 0, w=130, h=18, visible=False)
+    q.on(on_msg('k27_보기'), show())
+    q.on(on_msg('k27_시작'), hide())
+    for k in range(4):
+        card = m.S('보기판%d' % (k + 1), [('n', AC.item_card()), ('s', AC.item_card(sel=True))], OX[k], OY[k], visible=False)
+        oi = m.S('보기%d' % (k + 1), items, OX[k], OY[k], scale=1.25, visible=False)
+        pick = [if_(eq(W('rdy'), 1), S_('ans', k + 1), S_('rt', sub(timer(), W('t0'))))]
+        for o in (card, oi):
+            o.on(on_msg('k27_시작'), hide())
+            o.on(on_click(), *pick)
+        card.on(on_msg('k27_보기'), shape('n'), show())
+        card.on(on_msg('k27_정답보기'), if_(eq(W('c'), k + 1), shape('s'), rep(3, card.pct(112), wait(0.1), card.pct(100), wait(0.1))))
+        oi.on(on_msg('k27_보기'), shape(LGET('k27_opt', k + 1)), show())
+        G.hover_scripts(card)
+    mgr = hidden(m, '기억담당')
+    rnd_round = [
+        S_('n', LGET('k27_ns', V('라운드'))),
+        rep(16, setv('_ma', rnd(1, 16)), setv('_mb', rnd(1, 16)), setv('_mk', LGET('k27_deck', V('_ma'))),
+            lst_set('k27_deck', V('_ma'), LGET('k27_deck', V('_mb'))), lst_set('k27_deck', V('_mb'), V('_mk'))),
+        S_('mi', rnd(1, W('n'))), S_('miss', LGET('k27_deck', W('mi'))),
+        *[ifelse(le(s, W('n')), [lst_set('k27_show', s, LGET('k27_deck', s))], [lst_set('k27_show', s, 0)]) for s in range(1, 10)],
+        cast('k27_시작'), cast('k27_그림'), setv('미니표시', join('라운드 ', V('라운드'), '/', R, ' · ', V('맞춤'), '개')),
+        write(''), wait(0.01)]
+    mgr2 = m.T('안내담당', '', -300, -300, 8, visible=False)
+    msg.on(on_msg('k27_시작'), write(join('물건 ', W('n'), '개! 잘 기억하세요')))
+    msg.on(on_msg('k27_덮기'), write('하나를 몰래 꺼내는 중...'))
+    msg.on(on_msg('k27_보기'), write('무엇이 사라졌을까요?'))
+    msg.on(on_msg('k27_정답보기'), ifelse(eq(W('ans'), W('c')), [write('정답! 잘 기억했어요')], [write('아쉬워요! 초록 칸이 정답')]))
+    rearrange = [
+        *[lst_set('k27_show', s, 0) for s in range(1, 10)], S_('j', 1),
+        rep(W('n'), if_(ne(W('j'), W('mi')), S_('pos', rnd(1, 9)), until(eq(LGET('k27_show', W('pos')), 0), S_('pos', rnd(1, 9))),
+                        lst_set('k27_show', W('pos'), LGET('k27_deck', W('j')))),
+            chg('k27_j', 1)),
+        S_('c', rnd(1, 4)),
+        *[ifelse(eq(qq, W('c')), [lst_set('k27_opt', qq, W('miss'))],
+                 [ifelse(lt(qq, W('c')), [lst_set('k27_opt', qq, LGET('k27_deck', add(W('n'), qq)))],
+                         [lst_set('k27_opt', qq, LGET('k27_deck', add(W('n'), qq - 1)))])]) for qq in range(1, 5)]]
+    mgr.on(on_msg('게임시작'), setv('라운드', 1),
+           until(or_(gt(V('라운드'), R), eq(V('게임중'), 0)),
+                 *rnd_round[:-2],
+                 wait(LGET('k27_st', V('라운드'))),
+                 cast('k27_덮기'), wait(0.5), *rearrange, wait(0.4), cast('k27_그림'), cast('k27_열기'), cast('k27_보기'),
+                 S_('ans', 0), S_('t0', timer()), S_('rdy', 1),
+                 wait_until(or_(gt(W('ans'), 0), gt(timer(), add(W('t0'), 8)))),
+                 S_('rdy', 0),
+                 ifelse(eq(W('ans'), W('c')),
+                        [chg('맞춤', 1), chg('합계', 15), if_(lt(W('rt'), 6), chg('합계', mul(sub(6, W('rt')), 0.35))), setv('_mv', 1)],
+                        [chg('틀림', 1), setv('_mv', 2)]),
+                 cast('k27_정답보기'), cast('k27_판정'), wait(1.4), chg('라운드', 1)),
+           *m.end_blocks(V('합계')))
+    pop_fx(m, '기억판정', [('a', K.big_text('정답!', 34, 'royal')), ('b', K.big_text('땡!', 34, 'red'))], BX, BY, 'k27_판정', 0.5)
+    m.on_start(setv('합계', 0), setv('맞춤', 0), setv('틀림', 0), S_('rdy', 0), setv('라운드', 1))
+    m.snd('k27_덮기', play('pop'))
+    m.snd('k27_판정', ifelse(eq(V('_mv'), 1), [play('good')], [play('bad')]))
+    m.finish('서문시장 장바구니 속 물건을 잘 기억하세요! 보자기를\n걷으면 하나가 사라져요. 빠진 물건을 고르세요 (6라운드)',
+             '조작: 오른쪽 보기 4개 중 하나 클릭  ·  빨리 맞히면 보너스')
+    return True
