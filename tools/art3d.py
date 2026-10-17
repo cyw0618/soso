@@ -668,7 +668,7 @@ def city(xs, ys, hw):
         for y in ys:
             for k in range(0, int(W), int(14 * s)):
                 d.line((k, cy - y * s, k + 6 * s, cy - y * s), fill=(220, 210, 120, 255), width=int(1 * s))
-    return art('k38_city', 440, 206, f)
+    return art('k38_city2', 440, 206, f)
 
 
 def building(k):
@@ -753,7 +753,7 @@ def tt_table(proj):
         d.line(c + [c[0]], fill=(255, 255, 255, 255), width=int(1.6 * s))
         d.line([S(P(0, 0)), S(P(0, 1))], fill=(255, 255, 255, 200), width=int(0.8 * s))
         a, b = S(P(-1.08, 0.5)), S(P(1.08, 0.5))
-        a2, b2 = S(P(-1.08, 0.5, 0.13)), S(P(1.08, 0.5, 0.13))
+        a2, b2 = S(P(-1.08, 0.5, 14)), S(P(1.08, 0.5, 14))
         d.polygon([a, b, b2, a2], fill=(230, 230, 240, 150))
         for k in range(1, 12):
             t = k / 12
@@ -882,3 +882,26 @@ def abacus_frame():
         d.rounded_rectangle((0, 0, W, H), 6 * s, fill=(100, 62, 32, 255), outline=(60, 36, 18, 255), width=int(1.5 * s))
         d.rounded_rectangle((7 * s, 7 * s, W - 7 * s, H - 7 * s), 3 * s, fill=(46, 30, 20, 255))
     return art('k32_abframe', 200, 112, f)
+
+
+def blocks38():
+    """도시 블록(건물) 투명 그림 440x206 — 이 그림에 닿으면 벽."""
+    cols = [(-186, 56), (-70, 104), (70, 104), (186, 56)]
+    rows = [(80, 34), (0, 54), (-80, 34)]
+    pal = [(190, 90, 80), (90, 120, 190), (120, 160, 110), (200, 160, 90), (150, 110, 190), (90, 160, 170)]
+
+    def f(d, im, s):
+        W, H = im.width, im.height
+        k = 0
+        for r, (cy, bh) in enumerate(rows):
+            for c, (cx, bw) in enumerate(cols):
+                col = pal[(r * 4 + c * 3 + k) % len(pal)]
+                x0, y0 = W / 2 + (cx - bw / 2) * s, H / 2 - (cy + bh / 2) * s
+                x1, y1 = x0 + bw * s, y0 + bh * s
+                d.rounded_rectangle((x0, y0, x1, y1), 3 * s, fill=_rgba(col), outline=(40, 36, 46, 255), width=int(1.4 * s))
+                d.rectangle((x0 + 3 * s, y0 + 3 * s, x1 - 3 * s, y0 + 8 * s), fill=tuple(min(255, int(v * 1.25)) for v in col) + (255,))
+                for wx in range(int(x0 + 8 * s), int(x1 - 8 * s), int(14 * s)):
+                    for wy in range(int(y0 + 12 * s), int(y1 - 8 * s), int(11 * s)):
+                        d.rectangle((wx, wy, wx + 7 * s, wy + 5 * s), fill=(255, 238, 170, 255))
+                k += 1
+    return art('k38_blocks', 440, 206, f)

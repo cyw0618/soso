@@ -901,3 +901,328 @@ def g36(P, ctx):
     m.finish('국회 연설 6번! 문장 카드 3장 중 하나를 골라 외치세요.\n모든 청중 기분을 30 넘게 지키며 평균을 높이면 고득점!',
              '조작: 카드 클릭 또는 숫자키 1·2·3  ·  한 번에 12초 (안 고르면 모두 실망)')
     return True
+
+
+# ================================================================== 37. 가래떡 썰기
+@game(37)
+def g37(P, ctx):
+    NC, KX, RY = 10, 30, -22
+    m = mg(P, ctx, T, 37, time_limit=70, status='0/%d 썰기' % NC, dim=60)
+    W, S_, C_ = pfx('k37_')
+    vars_(P, *['k37_' + v for v in ('hx', 'v', 'tg', 'n', 'cut', 'err', 'pts', 'tot', 'lt', 'dt', 'L', 'ph', 'good')])
+    m.S('받침', AD.board(380), -28, -104)
+    m.S('기계', AD.machine(), 205, RY - 10)
+    rod = m.S('가래떡', AD.tteok_rod(340), KX + 170, RY)
+    rod.on(on_msg('게임시작'), until(eq(V('게임중'), 0), lx(add(W('hx'), 170))))
+    m.S('기계앞', AD.machine(), 205, RY - 10)
+    m.S('눈금자', AD.ruler(150), KX - 75, -42)
+    m.T('눈금글', '눈금 숫자 = 칸', KX - 75, -56, 8, C_DIM, F_BODY, True, 0, w=100, h=12)
+    guide = m.S('안내선', AD.guide_line(), KX - 90, RY + 4, visible=False)
+    guide.on(on_msg('k37_새떡'), ifelse(le(W('n'), 6), [xy(sub(KX, W('tg')), RY + 4), show()], [hide()]))
+    knife = m.S('칼', AD.knife(), KX, 40)
+    knife.on(on_msg('k37_썰기'), glide(0.05, KX, -6), wait(0.08), glide(0.12, KX, 40))
+    tgt = m.T('목표글', '', 0, 80, 14, C_WHITE, F_NUM, False, 0, w=300, h=22, bg=C_BOX)
+    tgt.on(on_msg('k37_새떡'), write(join('목표 길이 ', div(W('tg'), 10), '칸  (', W('n'), '/', NC, ')')))
+    res = m.T('결과글', '', -80, 58, 13, C_WHITE, F_NUM, False, 0, w=200, h=20)
+    res.on(on_msg('k37_썰기'),
+           ifelse(le(W('err'), 3), [write(join('완벽! 오차 ', rounded(W('err')))), text_color('#7CFFA0')],
+                  [ifelse(le(W('err'), 9), [write(join('좋아요 오차 ', rounded(W('err')))), text_color('#FFFFFF')],
+                          [write(join('아쉬워요 오차 ', rounded(W('err')))), text_color('#FF6B7A')])]))
+    res.on(on_msg('k37_새떡'), write(''))
+    pc = m.S('조각', AD.tteok_piece(36), KX - 20, RY, visible=False)
+    pc.local('복제', 0)
+    pc.local('qn', 0)
+    pc.on(on_msg('k37_썰기'), if_(eq(V('복제'), 0), clone_self()))
+    pc.on(on_clone(), setv('복제', 1), setv('qn', W('n')), xy(KX - 20, RY), show(), glide(0.12, KX - 22, -60),
+          glide(0.3, add(-190, mul(sub(V('qn'), 1), 34)), -102))
+    mgr = hidden(m, '떡담당')
+    mgr.on(on_key(K_SPACE), if_(eq(W('ph'), 1), S_('cut', 1)))
+    mgr.on(on_msg('게임시작'), S_('n', 0), S_('tot', 0), S_('ph', 0),
+           until(or_(ge(W('n'), NC), eq(V('게임중'), 0)),
+                 C_('n', 1), S_('tg', mul(rnd(6, 13), 10)), S_('v', add(add(62, mul(W('n'), 7)), rnd(0, 26))),
+                 S_('hx', KX), S_('cut', 0), cast('k37_새떡'), wait(0.6), S_('lt', timer()), S_('ph', 1),
+                 until(or_(or_(eq(W('cut'), 1), lt(W('hx'), KX - 190)), eq(V('게임중'), 0)),
+                       S_('dt', sub(timer(), W('lt'))), S_('lt', timer()), if_(gt(W('dt'), 0.1), S_('dt', 0.1)),
+                       C_('hx', mul(mul(W('v'), W('dt')), -1))),
+                 S_('ph', 0), S_('L', sub(KX, W('hx'))), S_('err', abs_(sub(W('L'), W('tg')))),
+                 S_('pts', sub(10, mul(W('err'), 0.4))), if_(lt(W('pts'), 0), S_('pts', 0)), C_('tot', W('pts')),
+                 cast('k37_썰기'), setv('미니표시', join(W('n'), '/', NC, ' 썰기 · ', rounded(W('tot')), '점')), wait(1.0)),
+           S_('hx', KX), *m.end_blocks(W('tot')))
+    mgr.on(on_msg('시간끝'), *m.end_blocks(W('tot')))
+    m.on_start(S_('hx', KX), S_('n', 0), S_('tot', 0), S_('ph', 0), S_('cut', 0), S_('tg', 80))
+    m.snd('k37_썰기', play('stamp'))
+    m.finish('이천 방앗간 가래떡 썰기! 떡이 왼쪽으로 흘러가요.\n목표 길이(칸)만큼 나왔을 때 스페이스로 썰어요. 10번!',
+             '조작: SPACE 로 썰기  ·  분홍 점선이 목표 위치 (7번째부터는 점선 없이 눈금자만 보고!)')
+    return True
+
+
+# ================================================================== 38. 짜장면 배달
+@game(38)
+def g38(P, ctx):
+    TL, CY = 50, -14
+    DST = [(-140, -59), (-70, -59), (0, -59), (140, -59), (200, -59), (-140, 31), (0, 31), (70, 31), (140, 31)]
+    RX, RYY = -205, 31
+    m = mg(P, ctx, T, 38, time_limit=TL, status='배달 0건', dim=0)
+    W, S_, C_ = pfx('k38_')
+    vars_(P, *['k38_' + v for v in ('dt', 'lt', 'heat', 'cargo', 'dst', 'dx', 'dy', 'hits', 'deliv', 'pts', 'inv', 'sp', 'mx', 'my', 'dxk', 'dyk')])
+    P.list('k38_dx', [d[0] for d in DST])
+    P.list('k38_dy', [d[1] for d in DST])
+    m.S('도시', AD.city([-140, 0, 140], [-45, 45], 12), 0, CY)
+    rest = m.S('식당', AD.restaurant(), RX, RYY - 2, scale=0.5)
+    blk = m.S('블록', AD.blocks38(), 0, CY)
+    pin = m.S('목적지', AD.order_pin(1), 0, -300, visible=False)
+    pin.on(on_msg('k38_주문'), xy(W('dxk'), add(W('dyk'), 12)), show())
+    pin.on(on_msg('k38_끝'), hide())
+    sco = m.S('스쿠터', AD.scooter(), -185, RYY, scale=0.85)
+    sco.on(on_scene(), xy(-185, RYY), rot(90), fx('transparency', 0))
+    spd = 120
+    step = lambda key_, axis, sgn: if_(key(key_), (mvx if axis == 'x' else mvy)(mul(sgn * spd, W('dt'))),
+                                       if_(touch(blk.name), (mvx if axis == 'x' else mvy)(mul(-sgn * spd, W('dt')))))
+    new_order = [S_('dst', rnd(1, len(DST))), S_('dxk', LGET('k38_dx', W('dst'))), S_('dyk', LGET('k38_dy', W('dst'))),
+                 S_('cargo', 1), S_('heat', 100), cast('k38_주문')]
+    sco.on(on_msg('게임시작'),
+           until(eq(V('게임중'), 0),
+                 step(K_LEFT, 'x', -1), step(K_RIGHT, 'x', 1), step(K_UP, 'y', 1), step(K_DOWN, 'y', -1),
+                 if_(key(K_RIGHT), rot(90)), if_(key(K_DOWN), rot(180)), if_(key(K_LEFT), rot(270)), if_(key(K_UP), rot(0)),
+                 if_(lt(obj_x(), -214), lx(-214)), if_(gt(obj_x(), 214), lx(214)), if_(lt(obj_y(), -108), ly(-108)), if_(gt(obj_y(), 80), ly(80)),
+                 S_('mx', obj_x()), S_('my', obj_y()),
+                 ifelse(lt(timer(), W('inv')), [ifelse(eq(mod(floor(mul(timer(), 8)), 2), 0), [fx('transparency', 65)], [fx('transparency', 0)])],
+                        [fx('transparency', 0)]),
+                 if_(and_(eq(W('cargo'), 0), touch(rest.name)), *new_order, cast('k38_픽업')),
+                 if_(eq(W('cargo'), 1),
+                     if_(and_(lt(abs_(sub(W('mx'), W('dxk'))), 13), lt(abs_(sub(W('my'), W('dyk'))), 13)),
+                         S_('cargo', 0), C_('deliv', 1), C_('pts', add(15, mul(W('heat'), 0.12))), cast('k38_배달'), cast('k38_끝'),
+                         setv('미니표시', join('배달 ', W('deliv'), '건 · 충돌 ', W('hits')))))))
+    # 시간·식는 온도
+    mgr = hidden(m, '배달담당')
+    mgr.on(on_msg('게임시작'), S_('lt', 0), S_('cargo', 0), *new_order, cast('k38_픽업'),
+           until(eq(V('게임중'), 0),
+                 S_('dt', sub(timer(), W('lt'))), S_('lt', timer()), if_(gt(W('dt'), 0.08), S_('dt', 0.08)), if_(lt(W('dt'), 0), S_('dt', 0)),
+                 if_(eq(W('cargo'), 1), C_('heat', mul(mul(W('dt'), -1), 6.5)),
+                     if_(le(W('heat'), 0), S_('cargo', 0), S_('heat', 0), C_('hits', 0), cast('k38_식음'), cast('k38_끝'))),
+                 *clamp('k38_heat', 0, 100)))
+    mgr.on(on_msg('시간끝'), *m.end_blocks(sub(mul(W('pts'), 0.9), mul(W('hits'), 4))))
+    bar = m.S('온기막대', K.bar_set('k38_heat', 100, 8, 'red'), -150, 96)
+    bar.on(on_scene(), *G.live_shape(bar, add(floor(mul(div(W('heat'), 100), 40)), 1), 0.1))
+    m.T('온기글', '짜장면 온기', -222, 96, 8, C_WHITE, F_BODY, True, 0, w=60, h=12)
+    # 차 (복제본 6대)
+    car = m.S('자동차', [('a', AD.car((60, 120, 220), 'blue')), ('b', AD.car((240, 200, 60), 'yellow')), ('c', AD.car((230, 230, 235), 'white'))],
+              0, -300, visible=False)
+    for v in ('ci', 'cx', 'cy', 'cvx', 'cvy'):
+        car.local(v, 0)
+    car.on(on_msg('게임시작'), setv('ci', 0), rep(6, chg('ci', 1), clone_self()))
+    cfg = [(-100, -64, 75, 0, 90), (100, 36, -85, 0, 270), (-145, 60, 0, -70, 180), (145, -90, 0, 80, 0), (5, 20, 0, -60, 180),
+           (60, -54, -70, 0, 270)]
+    setup = []
+    for i, (x0, y0, vx0, vy0, a0) in enumerate(cfg, 1):
+        setup.append(if_(eq(V('ci'), i), setv('cx', x0), setv('cy', y0), setv('cvx', vx0), setv('cvy', vy0), rot(a0)))
+    car.on(on_clone(), *setup, shape(add(mod(V('ci'), 3), 1)), xy(V('cx'), V('cy')), show(),
+           until(eq(V('게임중'), 0),
+                 setv('cx', add(V('cx'), mul(V('cvx'), W('dt')))), setv('cy', add(V('cy'), mul(V('cvy'), W('dt')))),
+                 if_(gt(V('cx'), 236), setv('cx', -236)), if_(lt(V('cx'), -236), setv('cx', 236)),
+                 if_(gt(V('cy'), 92), setv('cy', -120)), if_(lt(V('cy'), -120), setv('cy', 92)),
+                 xy(V('cx'), V('cy')),
+                 if_(and_(touch(sco.name), gt(timer(), W('inv'))),
+                     S_('inv', add(timer(), 1.4)), C_('hits', 1), C_('heat', -25), cast('k38_쿵'),
+                     setv('미니표시', join('배달 ', W('deliv'), '건 · 충돌 ', W('hits'))))),
+           del_clone())
+    pop(m, '쿵', [('a', K.big_text('쿵! 국물이 쏟아졌어요', 14, 'red'))], 0, 70, 'k38_쿵', 0.5)
+    pop(m, '배달글', [('a', K.big_text('배달 완료!', 24, 'royal'))], 0, 50, 'k38_배달', 0.6)
+    pop(m, '식음글', [('a', K.big_text('식어서 퇴짜...', 16, 'red'))], 0, 50, 'k38_식음', 0.6)
+    m.on_start(S_('cargo', 0), S_('heat', 100), S_('hits', 0), S_('deliv', 0), S_('pts', 0), S_('inv', 0), S_('dt', 0.02), S_('lt', 0),
+               S_('dxk', 0), S_('dyk', -300))
+    m.snd('k38_쿵', play('hit'))
+    m.snd('k38_배달', play('coin'))
+    m.snd('k38_식음', play('bad'))
+    m.snd('k38_픽업', play('pop'))
+    m.finish('중화반점 오토바이로 짜장면 배달! 식당에서 주문을 받아\n주황 핀 자리로 식기 전에 배달하세요. 도로의 차를 조심!',
+             '조작: ← ↑ → ↓ 방향키 (건물은 통과 못 해요)  ·  배달하면 다시 식당으로 가서 새 주문  ·  50초')
+    return True
+
+
+# ================================================================== 39. 탁구 대결
+@game(39)
+def g39(P, ctx):
+    TL, WIN = 55, 11
+    ZP, ZO = -0.12, 1.12            # 내 타격면 / 상대 타격면
+    m = mg(P, ctx, T, 39, time_limit=TL, status='나 0 : 0 상대', dim=60)
+    W, S_, C_ = pfx('k39_')
+    vars_(P, *['k39_' + v for v in ('bx', 'bz', 'by', 'bvx', 'bvz', 'bvy', 'g', 'bd', 'st', 'v', 'hits', 'me', 'ai', 'rx', 'ry', 'dt', 'lt',
+                                     't1', 't2', 'hh', 'xc', 'vya', 'ok', 'sx', 'sy', 'sc', 'dd', 'ex', 'who', 'pm', 'dx')])
+
+    def proj(X, Z, Y=0):
+        k = 1 - 0.38 * Z
+        return (X * 130 * k, -78 + 86 * Z + Y * k)
+    tpath, (tx, ty) = AD.tt_table(proj)
+    m.S('탁구대', tpath, tx, ty)
+    # 상대
+    opp = m.S('상대채', AD.paddle((220, 50, 70), 'opp', 30), 0, 24)
+    m.S('상대', ctx['PORT']['p1'], 0, 60, scale=0.5)
+    shadow = m.S('그림자', AD.ball_shadow(), 0, -300, visible=False)
+    ring = m.S('도착점', AD.target_ring(), 0, -300, visible=False)
+    ball = m.S('공', AD.ball(), 0, -300, visible=False)
+    me = m.S('내채', AD.paddle((60, 120, 240), 'me', 42), 0, -100)
+    me.on(on_msg('게임시작'),
+          until(eq(V('게임중'), 0),
+                S_('rx', mouse_x()), S_('ry', mouse_y()), *clamp('k39_rx', -160, 160), *clamp('k39_ry', -125, -30),
+                xy(W('rx'), W('ry'))))
+    sx = mul(W('bx'), mul(130, W('sc')))
+    sy = add(add(-78, mul(86, W('bz'))), mul(W('by'), W('sc')))
+    place = [S_('sc', sub(1, mul(0.38, W('bz')))), S_('sx', sx), S_('sy', sy)]
+    ball.on(on_msg('k39_공'), if_(eq(W('st'), 0), hide()))
+    shadow.on(on_msg('k39_공'), if_(eq(W('st'), 0), hide()))
+
+    def launch(dirz, zb, zend, xc, hh):
+        return [S_('xc', xc), S_('hh', hh), S_('g', mul(400, mul(W('v'), W('v')))),
+                S_('t1', div(abs_(sub(zb, W('bz'))), W('v'))), S_('t2', div(abs_(sub(zend, zb)), W('v'))),
+                S_('bvy', sub(mul(mul(0.5, W('g')), W('t1')), div(W('by'), W('t1')))),
+                S_('vya', div(add(W('hh'), mul(mul(0.5, W('g')), mul(W('t2'), W('t2')))), W('t2'))),
+                S_('bvz', mul(dirz, W('v'))), S_('bvx', div(sub(W('xc'), W('bx')), add(W('t1'), W('t2')))), S_('bd', 0)]
+    to_me = launch(-1, 0.35, ZP, div(rnd(-85, 85), 100), rnd(8, 26)) + [S_('st', 1), cast('k39_링'), cast('k39_탁')]
+    step = [S_('dt', sub(timer(), W('lt'))), S_('lt', timer()), if_(gt(W('dt'), 0.06), S_('dt', 0.06)), if_(lt(W('dt'), 0), S_('dt', 0)),
+            C_('bx', mul(W('bvx'), W('dt'))), C_('bz', mul(W('bvz'), W('dt'))), C_('by', mul(W('bvy'), W('dt'))),
+            C_('bvy', mul(mul(W('g'), W('dt')), -1)),
+            if_(and_(eq(W('bd'), 0), lt(W('by'), 0)), S_('by', 0), S_('bvy', W('vya')), S_('bd', 1), cast('k39_탁')),
+            *place,
+            xy(W('sx'), W('sy')), ball.pct(mul(150, W('sc'))), show()]
+    ball.on(on_msg('k39_보임'), show())
+    # 공 / 그림자 / 상대 채 위치는 담당 루프에서 계산한 값을 따라간다
+    shadow.on(on_msg('게임시작'), until(eq(V('게임중'), 0),
+                                      ifelse(eq(W('st'), 0), [hide()],
+                                             [xy(W('sx'), add(-78, mul(86, W('bz')))), shadow.pct(mul(100, W('sc'))), show()])))
+    ring.on(on_msg('k39_링'), xy(mul(W('xc'), 135.9), add(-88.3, mul(W('hh'), 1.046))), show())
+    ring.on(on_msg('k39_링끝'), hide())
+    opp.on(on_msg('게임시작'), until(eq(V('게임중'), 0),
+                                   S_('ex', add(W('ex'), mul(sub(mul(W('bx'), 100), W('ex')), 0.12))),
+                                   xy(W('ex'), add(18, mul(W('by'), 0.4)))))
+    point = lambda who: [S_('st', 0), S_('who', who), cast('k39_링끝'), cast('k39_점')]
+    mgr = hidden(m, '탁구담당')
+    serve = [S_('v', min_(1.7, add(0.95, mul(add(W('me'), W('ai')), 0.03)))), S_('hits', 0), S_('bx', div(rnd(-50, 50), 100)), S_('bz', ZO), S_('by', 16),
+             S_('lt', timer()), *to_me]
+    judge = [
+        # 상대가 칠 차례
+        if_(and_(eq(W('st'), 2), ge(W('bz'), ZO)),
+            ifelse(eq(W('ok'), 1),
+                   [C_('hits', 1), S_('v', min_(1.85, add(W('v'), 0.07))), S_('by', maxv(W('by'), 8)), *to_me],
+                   point(1))),
+        # 내가 칠 수 있는지: 공이 튄 뒤 라켓과 겹침
+        if_(and_(and_(eq(W('st'), 1), eq(W('bd'), 1)), lt(W('bz'), 0.25)),
+            if_(and_(lt(abs_(sub(W('sx'), W('rx'))), 26), lt(abs_(sub(W('sy'), W('ry'))), 24)),
+                S_('dx', div(sub(W('sx'), W('rx')), 26)),
+                S_('xc', add(mul(W('bx'), 0.4), mul(W('dx'), 0.9))), *clamp('k39_xc', -1.2, 1.2),
+                S_('pm', add(10, mul(W('hits'), 4))), if_(gt(abs_(W('xc')), 0.78), C_('pm', 50)),
+                S_('ok', 0), if_(gt(rnd(1, 100), W('pm')), S_('ok', 1)),
+                *launch(1, 0.72, ZO, W('xc'), rnd(8, 24)), S_('st', 2), cast('k39_링끝'), cast('k39_탁'), cast('k39_쾅'))),
+        if_(and_(eq(W('st'), 1), lt(W('bz'), -0.4)), *point(2))]
+    # launch 안에서 S_('xc', W('xc')) 로 자기 자신을 다시 읽는 것은 문제 없음
+    mgr.on(on_msg('게임시작'), S_('me', 0), S_('ai', 0), S_('st', 0), S_('ex', 0),
+           until(eq(V('게임중'), 0),
+                 ifelse(ne(W('st'), 0), [*step, *judge],
+                        [wait(1.0), if_(eq(V('게임중'), 1), *serve)])))
+    mgr.on(on_msg('k39_점'),
+           ifelse(eq(W('who'), 1), [C_('me', 1), setv('_mv', 1)], [C_('ai', 1), setv('_mv', 2)]),
+           setv('미니표시', join('나 ', W('me'), ' : ', W('ai'), ' 상대')), cast('k39_점수글'),
+           if_(or_(ge(W('me'), WIN), ge(W('ai'), WIN)), *m.end_blocks(add(mul(W('me'), 8), sub(11, W('ai'))))))
+    mgr.on(on_msg('시간끝'), *m.end_blocks(add(mul(W('me'), 8), div(sub(11, W('ai')), 2))))
+    pop(m, '점수글', [('a', K.big_text('득점!', 30, 'royal')), ('b', K.big_text('실점...', 28, 'red'))], 0, 10, 'k39_점수글', 0.5)
+    pop(m, '쾅글', [('a', K.big_text('탕!', 18, 'white'))], 0, 0, 'k39_쾅', 0.15, follow=(W('rx'), add(W('ry'), 30)))
+    m.T('도움말', '노란 원 = 공이 내 쪽에 도착할 자리  ·  라켓 가장자리로 치면 공이 옆으로 가요', 0, -122, 8, C_DIM, F_BODY, True, 0, w=420, h=12)
+    m.on_start(S_('me', 0), S_('ai', 0), S_('st', 0), S_('v', 1), S_('ex', 0), S_('rx', 0), S_('ry', -90), S_('bx', 0), S_('bz', 1), S_('by', 0),
+               S_('sc', 0.62), S_('sx', 0), S_('sy', -300))
+    m.snd('k39_탁', play('tick'))
+    m.snd('k39_쾅', play('hit'))
+    m.snd('k39_점', ifelse(eq(V('_mv'), 1), [play('good')], [play('bad')]))
+    m.finish('광주 충장로 탁구 대결! 먼 쪽에서 날아오는 공의 도착점(노란 원)에\n라켓을 대면 자동으로 받아쳐요. 11점 먼저 얻으면 승리!',
+             '조작: 마우스로 라켓 이동  ·  점점 빨라져요  ·  55초')
+    return True
+
+
+def min_(a, b):
+    return minv(a, b)
+
+
+# ================================================================== 40. 화포 쏘기
+@game(40)
+def g40(P, ctx):
+    NS, GY, PX, PY = 6, -88, -205, -72
+    G_, DT = 220, 1.0 / 60
+    m = mg(P, ctx, T, 40, time_limit=150, status='1/%d발' % NS, dim=0)
+    W, S_, C_ = pfx('k40_')
+    vars_(P, *['k40_' + v for v in ('ang', 'pw', 'shot', 'fire', 'fly', 'bx', 'by', 'bvx', 'bvy', 'wind', 'fx', 'hit', 'hits', 'pts', 'tries', 'ph',
+                                     'dist', 'lt', 'dt', 'v0')])
+    for k in ('s1', 's2', 's3'):
+        P.var('k40_' + k, '')
+    m.S('땅', AD.ground40(), 0, -110)
+    m.S('포대', AD.cannon_base(), PX, -79)
+    barrel = m.S('포신', AD.cannon_barrel(), PX + 35, PY)
+    barrel.on(on_msg('게임시작'), until(eq(V('게임중'), 0),
+                                      rot(mul(W('ang'), -1)), xy(add(PX, mul(cos_(W('ang')), 35)), add(PY, mul(sin_(W('ang')), 35)))))
+    barrel.on(on_scene(), rot(-45))
+    flag = m.S('적기', [('u', AD.enemy_flag(0)), ('d', AD.enemy_flag(1))], 120, -71)
+    flag.on(on_msg('k40_새깃발'), shape('u'), xy(W('fx'), -71))
+    flag.on(on_msg('k40_쓰러짐'), shape('d'), xy(W('fx'), -84))
+    # 이전 탄도: 붓 두 개를 번갈아 (최근 두 발의 궤적이 남는다)
+    for k, col in ((0, '#7DB2FF'), (1, '#FFC46B')):
+        pen = m.S('붓%d' % k, AD.dot(), PX, PY)
+        pen.on(on_msg('k40_발사%d' % k), pen_clear(), pen_color(col), pen_size(2), pen_up(), xy(W('bx'), W('by')), pen_down(),
+               until(eq(W('fly'), 0), xy(W('bx'), W('by'))), pen_up())
+        pen.on(on_msg('k40_새깃발'), pen_clear())
+        pen.on(on_scene(), pen_clear())
+    ball = m.S('포탄', AD.cannonball(), PX, PY, visible=False)
+    ball.on(on_msg('k40_발사0'), show(), until(eq(W('fly'), 0), xy(W('bx'), W('by'))), hide())
+    ball.on(on_msg('k40_발사1'), show(), until(eq(W('fly'), 0), xy(W('bx'), W('by'))), hide())
+    boom = m.S('폭발', AD.boom(), 0, 0, visible=False)
+    boom.on(on_msg('k40_착탄'), xy(W('bx'), add(W('by'), 6)), boom.pct(60), fx('transparency', 0), show(),
+            rep(8, boom.grow_pct(14), fx_add('transparency', 11), wait(0.02)), hide())
+    for k, (x, mk) in enumerate(((-150, 's1'), (0, 's2'), (150, 's3'))):
+        t_ = m.T('수치%d' % k, '', x, 92, 11, C_WHITE, F_NUM, False, 0, w=140, h=18, bg=C_BOX)
+        t_.on(on_scene(), *G.live_write(t_, [], 'k40_' + mk, 0.1))
+    live = hidden(m, '수치담당')
+    live.on(on_msg('게임시작'),
+            until(eq(V('게임중'), 0),
+                  S_('s1', join('각도 ', rounded(W('ang')), '°  ↑↓')), S_('s2', join('화약 ', div(rounded(mul(W('pw'), 10)), 10), '  ←→')),
+                  ifelse(ge(W('wind'), 0), [S_('s3', join('바람 → ', div(rounded(W('wind')), 10)))],
+                         [S_('s3', join('바람 ← ', div(rounded(abs_(W('wind'))), 10)))]),
+                  wait(0.08)))
+    res = m.T('결과글', '', 0, 56, 14, C_WHITE, F_NUM, False, 0, w=300, h=22)
+    res.on(on_msg('k40_착탄'), ifelse(eq(W('hit'), 1), [write('명중!'), text_color('#7CFFA0')],
+                                     [ifelse(gt(W('bx'), W('fx')), [write(join('빗나감! ', rounded(sub(W('bx'), W('fx'))), ' 만큼 멀리'))],
+                                             [write(join('빗나감! ', rounded(sub(W('fx'), W('bx'))), ' 만큼 짧게'))]), text_color('#FF6B7A')]),
+           wait(1.4), write(''))
+    mgr = hidden(m, '포격담당')
+    mgr.on(on_key(K_SPACE), if_(eq(W('ph'), 1), S_('fire', 1)))
+    newflag = [S_('fx', rnd(10, 200)), S_('wind', rnd(-30, 30)), S_('tries', 0), cast('k40_새깃발')]
+    mgr.on(on_msg('게임시작'), S_('shot', 0), S_('pts', 0), S_('hits', 0), *newflag,
+           until(or_(ge(W('shot'), NS), eq(V('게임중'), 0)),
+                 C_('shot', 1), C_('tries', 1), S_('fire', 0), S_('ph', 1), S_('lt', timer()),
+                 setv('미니표시', join(W('shot'), '/', NS, '발 · 명중 ', W('hits'))),
+                 until(or_(eq(W('fire'), 1), eq(V('게임중'), 0)),
+                       S_('dt', sub(timer(), W('lt'))), S_('lt', timer()), if_(gt(W('dt'), 0.1), S_('dt', 0.1)),
+                       if_(key(K_UP), C_('ang', mul(30, W('dt')))), if_(key(K_DOWN), C_('ang', mul(-30, W('dt')))),
+                       if_(key(K_RIGHT), C_('pw', mul(3.5, W('dt')))), if_(key(K_LEFT), C_('pw', mul(-3.5, W('dt')))),
+                       *clamp('k40_ang', 10, 80), *clamp('k40_pw', 1, 10)),
+                 S_('ph', 0),
+                 S_('bx', add(PX, mul(cos_(W('ang')), 72))), S_('by', add(PY, mul(sin_(W('ang')), 72))),
+                 S_('v0', add(60, mul(W('pw'), 24))), S_('bvx', mul(W('v0'), cos_(W('ang')))), S_('bvy', mul(W('v0'), sin_(W('ang')))),
+                 S_('fly', 1), S_('hit', 0), cast('k40_쾅'),
+                 ifelse(eq(mod(W('shot'), 2), 1), [cast('k40_발사0')], [cast('k40_발사1')]),
+                 until(or_(eq(W('fly'), 0), eq(V('게임중'), 0)),
+                       C_('bvx', mul(W('wind'), DT)), C_('bx', mul(W('bvx'), DT)),
+                       C_('bvy', -G_ * DT), C_('by', mul(W('bvy'), DT)),
+                       if_(and_(lt(abs_(sub(W('bx'), W('fx'))), 14), and_(lt(W('by'), -52), gt(W('by'), -92))), S_('hit', 1), S_('fly', 0)),
+                       if_(and_(eq(W('fly'), 1), and_(lt(W('by'), GY), lt(W('bvy'), 0))), S_('by', GY), S_('fly', 0))),
+                 cast('k40_착탄'),
+                 ifelse(eq(W('hit'), 1),
+                        [C_('hits', 1), C_('pts', 100.0 / NS), cast('k40_쓰러짐'), cast('k40_명중'), wait(1.3), *newflag],
+                        [S_('dist', abs_(sub(W('bx'), W('fx')))), C_('pts', maxv(0, sub(6, div(W('dist'), 12)))), wait(1.0),
+                         if_(ge(W('tries'), 2), *newflag)])),
+           *m.end_blocks(W('pts')))
+    mgr.on(on_msg('시간끝'), *m.end_blocks(W('pts')))
+    m.T('조작글', '↑↓ 각도 · ←→ 화약 양 · SPACE 발사 · 푸른/주황 선 = 이전 탄도', 0, -122, 8, C_DIM, F_BODY, True, 0, w=400, h=12)
+    m.on_start(S_('ang', 45), S_('pw', 5), S_('shot', 0), S_('fire', 0), S_('fly', 0), S_('ph', 0), S_('pts', 0), S_('hits', 0),
+               S_('wind', 0), S_('fx', 120), S_('hit', 0), cast('k40_새깃발'))
+    m.snd('k40_쾅', play('hit'))
+    m.snd('k40_착탄', ifelse(eq(W('hit'), 1), [play('fanfare')], [play('pop')]))
+    m.finish('수원 화성의 화포로 성 밖 적 깃발을 맞히세요! 6발.\n각도·화약 양·바람을 보고 쏘세요. 이전 탄도가 선으로 남아요.',
+             '조작: ↑↓ 각도  ·  ←→ 화약 양  ·  SPACE 발사  ·  깃발은 2발까지 시도')
+    return True

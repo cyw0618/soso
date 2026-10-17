@@ -7,6 +7,8 @@ import mg_art3 as A3
 T = 3
 GAMES, game = registry()
 import art3b as B3
+import os
+_TS = float(os.environ.get('K3B_TS', '1'))      # 테스트용: 시간 제한 배율 (느린 하네스에서만 올린다)
 
 
 def _bar(o, frac):
@@ -25,7 +27,7 @@ def _pop(m, base, pics, x, y, msg, hold=0.35, pre=()):
 @game(11)
 def g11(P, ctx):
     TL = 30
-    m = mg(P, ctx, T, 11, time_limit=TL, status='점수 0', dim=90)
+    m = mg(P, ctx, T, 11, time_limit=TL * _TS, status='점수 0', dim=90)
     vars_(P, 'k11_글자', 'k11_색', 'k11_규칙', 'k11_답', 'k11_창', 'k11_t0', 'k11_n', 'k11_남은', 'k11_콤보', 'k11_얻음')
     # 규칙 띠 + 문제판
     rule = m.S('규칙띠', [('ink', K.badge('글자의 색깔 깃발을 드세요!', 230, 24, 'royal')),
@@ -58,7 +60,7 @@ def g11(P, ctx):
                        ('late', K.big_text('늦었어요!', 24, 'gray'))], 0, 26, visible=False)
     judge.on(on_msg('k11_판정'), shape(V('k11_얻음')), to_front(), judge.pct(60), show(),
              rep(4, judge.grow_pct(12), wait(0.016)), wait(0.22), hide())
-    combo = m.T('콤보', '', 0, -30, 11, C_ACC, F_NUM, False, 0, w=200, h=16)
+    combo = m.T('콤보', ' ', 0, -30, 11, C_ACC, F_NUM, False, 0, w=200, h=16)
     combo.on(on_msg('k11_판정'), ifelse(ge(V('k11_콤보'), 3), [write(join(V('k11_콤보'), '연속 정답!'))], [write('')]))
     _pop(m, '규칙변경', K.big_text('규칙 변경!', 34, 'red'), 0, 26, 'k11_변경', hold=0.55)
     # 진행
@@ -136,7 +138,7 @@ def _k12_puzzles(n_given, count, rng, sols):
 @game(12)
 def g12(P, ctx):
     TL, R, NV = 120, 3, 6
-    m = mg(P, ctx, T, 12, time_limit=TL, status='연못 1/%d' % R, dim=70)
+    m = mg(P, ctx, T, 12, time_limit=TL * _TS, status='연못 1/%d' % R, dim=70)
     rng = random.Random(1203)
     sols = _sudoku4()
     puz = []
@@ -212,7 +214,7 @@ def g12(P, ctx):
         button(P, m.sc, 'k12숫자%d' % n, str(n), BX - 24 + 48 * ((n - 1) % 2), 44 - 34 * ((n - 1) // 2), 42, 30, 'royal',
                actions=[setv('_mv', n), *put])
     button(P, m.sc, 'k12지우기', '지우기', BX, -24, 90, 26, 'steel', actions=[setv('_mv', 0), *put])
-    info = m.T('스도쿠안내', '', BX, -66, 9, C_WHITE, F_BODY, True, 0, w=120, h=44)
+    info = m.T('스도쿠안내', ' ', BX, -66, 9, C_WHITE, F_BODY, True, 0, w=120, h=44)
     info.on(on_msg('k12_새판'), write(join('연못 ', V('라운드'), ' / %d\n빈 칸 ' % R, V('k12_빈칸'), '개')))
     m.T('스도쿠규칙', '가로줄 · 세로줄 · 2×2 구역에\n1~4가 한 번씩!', -40, 96, 9, C_DIM, F_BODY, True, 0, w=200, h=26)
     _pop(m, '완성글', K.big_text('연꽃 활짝!', 34, 'royal'), CX, CY, 'k12_완성', hold=0.6)
@@ -255,7 +257,7 @@ def g13(P, ctx):
     G_, VM0, VMK = round(0.12 * k * k, 4), round(0.8 * k, 4), round(0.045 * k, 4)
     F = [4.2, 3.6, 3.3]
     A = [round(a * k * k, 4) for a in (0.42, 0.40, 0.36)]
-    m = mg(P, ctx, T, 13, time_limit=TL, status='고도 0km', dim=40)
+    m = mg(P, ctx, T, 13, time_limit=TL * _TS, status='고도 0km', dim=40)
     P.list('k13_연료', F)
     P.list('k13_추력', A)
     vars_(P, 'k13_h', 'k13_v', 'k13_vmax', 'k13_비', 'k13_단', 'k13_엔진', 'k13_분사', 'k13_hp', 'k13_최고', 'k13_예상',
@@ -318,7 +320,7 @@ def g13(P, ctx):
     needle.on(on_scene(), rot(-90))
     vt = m.T('속도글', '0.0 km/s', GX, 18, 10, C_WHITE, F_NUM, False, 0, w=100, h=14)
     vt.on(on_msg('게임시작'), until(eq(V('게임중'), 0), write(join(round1(v), ' km/s')), wait(0.1)))
-    warn = m.T('경고글', '', GX, 3, 9, C_RED, F_BODY, True, 0, w=110, h=13)
+    warn = m.T('경고글', ' ', GX, 3, 9, C_RED, F_BODY, True, 0, w=110, h=13)
     warn.on(on_msg('게임시작'), until(eq(V('게임중'), 0),
                                    ifelse(eq(V('k13_흔들'), 1), [write('너무 빨라요!')],
                                           [ifelse(and_(lt(V('k13_비'), 0.6), gt(h, 1)), [write('더 밀어도 돼요')], [write('')])]),
@@ -427,7 +429,7 @@ def g13(P, ctx):
 def g14(P, ctx):
     TL, N, PI = 150, 5, 46
     CX, CY = -18, -14
-    m = mg(P, ctx, T, 14, time_limit=TL, status='나 0 : 0 응원단장', dim=70)
+    m = mg(P, ctx, T, 14, time_limit=TL * _TS, status='나 0 : 0 응원단장', dim=70)
     NB = (N - 1) * (N - 1)
     edges = []      # (세로?, x, y, 상자1, 상자2)
     for r in range(N):
@@ -500,7 +502,7 @@ def g14(P, ctx):
     ais = m.T('응원단장점수', '0', 196, -18, 22, C_WHITE, F_NUM, False, 0, w=60, h=26)
     ais.on(on_msg('k14_땅'), write(V('k14_상대땅')))
     ais.on(on_scene(), write('0'))
-    turn = m.T('차례글', '', CX, 96, 11, C_WHITE, F_BODY, True, 0, w=260, h=16)
+    turn = m.T('차례글', ' ', CX, 96, 11, C_WHITE, F_BODY, True, 0, w=260, h=16)
     turn.on(on_msg('k14_차례'), ifelse(eq(V('k14_차례'), 1), [write('내 차례! 점 사이 선을 클릭하세요')], [write('응원단장이 고르는 중...')]))
     m.T('규칙글', '네모를 완성하면\n내 땅 + 한 번 더!', -200, -70, 9, C_DIM, F_BODY, True, 0, w=80, h=30)
     _pop(m, '한번더', K.big_text('한 번 더!', 26, 'royal'), CX, CY, 'k14_한번더', hold=0.3)
@@ -561,7 +563,7 @@ def g15(P, ctx):
     TL, U = 100, B3.U15
     ROUNDS = [(3, 5, 4, 6), (4, 9, 6, 8), (5, 7, 6, 10)]
     R = len(ROUNDS)
-    m = mg(P, ctx, T, 15, time_limit=TL, status='물통 1/%d' % R, dim=70)
+    m = mg(P, ctx, T, 15, time_limit=TL * _TS, status='물통 1/%d' % R, dim=70)
     P.list('k15_통', [x for r in ROUNDS for x in r])
     vars_(P, 'k15_a', 'k15_b', 'k15_ca', 'k15_cb', 'k15_목표', 'k15_최소', 'k15_횟수', 'k15_양', 'k15_동작', 'k15_얻음')
     caps = sorted({c for r in ROUNDS for c in r[:2]})
@@ -576,7 +578,7 @@ def g15(P, ctx):
         wa.on(on_msg('k15_물'), *cap_shape(cv), ly(sub(add(YB, mul(lv, U)), div(mul(cv, U), 2))))
         jug = m.S('물통%s' % nm, [('c%d' % c, B3.k15_jug(c)) for c in caps], JX[j], -200)
         jug.on(on_msg('k15_새판'), *cap_shape(cv), ly(add(YB - 14, div(add(mul(cv, U), 16), 2))))
-        lab = m.T('양글%s' % nm, '', JX[j], 0, 11, C_WHITE, F_NUM, False, 0, w=90, h=16)
+        lab = m.T('양글%s' % nm, ' ', JX[j], 0, 11, C_WHITE, F_NUM, False, 0, w=90, h=16)
         lab.on(on_msg('k15_물'), write(join(round1(lv), 'L / ', cv, 'L')), ly(add(YB + 14, mul(cv, U))))
         bx = JX[j] + 72
         other = 'b' if nm == 'a' else 'a'
@@ -586,14 +588,14 @@ def g15(P, ctx):
                                 setv('입력가능', 0))])
     stream = m.S('물줄기', B3.k15_stream(), -60, -40, visible=False)
     stream.on(on_scene(), hide())
-    goal = m.T('목표글', '', 0, 84, 13, C_WHITE, F_NUM, False, 0, w=360, h=20)
+    goal = m.T('목표글', ' ', 0, 84, 13, C_WHITE, F_NUM, False, 0, w=360, h=20)
     goal.on(on_msg('k15_새판'), write(join('목표: 한 물통에 정확히 ', V('k15_목표'), 'L!')))
-    cnt = m.T('횟수글', '', 0, 64, 10, C_ACC, F_BODY, True, 0, w=360, h=15)
+    cnt = m.T('횟수글', ' ', 0, 64, 10, C_ACC, F_BODY, True, 0, w=360, h=15)
     cnt.on(on_msg('k15_물'), write(join('옮긴 횟수 ', V('k15_횟수'), '  ·  최소 ', V('k15_최소'), '번이면 만점')))
     button(P, m.sc, 'k15다시', '처음 상태로', 190, 40, 86, 24, 'steel',
            actions=[if_(and_(eq(V('게임중'), 1), eq(V('입력가능'), 1)), setv('k15_동작', 7), setv('입력가능', 0))])
     _pop(m, '성공글', K.big_text('정확히 맞췄어요!', 28, 'royal'), 0, 30, 'k15_성공', hold=0.7)
-    pts = m.T('라운드점수', '', 0, 6, 12, C_ACC, F_NUM, False, 0, w=200, h=18, visible=False)
+    pts = m.T('라운드점수', ' ', 0, 6, 12, C_ACC, F_NUM, False, 0, w=200, h=18, visible=False)
     pts.on(on_msg('k15_성공'), write(join('+', V('k15_얻음'), '점')), show(), wait(1.1), hide())
     # 진행: 동작 1~3 = A 채우기/비우기/A→B, 4~6 = B, 7 = 처음으로
     a, b, ca, cb = V('k15_a'), V('k15_b'), V('k15_ca'), V('k15_cb')
@@ -669,15 +671,15 @@ def g16(P, ctx):
     m.T('바람이름', '바람', 207, 82, 9, C_DIM, F_BODY, True, 0, w=50, h=12)
     wind = m.S('바람표', B3.k16_wind(), 207, 58)
     wind.on(on_msg('k16_그리기'), rot(V('k16_풍향')))
-    wt = m.T('바람글', '', 207, 33, 9, C_WHITE, F_NUM, False, 0, w=56, h=12)
+    wt = m.T('바람글', ' ', 207, 33, 9, C_WHITE, F_NUM, False, 0, w=56, h=12)
     wt.on(on_msg('k16_새비행'), until(eq(V('k16_비행중'), 0), write(join(rounded(V('k16_풍속')), 'm/s')), wait(0.3)))
     m.T('고도이름', '고도', 207, 12, 9, C_DIM, F_BODY, True, 0, w=50, h=12)
-    at = m.T('고도글', '', 207, -6, 14, C_ACC, F_NUM, False, 0, w=56, h=18)
+    at = m.T('고도글', ' ', 207, -6, 14, C_ACC, F_NUM, False, 0, w=56, h=18)
     at.on(on_msg('k16_새비행'), until(eq(V('k16_비행중'), 0), write(join(ceil_(alt), 'm')), wait(0.1)), write('0m'))
     m.T('거리이름', '거리', 207, -28, 9, C_DIM, F_BODY, True, 0, w=50, h=12)
-    dt_ = m.T('거리글', '', 207, -46, 12, C_WHITE, F_NUM, False, 0, w=56, h=18)
+    dt_ = m.T('거리글', ' ', 207, -46, 12, C_WHITE, F_NUM, False, 0, w=56, h=18)
     dt_.on(on_msg('k16_새비행'), until(eq(V('k16_비행중'), 0), write(join(rounded(V('k16_거리')), 'm')), wait(0.15)))
-    land = m.T('착지글', '', FX, 70, 16, C_WHITE, F_NUM, False, 0, w=300, h=24, visible=False)
+    land = m.T('착지글', ' ', FX, 70, 16, C_WHITE, F_NUM, False, 0, w=300, h=24, visible=False)
     land.on(on_msg('k16_착지'), write(join('착지! 목표에서 ', rounded(V('k16_거리')), 'm  +', rounded(V('k16_얻음')), '점')), show(),
             wait(1.6), hide())
     # 비행 물리 (시간 기준)
@@ -752,9 +754,9 @@ def g17(P, ctx):
     ring2.on(on_msg('k17_공개'), if_(eq(V('k17_종류'), 1), xy(V('k17_ax2'), V('k17_ay2')), show()))
     for r_ in (ring1, ring2):
         r_.on(on_msg('k17_끄기'), hide())
-    msg = m.T('안내', '', 0, -60, 13, C_WHITE, F_BODY, True, 0, w=360, h=20)
+    msg = m.T('안내', ' ', 0, -60, 13, C_WHITE, F_BODY, True, 0, w=360, h=20)
     msg.on(on_msg('k17_안내'), write(V('_mt')))
-    kind_t = m.T('정답설명', '', 0, -84, 10, C_ACC, F_BODY, True, 0, w=360, h=16)
+    kind_t = m.T('정답설명', ' ', 0, -84, 10, C_ACC, F_BODY, True, 0, w=360, h=16)
     kind_t.on(on_msg('k17_공개'), ifelse(eq(V('k17_종류'), 1), [write('자리를 옮긴 드론 (파란 테 = 원래 자리)')],
                                         [ifelse(eq(V('k17_종류'), 2), [write('새로 나타난 드론')],
                                                 [ifelse(eq(V('k17_종류'), 3), [write('사라진 드론 자리')], [write('색이 바뀐 드론')])])]))
@@ -811,10 +813,10 @@ def g17(P, ctx):
 @game(18)
 def g18(P, ctx):
     import mg_art2 as A2
-    TL, N, PI = 150, 6, 36
-    CX, CY = -16, -14
+    TL, N, PI = 150, 6, 34
+    CX, CY = -16, -18
     DIRS = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
-    m = mg(P, ctx, T, 18, time_limit=TL, status='흑 2 : 2 백', dim=70)
+    m = mg(P, ctx, T, 18, time_limit=TL * _TS, status='흑 2 : 2 백', dim=70)
     init = [0] * 36
     init[2 * 6 + 2] = init[3 * 6 + 3] = 2
     init[2 * 6 + 3] = init[3 * 6 + 2] = 1
@@ -846,7 +848,7 @@ def g18(P, ctx):
     P.list('k18_y', [CY + (2.5 - r) * PI for r in range(6) for c in range(6)])
     vars_(P, 'k18_누구', 'k18_가능', 'k18_최고', 'k18_수', 'k18_흑', 'k18_백', 'k18_패스', 'k18_끝', 'k18_뒤집', 'k18_차례글')
     m.S('판', B3.k18_board(N, PI), CX, CY)
-    sc_ = 0.66
+    sc_ = 0.62
     cell = m.S('돌', [('e', A2.go_stone('e')), ('b', A2.go_stone('b')), ('w', A2.go_stone('w')), ('h', B3.k18_hint())],
                0, -300, scale=sc_, visible=False)
     locs = ['내번호', '복제', '_t', '_s', '_ls'] + ['f%d' % d for d in range(8)] + ['L%d' % d for d in range(8)]
@@ -906,7 +908,7 @@ def g18(P, ctx):
     wt = m.T('백수', '2', 192, -18, 22, C_WHITE, F_NUM, False, 0, w=60, h=26)
     wt.on(on_msg('k18_세기'), write(V('k18_백')))
     wt.on(on_scene(), write('2'))
-    turn = m.T('차례글', '', CX, 98, 11, C_WHITE, F_BODY, True, 0, w=280, h=16)
+    turn = m.T('차례글', ' ', CX, 98, 11, C_WHITE, F_BODY, True, 0, w=280, h=16)
     turn.on(on_msg('k18_차례'), ifelse(eq(V('k18_누구'), 1), [write('내 차례! 점 표시된 칸에 놓으세요')], [write('상대 후보가 생각 중...')]))
     _pop(m, '패스글', K.big_text('둘 곳이 없어 패스!', 24, 'white'), CX, CY, 'k18_패스', hold=0.6)
     res = m.S('결과', [('w', K.big_text('리버시 승리!', 32, 'royal')), ('l', K.big_text('아쉽게 졌어요', 28, 'red')),
@@ -972,7 +974,7 @@ def g19(P, ctx):
         a = m.S('키%d' % k, [('off', B3.k19_arrow(k, 0)), ('on', B3.k19_arrow(k, 1))], [-178, -138, -98, -138][k],
                 [-104, -68, -104, -104][k])
         a.on(on_key(keys[k]), shape('on'), wait(0.12), shape('off'))
-    beat_t = m.T('박자글', '', 160, 60, 12, C_WHITE, F_NUM, False, 0, w=120, h=18)
+    beat_t = m.T('박자글', ' ', 160, 60, 12, C_WHITE, F_NUM, False, 0, w=120, h=18)
     beat_t.on(on_msg('k19_박'), write(join(V('k19_박'), ' 박자')))
     judge = m.S('판정', [('ok', K.big_text('좋아요!', 26, 'green')), ('no', K.big_text('틀렸어요', 24, 'red')),
                        ('late', K.big_text('놓쳤어요', 24, 'gray'))], 160, 20, visible=False)
@@ -1022,7 +1024,7 @@ def g20(P, ctx):
         bird.local(v_, 0)
     bird.on(on_clone(), setv('복제', 1), setv('종류', V('k20_종')), setv('날개', 0),
             setv('내속도', mul(V('k20_속도'), div(rnd(85, 115), 100))),
-            xy(-275, rnd(-30, 88)), shape(sub(mul(V('종류'), 2), 1)), show(),
+            xy(-275, rnd(-40, 84)), shape(sub(mul(V('종류'), 2), 1)), show(),
             until(or_(gt(obj_x(), 275), eq(V('게임중'), 0)),
                   mvx(V('내속도')), chg('날개', 1),
                   if_(eq(mod(V('날개'), 8), 0), shape(add(sub(mul(V('종류'), 2), 1), mod(div(V('날개'), 8), 2))))),
@@ -1053,14 +1055,14 @@ def g20(P, ctx):
     keyer.on(on_key(K_SPACE), *done)
     for n in range(10):
         keyer.on(on_key(48 + n), if_(ok_, setv('k20_답', n), cast('k20_답')))
-    m.S('보기두루미', B3.k20_bird('crane', 0), -186, 92)
-    m.T('보기글', '= 흑두루미 (세기!)', -112, 92, 10, C_WHITE, F_BODY, True, 1, w=110, h=14)
-    m.S('보기백로', B3.k20_bird('egret', 0), 70, 92)
-    m.S('보기오리', B3.k20_bird('duck', 0), 120, 92)
-    m.T('보기글2', '= 세지 마세요', 186, 92, 10, C_DIM, F_BODY, True, 0, w=90, h=14)
-    msg = m.T('결과글', '', 0, -106, 13, C_WHITE, F_NUM, False, 0, w=360, h=20, visible=False)
+    m.S('보기두루미', B3.k20_bird('crane', 0), -186, -120)
+    m.T('보기글', '= 흑두루미 (세기!)', -112, -120, 10, C_WHITE, F_BODY, True, 1, w=110, h=14)
+    m.S('보기백로', B3.k20_bird('egret', 0), 70, -120)
+    m.S('보기오리', B3.k20_bird('duck', 0), 120, -120)
+    m.T('보기글2', '= 세지 마세요', 186, -120, 10, C_DIM, F_BODY, True, 0, w=90, h=14)
+    msg = m.T('결과글', ' ', 0, -106, 13, C_WHITE, F_NUM, False, 0, w=360, h=20, visible=False)
     msg.on(on_msg('k20_결과'), write(join('정답 ', V('k20_두루미'), '마리 · ', V('k20_얻음'), '점')), show(), wait(1.6), hide())
-    ready = m.T('준비글', '', 0, 30, 14, C_ACC, F_NUM, False, 0, w=300, h=20, visible=False)
+    ready = m.T('준비글', ' ', 0, 30, 14, C_ACC, F_NUM, False, 0, w=300, h=20, visible=False)
     ready.on(on_msg('k20_준비'), write(join(V('라운드'), '번째 무리가 와요!')), show(), wait(1.0), hide())
     mgr = hidden(m, '세기담당')
     rd = lambda k: LGET('k20_판', add(mul(sub(V('라운드'), 1), 4), k))

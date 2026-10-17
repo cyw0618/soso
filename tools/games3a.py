@@ -173,7 +173,7 @@ def _knap_puzzles(seed, per_round=6):
 def g02(P, ctx):
     NR, PER = 3, 6
     puz = _knap_puzzles(3302, PER)
-    m = mg(P, ctx, T, 2, time_limit=90, status='라운드 1/%d' % NR, dim=60)
+    m = mg(P, ctx, T, 2, time_limit=120, status='라운드 1/%d' % NR, dim=60)
     P.list('k02_w', [x for p in puz for x in p[0]])
     P.list('k02_v', [x for p in puz for x in p[1]])
     P.list('k02_lim', [p[2] for p in puz])
@@ -214,8 +214,8 @@ def g02(P, ctx):
             o.on(on_msg('k02_upd'), if_(ne(LGET('k02_in', i), V('k02_was')), setv('k02_was', LGET('k02_in', i)),
                                         ifelse(eq(V('k02_was'), 1), [glide(0.14, tx, ty + dy)], [glide(0.14, sx, sy + dy)])))
             o.on(on_msg('k02_drive'), if_(eq(V('k02_was'), 1), wait(0.15), glide(0.9, tx + 340, ty + dy), hide()))
-    wt = m.T('무게글', '', 110, 76, 11, C_WHITE, F_NUM, False, 0, w=210, h=16)
-    vt = m.T('가격글', '', 110, 36, 11, C_ACC, F_NUM, False, 0, w=210, h=16)
+    wt = m.T('무게글', ' ', 110, 76, 11, C_WHITE, F_NUM, False, 0, w=210, h=16)
+    vt = m.T('가격글', ' ', 110, 36, 11, C_ACC, F_NUM, False, 0, w=210, h=16)
     bar = m.S('무게막대', K.bar_set('k02_wbar', 180, 10, 'royal'), 110, 57)
     over = m.S('초과표', K.badge('무게 초과!', 64, 16, 'red'), 196, 76, visible=False)
     for o in (wt, vt, bar, over):
@@ -232,7 +232,7 @@ def g02(P, ctx):
     button(P, m.sc, '내리기버튼', '모두 내리기', 84, -120, 96, 24, 'steel', actions=clear)
     popper(m, '결과팝', [('a', K.big_text('최고의 조합!', 24, 'green')), ('b', K.big_text('좋아요!', 24, 'royal')),
                        ('c', K.big_text('더 비싸게 실을 수 있어요', 18, 'red'))], 0, 30, 'k02_result', sel='k02_res', hold=1.0)
-    det = m.T('결과글', '', 0, 2, 11, C_WHITE, F_NUM, False, 0, w=300, h=18, visible=False, bg=C_BOX)
+    det = m.T('결과글', ' ', 0, 2, 11, C_WHITE, F_NUM, False, 0, w=300, h=18, visible=False, bg=C_BOX)
     det.on(on_msg('k02_result'), write(join('내 트럭 ', V('k02_sv'), '만원  ·  최고 조합 ', V('k02_bs'), '만원')), show(),
            wait(1.5), hide())
     popper(m, '초과팝', K.big_text('너무 무거워요!', 22, 'red'), 110, 0, 'k02_over', hold=0.5)
@@ -326,7 +326,7 @@ def g03(P, ctx):
     m.T('시세본문', '★★★ · 크기 중 기준\n고등어  8만원\n갈치  16만원\n참돔  24만원\n광어  20만원\n\n별 1개마다 ±25%\n크기  소 ×0.8\n대 ×1.25  특대 ×1.5',
         -170, 4, 10, C_WHITE, F_BODY, True, 0, w=122, h=150)
     # 가운데: 생선
-    m.T('생선이름', '', 22, 86, 12, C_WHITE, F_NUM, False, 0, w=210, h=18).on(
+    m.T('생선이름', ' ', 22, 86, 12, C_WHITE, F_NUM, False, 0, w=210, h=18).on(
         on_msg('k03_new'), write(join(V('k03_i'), '/', NF, '  ', LGET('k03_fname', cur('k03_sp')), ' · 크기 ',
                                       LGET('k03_szname', cur('k03_sz')))))
     m.S('얼음판', R.k03_tray(), 22, 30)
@@ -339,8 +339,8 @@ def g03(P, ctx):
     stars.on(on_msg('k03_new'), shape(cur('k03_st')))
     # 가격판
     panel(P, m.sc, '가격판', 22, -44, 214, 60, 'glass')
-    pt = m.T('현재가', '', 2, -34, 17, C_WHITE, F_NUM, False, 0, w=170, h=24)
-    lt_ = m.T('최고입찰', '', 2, -58, 10, C_ACC, F_BODY, True, 0, w=170, h=16)
+    pt = m.T('현재가', ' ', 2, -34, 17, C_WHITE, F_NUM, False, 0, w=170, h=24)
+    lt_ = m.T('최고입찰', ' ', 2, -58, 10, C_ACC, F_BODY, True, 0, w=170, h=16)
     for o in (pt, lt_):
         o.on(on_msg('k03_new'), write(''))
     pt.on(on_msg('k03_open'), write(join('시작가 ', V('k03_start_'), '만원')))
@@ -368,14 +368,14 @@ def g03(P, ctx):
                       [chg('k03_price', cur('k03_inc')), setv('k03_lead', 1), setv('k03_last', timer()), setv('k03_cd', 0),
                        setv('k03_ainext', add(timer(), div(rnd(50, 120), 100))), cast('k03_bid')]))]
     bb = button(P, m.sc, '입찰버튼', '입찰!', -26, -100, 108, 28, 'royal', actions=bid)
-    bt = m.T('입찰액', '', -26, -118, 8, C_DIM, F_BODY, True, 0, w=110, h=12)
+    bt = m.T('입찰액', ' ', -26, -118, 8, C_DIM, F_BODY, True, 0, w=110, h=12)
     bt.on(on_msg('k03_new'), write(join('한 번에 +', cur('k03_inc'), '만원')))
     fold = [if_(and_(eq(V('k03_open'), 1), ne(V('k03_lead'), 1)), setv('k03_out', 1), cast('k03_fold'))]
     button(P, m.sc, '포기버튼', '포기', 80, -100, 76, 28, 'red', actions=fold)
     poor = m.T('돈부족', '돈이 모자라요!', -26, -76, 10, C_RED, F_NUM, False, 0, w=110, h=14, visible=False)
     poor.on(on_msg('k03_poor'), show(), wait(0.8), hide())
     # 결과 공개
-    rv = m.T('공개', '', 22, 48, 12, C_WHITE, F_NUM, False, 0, w=230, h=40, visible=False, bg=C_BOX)
+    rv = m.T('공개', ' ', 22, 48, 12, C_WHITE, F_NUM, False, 0, w=230, h=40, visible=False, bg=C_BOX)
     rv.on(on_msg('k03_sold'), wait(0.3),
           ifelse(eq(V('k03_lead'), 1),
                  [ifelse(ge(V('k03_gain'), 0), [text_color('#7CFFB0')], [text_color(C_RED)]),
@@ -421,7 +421,7 @@ def g03(P, ctx):
                      cast('k03_sold'), wait(2.1)),
                  chg('k03_i', 1)),
            *m.end_blocks(mul(div(V('k03_profit'), LGET('k03_ideal', V('k03_day'))), 100)))
-    money = m.T('내돈', '', -170, -104, 11, C_WHITE, F_NUM, False, 0, w=128, h=16, bg=C_BOX)
+    money = m.T('내돈', ' ', -170, -104, 11, C_WHITE, F_NUM, False, 0, w=128, h=16, bg=C_BOX)
     money.on(on_scene(), *G.live_write(money, [setv('_mt', join('내 돈 ', V('k03_money'), '만원'))], '_mt', 0.2))
     vars_(P, 'k03_start_')
     m.on_start(setv('k03_money', 100), setv('k03_profit', 0), setv('k03_open', 0), setv('k03_lead', 0), setv('k03_idx', 1),
@@ -473,7 +473,7 @@ def g04(P, ctx):
         o.on(on_click(), if_(and_(eq(V('k04_wait'), 1), eq(V('게임중'), 1)), setv('k04_ch', i), setv('k04_wait', 0)))
     m.rival('섞는이', '2', 196, 52, scale=0.34)
     m.rival_badge('섞는이표', '2번 후보', 196, 20, 62, 'red')
-    say_ = m.T('안내말', '', -20, 66, 12, C_WHITE, F_NUM, False, 0, w=300, h=20, bg=C_BOX)
+    say_ = m.T('안내말', ' ', -20, 66, 12, C_WHITE, F_NUM, False, 0, w=300, h=20, bg=C_BOX)
     for msg, txt, col in (('k04_m1', '복숭아가 들어간 바구니를 잘 보세요!', C_WHITE), ('k04_m2', '섞는다~ 눈 떼지 마세요!', C_ACC),
                           ('k04_m3', '어느 바구니일까요? 클릭!', '#7CFFB0'), ('k04_m4', '정답! 눈썰미 최고!', '#7CFFB0'),
                           ('k04_m5', '땡! 여기 있었어요', C_RED)):
@@ -564,11 +564,11 @@ def g05(P, ctx):
     # 왼쪽: 주문표, 오른쪽: 기록
     panel(P, m.sc, '주문판', -165, 20, 130, 110, 'glass', header='royal')
     m.T('주문제목', '주문', -165, 66, 11, C_WHITE, F_NUM, False, 0, w=120, h=16)
-    od = m.T('주문글', '', -165, 22, 11, C_WHITE, F_BODY, True, 0, w=122, h=70)
+    od = m.T('주문글', ' ', -165, 22, 11, C_WHITE, F_BODY, True, 0, w=122, h=70)
     od.on(on_msg('k05_new'), write(join(V('k05_i'), '번째 손님\n', cur('k05_nm'), '\n\n빨간 선까지 딱!')))
     panel(P, m.sc, '기록판', 168, 10, 120, 150, 'glass', header='royal')
     m.T('기록제목', '점수 기록', 168, 76, 11, C_WHITE, F_NUM, False, 0, w=110, h=16)
-    lg = m.T('기록글', '', 168, 4, 10, C_WHITE, F_BODY, True, 0, w=110, h=124)
+    lg = m.T('기록글', ' ', 168, 4, 10, C_WHITE, F_BODY, True, 0, w=110, h=124)
     lg.on(on_msg('k05_done'), write(V('k05_log')))
     popper(m, '판정', [('a', K.big_text('완벽!', 26, 'green')), ('b', K.big_text('좋아요', 24, 'royal')),
                      ('c', K.big_text('아쉬워요', 22, 'white')), ('d', K.big_text('넘쳤어요!', 24, 'red'))],
@@ -630,14 +630,14 @@ def g06(P, ctx):
     dart.on(on_msg('k06_throw'), xy(add(V('k06_hx'), 50), -160), clone_self())
     dart.on(on_clone(), setv('k06_cl', 1), dart.pct(190), show(), glide(0.14, V('k06_hx'), V('k06_hy')), dart.pct(100), cast('k06_hit'))
     dart.on(on_msg('k06_clear'), if_(eq(V('k06_cl'), 1), del_clone()))
-    lab = m.T('점수글', '', 0, 0, 12, C_WHITE, F_NUM, False, 0, w=90, h=18, visible=False, bg=C_BOX)
+    lab = m.T('점수글', ' ', 0, 0, 12, C_WHITE, F_NUM, False, 0, w=90, h=18, visible=False, bg=C_BOX)
     lab.on(on_msg('k06_hit'), xy(V('k06_hx'), add(V('k06_hy'), 24)), write(V('k06_lab')),
            ifelse(ge(V('k06_pts'), 40), [text_color('#7CFFB0')], [ifelse(eq(V('k06_pts'), 0), [text_color(C_RED)], [text_color(C_WHITE)])]),
            to_front(), show(), wait(0.9), hide())
     # 왼쪽 점수판
     panel(P, m.sc, '점수판', -168, 18, 128, 140, 'glass', header='royal')
     m.T('점수제목', '점수판', -168, 80, 11, C_WHITE, F_NUM, False, 0, w=110, h=16)
-    sb = m.T('점수판글', '', -168, 28, 11, C_WHITE, F_BODY, True, 0, w=118, h=84)
+    sb = m.T('점수판글', ' ', -168, 28, 11, C_WHITE, F_BODY, True, 0, w=118, h=84)
     sb.on(on_msg('k06_upd'), write(join('라운드 ', V('라운드'), ' / 3\n다트 ', V('k06_dn'), ' / 3\n이번 라운드 ', V('k06_rs'),
                                         '점\n합계 ', V('k06_tot'), '점')))
     m.S('상대얼굴', ctx['PORT']['p1'], -214, -32)
@@ -697,7 +697,7 @@ def g06(P, ctx):
                  setv('k06_ready', 0), wait(1.3), cast('k06_clear'), chg('라운드', 1)),
            *m.end_blocks(div(V('k06_tot'), 3)))
     mgr.on(on_msg('시간끝'), setv('k06_ready', 0), *m.end_blocks(div(V('k06_tot'), 3)))
-    rp = m.T('라운드글', '', BX, 104 - 16, 12, C_WHITE, F_NUM, False, 0, w=200, h=18)
+    rp = m.T('라운드글', ' ', BX, 104 - 16, 12, C_WHITE, F_NUM, False, 0, w=200, h=18)
     rp.on(on_msg('k06_round'), write(join('라운드 ', V('라운드'), ' · 점점 더 흔들려요!')), show(), wait(1.2), hide())
     m.on_start(setv('k06_tot', 0), setv('k06_rs', 0), setv('k06_dn', 0), setv('k06_ready', 0), setv('k06_br', 100),
                setv('k06_tired', 0), setv('k06_amp_', 15))
@@ -744,7 +744,7 @@ def g08(P, ctx):
                                           [cast('k08_bad')])])]))]
         h_ = m.S('클릭%d' % p, R.k08_hit(), PX[p - 1], -24)
         h_.on(on_click(), *act)
-    msg = m.T('안내', '', 0, 80, 11, C_RED, F_NUM, False, 0, w=320, h=16)
+    msg = m.T('안내', ' ', 0, 80, 11, C_RED, F_NUM, False, 0, w=320, h=16)
     msg.on(on_msg('k08_bad'), write('작은 돌 위에 큰 돌은 못 올려요!'), text_color(C_RED), wait(1.2), write(''))
     msg.on(on_msg('k08_pick'), write('어디로 옮길까요? 기둥을 클릭!'), text_color(C_ACC))
     msg.on(on_msg('k08_drop'), write(''))
@@ -813,14 +813,14 @@ def g09(P, ctx):
     m.T('날씨제목', '오늘의 장사 정보', -150, 84, 10, C_WHITE, F_NUM, False, 0, w=160, h=14)
     wx = m.S('날씨', [('w%d' % k, R.k09_weather(k)) for k in range(4)], -208, 50)
     wx.on(on_msg('k09_day'), shape(cur('k09_wx')), wx.pct(70), rep(5, wx.grow_pct(6), wait(0.016)))
-    t1 = m.T('날씨이름', '', -128, 60, 13, C_WHITE, F_NUM, False, 1, w=120, h=18)
+    t1 = m.T('날씨이름', ' ', -128, 60, 13, C_WHITE, F_NUM, False, 1, w=120, h=18)
     t1.on(on_msg('k09_day'), write(join(V('k09_d'), '일째 · ', cur('k09_t1'))))
-    t2 = m.T('날씨설명', '', -150, 28, 10, C_WHITE, F_BODY, True, 0, w=164, h=34)
+    t2 = m.T('날씨설명', ' ', -150, 28, 10, C_WHITE, F_BODY, True, 0, w=164, h=34)
     t2.on(on_msg('k09_day'), write(join(cur('k09_t2'), '\n', cur('k09_t3'))))
     m.T('재고글', '감자 30상자 준비 (하루 원가 18,000원)', -150, 3, 8, C_DIM, F_BODY, True, 0, w=170, h=12)
     panel(P, m.sc, '가격판', -150, -62, 172, 84, 'glass')
     m.T('가격제목', '한 상자 가격', -150, -30, 10, C_ACC, F_NUM, False, 0, w=120, h=14)
-    pt = m.T('가격', '', -150, -54, 20, C_WHITE, F_NUM, False, 0, w=110, h=26)
+    pt = m.T('가격', ' ', -150, -54, 20, C_WHITE, F_NUM, False, 0, w=110, h=26)
     pt.on(on_msg('k09_price'), write(join(V('k09_p'), ',000원')))
     dn = [if_(and_(eq(V('입력가능'), 1), gt(V('k09_p'), 1)), chg('k09_p', -1), cast('k09_price'))]
     up = [if_(and_(eq(V('입력가능'), 1), lt(V('k09_p'), 9)), chg('k09_p', 1), cast('k09_price'))]
@@ -830,7 +830,7 @@ def g09(P, ctx):
     button(P, m.sc, '판매', '판매 시작!', -150, -90, 120, 26, 'green', actions=sell)
     # 가운데: 가게와 손님
     m.S('가게', R.k09_stall(), 40, -44)
-    left = m.T('남은감자', '', 40, 18, 11, C_WHITE, F_NUM, False, 0, w=150, h=16, bg=C_BOX)
+    left = m.T('남은감자', ' ', 40, 18, 11, C_WHITE, F_NUM, False, 0, w=150, h=16, bg=C_BOX)
     left.on(on_msg('k09_day'), write('남은 감자 30상자'))
     left.on(on_msg('k09_tick'), write(join('팔린 감자 ', V('k09_show'), '상자')))
     cu = m.S('손님', [('c%d' % k, R.k09_cust(k)) for k in range(4)], 0, -300, visible=False)
@@ -844,7 +844,7 @@ def g09(P, ctx):
           glide(0.8, add(40, rnd(-50, 50)), -98),
           ifelse(eq(V('k09_buy'), 1), [cast('k09_coin'), mvy(4), wait(0.12), mvy(-4)], [wait(0.25)]),
           glide(0.8, sub(260, mul(V('k09_side'), 520)), -98), del_clone())
-    res = m.T('결과', '', 40, 56, 10, C_WHITE, F_BODY, True, 0, w=210, h=44, visible=False, bg=C_BOX)
+    res = m.T('결과', ' ', 40, 56, 10, C_WHITE, F_BODY, True, 0, w=210, h=44, visible=False, bg=C_BOX)
     res.on(on_msg('k09_result'), write(join(V('k09_s'), '상자 팔고 이익 ', V('k09_pf'), ',000원\n이날 가장 좋은 가격: ',
                                            cur('k09_bp'), ',000원 (이익 ', cur('k09_bv'), ',000원)')),
            ifelse(ge(V('k09_pf'), mul(cur('k09_bv'), 0.85)), [text_color('#7CFFB0')], [text_color(C_WHITE)]), show())
@@ -902,11 +902,10 @@ def g10(P, ctx):
         m.T('이름%d' % k, nm, -226, LY[k] - 10, 8, C_WHITE, F_NUM, False, 0, w=30, h=12)
     frames_me = [('f%d' % f, R.k10_swimmer(f, 'me')) for f in range(8)]
     frames_r = [('f%d' % f, R.k10_swimmer(f, 'r')) for f in range(8)]
-    for k, (fr, xv, ph) in enumerate(((frames_r, 'k10_r1', mul(V('k10_now'), 1.1)), (frames_r, 'k10_r2', add(mul(V('k10_now'), 0.95), 0.4)),
+    frames_r2 = [('f%d' % f, R.k10_swimmer(f, 'r2')) for f in range(8)]
+    for k, (fr, xv, ph) in enumerate(((frames_r, 'k10_r1', mul(V('k10_now'), 1.1)), (frames_r2, 'k10_r2', add(mul(V('k10_now'), 0.95), 0.4)),
                                       (frames_me, 'k10_x', V('k10_ph')))):
         o = m.S('수영%d' % k, fr, X0, LY[k], scale=1.15)
-        if k == 1:
-            o.on(on_scene(), fx('color', 40))
         o.local('k10_lf', -1)
         o.on(on_scene(), xy(X0, LY[k]), shape(1))
         o.on(on_msg('게임시작'), setv('k10_lf', -1),
@@ -923,7 +922,7 @@ def g10(P, ctx):
     m.S('고리', R.k10_gauge(), -196, -100)
     nd = m.S('바늘', R.k10_needle(), -196, -100)
     nd.on(on_msg('게임시작'), until(eq(V('게임중'), 0), rot(V('k10_ang'))))
-    m.T('고리글', '바늘이 초록 칸(팔이 물에 들어가는 순간)에\n올 때 SPACE! 한 바퀴에 한 번만', -88, -100, 9, C_WHITE, F_BODY, True, 0, w=150, h=30)
+    m.T('고리글', '바늘이 초록 칸에 올 때\nSPACE! (한 바퀴에 한 번)', -88, -100, 9, C_WHITE, F_BODY, True, 0, w=150, h=30)
     m.T('산소글', '산소 (↑ 숨쉬기)', 92, -90, 9, C_WHITE, F_BODY, True, 0, w=110, h=12)
     ob = m.S('산소막대', K.bar_set('k10_o2', 110, 9, 'royal'), 92, -106)
     ob.local('k10_lo', -1)

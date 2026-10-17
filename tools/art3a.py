@@ -443,8 +443,8 @@ def k08_peg():
 def k08_hit():
     """기둥 클릭 영역 (거의 투명)."""
     def f(d, im, s):
-        d.rectangle((0, 0, im.width, im.height), fill=(255, 255, 255, 6))
-    return art('k08_hit', 120, 160, f)
+        d.rounded_rectangle((2 * s, 2 * s, im.width - 2 * s, im.height - 2 * s), 10 * s, fill=(120, 150, 255, 28), outline=(120, 150, 255, 70), width=int(1 * s))
+    return art('k08_hit2', 120, 160, f)
 
 
 # ================================================================== 9. 감자 장사
@@ -521,7 +521,7 @@ def k10_swimmer(frame, cap):
         W, H = im.size
         wy = H * 0.55
         skin = (250, 205, 170, 255)
-        capc = {'me': (40, 100, 255, 255), 'r': (230, 50, 70, 255)}[cap]
+        capc = {'me': (40, 100, 255, 255), 'r': (230, 50, 70, 255), 'r2': (170, 90, 255, 255)}[cap]
         # 다리 (물장구)
         kick = math.sin(frame * math.pi / 2) * 3
         d.line([(10 * s, wy + kick * s), (26 * s, wy + 1 * s)], fill=skin, width=int(4 * s))
@@ -544,10 +544,9 @@ def k10_swimmer(frame, cap):
         d.chord((54 * s, wy - 10 * s, 68 * s, wy + 2 * s), 180, 360, fill=capc)
         d.ellipse((62 * s, wy - 6 * s, 67 * s, wy - 2 * s), fill=(120, 200, 255, 255), outline=(10, 10, 20, 255))
         # 물결
-        d.rectangle((0, wy + 1 * s, W, H), fill=(40, 110, 200, 120))
         for x in range(0, int(W / s), 8):
-            d.arc((x * s, wy - 1 * s, (x + 8) * s, wy + 3 * s), 180, 360, fill=(220, 240, 255, 220), width=int(1 * s))
-    return art('k10_sw_%s_%d' % (cap, frame), 72, 34, f)
+            d.arc((x * s, wy - 1 * s, (x + 8) * s, wy + 3 * s), 180, 360, fill=(220, 240, 255, 230), width=int(1.2 * s))
+    return art('k10_sx_%s_%d' % (cap, frame), 72, 34, f)
 
 
 def k10_lane():

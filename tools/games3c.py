@@ -416,7 +416,7 @@ def g24(P, ctx):
         S_('fl', 0), chg('합계', LGET('k24_pts', W('res'))), cast('k24_판정'),
         setv('미니표시', join('투구 ', W('n'), '/', NP, ' · ', V('합계'), '점')),
         wait(1.3)]
-    mgr.on(on_msg('게임시작'), *shuffle, S_('n', 1), until(gt(W('n'), NP), *pitch, chg('k24_n', 1)),
+    mgr.on(on_msg('게임시작'), reset_timer(), start_timer(), *shuffle, S_('n', 1), until(gt(W('n'), NP), *pitch, chg('k24_n', 1)),
            *m.end_blocks(V('합계')))
     m.on_start(setv('합계', 0), S_('n', 0), S_('fl', 0), S_('sw', 0), S_('p', 0),
                *[lst_set('k24_seq', k + 1, v) for k, v in enumerate([1, 1, 3, 2, 1, 3, 2, 3, 11, 13])])
@@ -706,7 +706,7 @@ def g27(P, ctx):
         *[ifelse(eq(qq, W('c')), [lst_set('k27_opt', qq, W('miss'))],
                  [ifelse(lt(qq, W('c')), [lst_set('k27_opt', qq, LGET('k27_deck', add(W('n'), qq)))],
                          [lst_set('k27_opt', qq, LGET('k27_deck', add(W('n'), qq - 1)))])]) for qq in range(1, 5)]]
-    mgr.on(on_msg('게임시작'), setv('라운드', 1),
+    mgr.on(on_msg('게임시작'), reset_timer(), start_timer(), setv('라운드', 1),
            until(or_(gt(V('라운드'), R), eq(V('게임중'), 0)),
                  *rnd_round,
                  wait(LGET('k27_st', V('라운드'))),
@@ -735,7 +735,7 @@ def g28(P, ctx):
     CX, CY, RR = 0, 34, 46
     KD = RR + 19                       # 꽂힌 칼 가운데까지 거리
     HY = -96                           # 던지기 전 칼 위치
-    NK = [6, 8, 10]
+    NK = [6, 7, 8]
     PRE = [0, 2, 3]
     m = mg(P, ctx, T, 28, time_limit=TL, status='1단계 · ♥3', dim=60)
     vars_(P, *['k28_' + v for v in ('th', 'w', 'lv', 'left', 'pts', 'cur', 'lives', 'fly', 'na', 'hit', 'dt', 'lt', 't0', 'rdy', 'run')])
@@ -783,7 +783,7 @@ def g28(P, ctx):
                        if_(eq(W('hit'), 0), cast_wait('k28_꽂기'))),
                    cast('k28_정보'), cast('k28_장전'), S_('fly', 0), S_('rdy', 1),
                    setv('미니표시', join(W('lv'), '단계 · ♥', W('lives')))]
-    score = add(mul(add(W('pts'), W('cur')), 3.6), ifelse_score(W))
+    score = add(mul(add(W('pts'), W('cur')), 4.4), ifelse_score(W))
     mgr.on(on_msg('게임시작'), S_('lv', 1), *start_level)
     mgr.on(on_msg('k28_휙'),
            cast('k28_던짐'), wait(0.08),
@@ -814,7 +814,7 @@ def g28(P, ctx):
 
 def ifelse_score(W):
     """3단계까지 다 깨면 남은 ♥ 하나에 4.5점."""
-    return mul(mul(W('lives'), 4.5), div(sub(W('pts'), mod(W('pts'), 24)), 24))
+    return mul(mul(W('lives'), 3), div(sub(W('pts'), mod(W('pts'), 21)), 21))
 
 
 # ================================================================== 29. 정확히 10초
@@ -861,9 +861,9 @@ def g29(P, ctx):
     keys = hidden(m, '물꼬키')
     keys.on(on_key(K_SPACE), if_(eq(V('게임중'), 1),
                                  ifelse(eq(W('st'), 0), [S_('t0', timer()), S_('st', 1), cast('k29_열림')],
-                                        [if_(eq(W('st'), 1), S_('el', sub(timer(), W('t0'))), S_('st', 2))])))
+                                        [if_(and_(eq(W('st'), 1), gt(sub(timer(), W('t0')), 0.5)), S_('el', sub(timer(), W('t0'))), S_('st', 2))])))
     mgr = hidden(m, '시간담당')
-    mgr.on(on_msg('게임시작'), setv('라운드', 1),
+    mgr.on(on_msg('게임시작'), reset_timer(), start_timer(), setv('라운드', 1),
            until(gt(V('라운드'), R),
                  S_('tg', LGET('k29_tg', V('라운드'))), S_('dist', sub(V('라운드'), 1)), S_('st', 0), S_('el', 0),
                  S_('ft', mul(W('tg'), div(rnd(80, 130), 100))),

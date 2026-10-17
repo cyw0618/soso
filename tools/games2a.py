@@ -149,7 +149,7 @@ def g02(P, ctx):
     pl.on(on_clone(), setv('종', mod(sub(k, 1), 3)), setv('단계', 1), setv('상태', 1), xy(xk, PY),
           shape(add(mul(V('종'), 4), 1)), fx_clear(), show())
     tick = [setv('dt', sub(timer(), V('t0'))), setv('t0', timer()),
-            if_(lt(V('dt'), 0), setv('dt', 0)), if_(gt(V('dt'), 0.3), setv('dt', 0.3)),
+            if_(lt(V('dt'), 0), setv('dt', 0)), if_(gt(V('dt'), 1), setv('dt', 1)),
             setv('w', sub(W_, mul(mul(LGET('s02_속도', k), V('dt')), V('s02_배')))),
             if_(lt(V('w'), 0), setv('w', 0)),
             lst_set('s02_물', k, V('w')),
@@ -536,6 +536,7 @@ def g05(P, ctx):
     od = m.T('주문이름', '', PX, 54, 15, '#FFD9A8', F_NUM, False, 0, w=130, h=22)
     od.on(on_msg('s05_새판'), write(join(LGET('s05_이름', V('s05_판')), ' 라떼')))
     info = m.T('진행글', '', PX, 22, 10, C_WHITE, F_BODY, True, 0, w=130, h=36)
+    info.on(on_scene(), write(''))
     info.on(on_msg('게임시작'), until(eq(V('게임중'), 0),
                                     setv('s05_진행', sub(V('s05_다음'), LGET('s05_시작', V('s05_판')))),
                                     setv('s05_정확', rounded(mul(100, div(V('s05_좋음'), add(add(V('s05_좋음'), V('s05_나쁨')), 0.001))))),
@@ -666,7 +667,7 @@ def g06(P, ctx):
     mgr.on(on_msg('게임시작'), wait(0.1), setv('s06_t0', timer()),
            until(eq(V('게임중'), 0),
                  setv('s06_dt', sub(timer(), V('s06_t0'))), setv('s06_t0', timer()),
-                 if_(lt(V('s06_dt'), 0), setv('s06_dt', 0)), if_(gt(V('s06_dt'), 0.3), setv('s06_dt', 0.3)),
+                 if_(lt(V('s06_dt'), 0), setv('s06_dt', 0)), if_(gt(V('s06_dt'), 1), setv('s06_dt', 1)),
                  chg('s06_불', mul(-1, mul(add(2.4, add(mul(V('s06_바람'), 4.5), mul(V('s06_비'), 1.4))), V('s06_dt')))),
                  if_(lt(fire, 0), setv('s06_불', 0)),
                  if_(and_(ge(fire, LO), le(fire, HI)), chg('s06_좋은', V('s06_dt'))),
@@ -975,7 +976,7 @@ def g10(P, ctx):
     # 달리기 계산
     dt = V('s10_dt')
     sim = [setv('s10_dt', sub(timer(), V('s10_t0'))), setv('s10_t0', timer()),
-           if_(lt(dt, 0), setv('s10_dt', 0)), if_(gt(dt, 0.3), setv('s10_dt', 0.3)),
+           if_(lt(dt, 0), setv('s10_dt', 0)), if_(gt(dt, 1), setv('s10_dt', 1)),
            chg('s10_경과', dt),
            ifelse(eq(V('s10_쓰러짐'), 1), [setv('s10_속도', 0), setv('s10_달림', 0)],
                   [ifelse(key(K_SPACE),

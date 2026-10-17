@@ -453,9 +453,9 @@ def g25(P, ctx):
     hgt.on(on_msg('s25_판정'), write(join(div(rounded(div(V('s25_H'), 10)), 10), 'm')), show(), wait(0.9), hide())
     u = V('s25_u')
     arc = lambda Hv: add(add(HIGH, mul(LOW - HIGH, u)), mul(mul(Hv, VS * 4), mul(u, sub(1, u))))
-    flight = lambda Hv, foot: [setv('s25_t0', timer()), setv('s25_T', add(0.5, mul(V(Hv), 0.0045))),
-                               setv('s25_착지', add(V('s25_t0'), V('s25_T'))), setv('s25_u', 0),
-                               until(or_(ge(V('s25_u'), 1), eq(V('게임중'), 0)),
+    plan = lambda Hv: [setv('s25_t0', timer()), setv('s25_T', add(0.5, mul(V(Hv), 0.0045))),
+                       setv('s25_착지', add(V('s25_t0'), V('s25_T'))), setv('s25_u', 0)]
+    flight = lambda Hv, foot: [until(or_(ge(V('s25_u'), 1), eq(V('게임중'), 0)),
                                      setv('s25_u', div(sub(timer(), V('s25_t0')), V('s25_T'))),
                                      if_(gt(V('s25_u'), 1), setv('s25_u', 1)), setv(foot, arc(V(Hv)))),
                                setv(foot, LOW)]
@@ -466,7 +466,7 @@ def g25(P, ctx):
     mgr.on(on_msg('게임시작'), setv('s25_H', 40), setv('s25_Hp', 40),
            until(eq(V('게임중'), 0),
                  # 상대가 뛰는 동안: 내려오는 순간에 맞춰 SPACE
-                 setv('s25_눌림', 0), setv('s25_대기', 1), setv('s25_상태', 1), cast('s25_상대뜀'),
+                 setv('s25_눌림', 0), *plan('s25_Hp'), setv('s25_대기', 1), setv('s25_상태', 1), cast('s25_상대뜀'),
                  *flight('s25_Hp', 's25_상대발'),
                  wait_until(or_(ne(V('s25_눌림'), 0), gt(timer(), add(V('s25_착지'), 0.2)))),
                  setv('s25_대기', 0),
@@ -480,7 +480,7 @@ def g25(P, ctx):
                  cast('s25_판정'),
                  setv('미니표시', join('최고 ', div(rounded(div(V('s25_최고'), 10)), 10), 'm')),
                  # 내가 뛴다
-                 setv('s25_상태', 2), cast('s25_내뜀'),
+                 setv('s25_상태', 2), cast('s25_내뜀'), *plan('s25_H'),
                  *flight('s25_H', 's25_내발'),
                  setv('s25_Hp', add(mul(V('s25_H'), 0.85), 8))))
     mgr.on(on_msg('시간끝'), setv('s25_대기', 0), *m.end_blocks(div(V('합계'), 13)))
@@ -857,7 +857,7 @@ def g28(P, ctx):
 @game(29)
 def g29(P, ctx):
     ROWS = [44, -8, -60]
-    SPD = [78, 98, 122]
+    SPD = [66, 82, 102]
     xs = [[-180 + 45 * i for i in range(9)]]
     for start, gaps in ((-184, [36, 52, 40, 58, 38, 50, 44, 56]), (-190, [32, 60, 36, 64, 30, 58, 40, 62])):
         row = [start]
