@@ -654,3 +654,579 @@ def g39(P, ctx):
     m.finish('마우스로 끌어 네모를 그려서, 안에 든 숫자의 합이 딱 10이면\n그 칸들이 사라져요! 60초 동안 칸을 많이 지우세요.',
              '조작: 마우스를 누른 채 끌었다 놓기  ·  여러 칸을 한 번에 지울수록 이득')
     return True
+
+
+# ================================================================== 40. 선로 전환 (교통 관리)
+@game(40)
+def g40(P, ctx):
+    TL = 60
+    N = {'E': (-262, 0), 'A': (-150, 0), 'a1': (-112, 48), 'B': (-52, 48), 'a2': (-112, -48), 'C': (-52, -48),
+         'b1': (-14, 84), 'S1': (176, 84), 'b2': (-14, 16), 'S2': (176, 16), 'c1': (-14, -16), 'S3': (176, -16),
+         'c2': (-14, -84), 'S4': (176, -84)}
+    # (시작, 끝, 다음0, 다음1, 전환기, 역)
+    E = [('E', 'A', 2, 4, 1, 0), ('A', 'a1', 3, 3, 0, 0), ('a1', 'B', 6, 8, 2, 0), ('A', 'a2', 5, 5, 0, 0), ('a2', 'C', 10, 12, 3, 0),
+         ('B', 'b1', 7, 7, 0, 0), ('b1', 'S1', 0, 0, 0, 1), ('B', 'b2', 9, 9, 0, 0), ('b2', 'S2', 0, 0, 0, 2),
+         ('C', 'c1', 11, 11, 0, 0), ('c1', 'S3', 0, 0, 0, 3), ('C', 'c2', 13, 13, 0, 0), ('c2', 'S4', 0, 0, 0, 4)]
+    cols = dict(sx=[], sy=[], ux=[], uy=[], len=[], rot=[], n0=[], n1=[], sw=[], st=[])
+    for a, b, n0, n1, sw, st in E:
+        (x0, y0), (x1, y1) = N[a], N[b]
+        L = math.hypot(x1 - x0, y1 - y0)
+        for k, v in (('sx', x0), ('sy', y0), ('ux', round((x1 - x0) / L, 4)), ('uy', round((y1 - y0) / L, 4)), ('len', round(L, 2)),
+                     ('rot', round(-math.degrees(math.atan2(y1 - y0, x1 - x0)), 2)), ('n0', n0), ('n1', n1), ('sw', sw), ('st', st)):
+            cols[k].append(v)
+    for k, v in cols.items():
+        P.list('s40_' + k, v)
+    P.list('s40_스위치', [0, 0, 0])
+    vars_(P, 's40_속도', 's40_간격', 's40_새색', 's40_도착', 's40_px', 's40_py')
+    P.var('s40_글', '')
+    m = mg(P, ctx, T, 40, time_limit=TL, status='도착 0', dim=110)
+    # 선로 (붓으로 그림)
+    trk = hidden(m, 's40_선로')
+    draw = [pen_up(), pen_clear()]
+    for wid, col in ((12, '#1B2142'), (4, '#7F8AB4')):
+        draw += [pen_size(wid), pen_color(col)]
+        for a, b, *_ in E:
+            draw += [xy(*N[a]), pen_down(), xy(*N[b]), pen_up()]
+    trk.on(on_scene(), *draw)
+    live = hidden(m, 's40_불빛')
+    lit = [pen_up(), pen_clear(), pen_size(4), pen_color('#FFD45A')]
+    for k, (node, up, dn) in enumerate((('A', 'a1', 'a2'), ('B', 'b1', 'b2'), ('C', 'c1', 'c2'))):
+        (x0, y0) = N[node]
+        for tgt, st in ((up, 0), (dn, 1)):
+            x1, y1 = N[tgt]
+            lit.append(if_(eq(LGET('s40_스위치', k + 1), st), xy(x0, y0), pen_down(), xy(x0 + (x1 - x0) * 0.75, y0 + (y1 - y0) * 0.75),
+                           pen_up()))
+    live.on(on_msg('s40_전환'), *lit)
+    for k, lab in enumerate(('조치원', '세종', '대전', '청주')):
+        m.S('s40_역%d' % (k + 1), AD.s40_station(k, lab), 202, N['S%d' % (k + 1)][1])
+    for k, node in enumerate(('A', 'B', 'C')):
+        sw = m.S('s40_전환기%d' % (k + 1), [('up', AD.s40_switch('up')), ('down', AD.s40_switch('down'))], N[node][0], N[node][1], scale=1.25)
+        sw.on(on_msg('s40_전환'), shape(add(LGET('s40_스위치', k + 1), 1)))
+        sw.on(on_click(), if_(eq(V('게임중'), 1), lst_set('s40_스위치', k + 1, sub(1, LGET('s40_스위치', k + 1))), cast('s40_전환'),
+                              cast('s40_딸깍')))
+        sw.on(on_click(), sw.pct(85), wait(0.06), sw.pct(100))
+        G.hover_scripts(sw, 115)
+        hidden(m, 's40_전환키%d' % (k + 1)).on(on_key((K_1, K_2, K_3)[k]),
+                                             if_(eq(V('게임중'), 1), lst_set('s40_스위치', k + 1, sub(1, LGET('s40_스위치', k + 1))),
+                                                 cast('s40_전환'), cast('s40_딸깍')))
+        m.T('s40_전환번호%d' % (k + 1), str(k + 1), N[node][0], N[node][1] + 22, 9, C_DIM, F_NUM, False, 0, w=20, h=12)
+    # 기차 (복제본)
+    tr = m.S('s40_기차', [('c%d' % k, AD.s40_train(k)) for k in range(4)], -300, -300, visible=False)
+    for v in ('복제', '색', '구간', '거리', '마지막'):
+        tr.local(v, 0)
+    e = V('구간')
+    tr.on(on_msg('게임시작'), until(eq(V('게임중'), 0),
+                                 setv('색', rnd(1, 4)), clone_self(),
+                                 wait(V('s40_간격'))))
+    tr.on(on_clone(), setv('복제', 1), shape(V('색')), setv('구간', 1), setv('거리', 0), setv('마지막', timer()),
+          rot(LGET('s40_rot', 1)), xy(LGET('s40_sx', 1), LGET('s40_sy', 1)), show(),
+          until(or_(eq(V('구간'), 0), eq(V('게임중'), 0)),
+                chg('거리', mul(V('s40_속도'), sub(timer(), V('마지막')))), setv('마지막', timer()),
+                if_(ge(V('거리'), LGET('s40_len', e)),
+                    ifelse(gt(LGET('s40_st', e), 0),
+                           [setv('s40_도착', LGET('s40_st', e)), setv('s40_px', obj_x()), setv('s40_py', obj_y()),
+                            ifelse(eq(LGET('s40_st', e), V('색')), [chg('맞춤', 1), cast('s40_맞음')], [chg('틀림', 1), cast('s40_틀림')]),
+                            setv('구간', 0)],
+                           [chg('거리', mul(LGET('s40_len', e), -1)),
+                            ifelse(gt(LGET('s40_sw', e), 0),
+                                   [ifelse(eq(LGET('s40_스위치', LGET('s40_sw', e)), 0), [setv('구간', LGET('s40_n0', e))],
+                                           [setv('구간', LGET('s40_n1', e))])],
+                                   [setv('구간', LGET('s40_n0', e))]),
+                            rot(LGET('s40_rot', e))])),
+                if_(gt(V('구간'), 0), xy(add(LGET('s40_sx', e), mul(LGET('s40_ux', e), V('거리'))),
+                                       add(LGET('s40_sy', e), mul(LGET('s40_uy', e), V('거리'))))),
+                wait(0.016)),
+          rep(8, fx_add('transparency', 12), wait(0.03)), del_clone())
+    ok = m.T('s40_맞음글', '+1 도착!', 0, 0, 12, '#5CFF9A', F_NUM, False, 0, w=90, h=16, visible=False)
+    ok.on(on_msg('s40_맞음'), xy(170, add(V('s40_py'), 24)), show(), wait(0.7), hide())
+    no = m.T('s40_틀림글', '다른 역이에요!', 0, 0, 11, C_RED, F_NUM, False, 0, w=110, h=16, visible=False)
+    no.on(on_msg('s40_틀림'), xy(160, add(V('s40_py'), 24)), show(), wait(0.8), hide())
+    mgr = hidden(m, 's40_담당')
+    mgr.on(on_msg('게임시작'), until(eq(V('게임중'), 0),
+                                  setv('s40_속도', add(58, mul(sub(TL, V('남은시간')), 1.0))),
+                                  setv('s40_간격', sub(4.2, mul(sub(TL, V('남은시간')), 0.035))),
+                                  setv('미니표시', join('도착 ', V('맞춤'), ' · 실수 ', V('틀림'))), wait(0.1)))
+    mgr.on(on_msg('시간끝'), *m.end_blocks(sub(mul(V('맞춤'), 5.5), mul(V('틀림'), 2))))
+    m.on_start(setv('맞춤', 0), setv('틀림', 0), setv('s40_속도', 58), setv('s40_간격', 4.2),
+               *[lst_set('s40_스위치', k, 0) for k in (1, 2, 3)], cast('s40_전환'))
+    m.snd('s40_딸깍', play('click'))
+    m.snd('s40_맞음', play('coin'))
+    m.snd('s40_틀림', play('bad'))
+    m.finish('기차 색과 같은 색 역으로! 갈림길의 전환기를 눌러\n노란 불이 켜진 쪽으로 기차가 가요. 점점 빨라져요!',
+             '조작: 전환기(동그라미) 클릭 또는 숫자키 1·2·3')
+    return True
+
+
+# ================================================================== 34. 자전거 기어 변속
+@game(34)
+def g34(P, ctx):
+    COURSE = [0, 0, 1, 1, 2, 2, 0, -1, -1, -2, -2, 0, 0, 1, 2, 2, 1, 0, -1, -2, 0, 0, 2, 2, 2, -1, -2, -2, 0, 0]
+    IDEAL = {2: 13, 1: 19, 0: 27, -1: 33, -2: 39}
+    TM, PXM, BX, GY = 40, 2, -120, -36       # 칸 길이(m), 1m=2px, 자전거 x, 자전거 바닥 높이
+    goal = len(COURSE) * TM
+    t_ideal = sum(TM / IDEAL[s] for s in COURSE)
+    TL = int(t_ideal * 1.12) + 1
+    slopes = [0] + COURSE + [0] * 7
+    H = [0]
+    for s_ in slopes:
+        H.append(H[-1] + s_ * 10 * PXM)
+    m = mg(P, ctx, T, 34, time_limit=TL, status='0 m', dim=40)
+    P.list('s34_경사', slopes)
+    P.list('s34_높이', H[:-1])
+    P.list('s34_속력', [IDEAL[s] for s in slopes])
+    vars_(P, 's34_거리', 's34_v', 's34_기어', 's34_체력', 's34_last', 's34_dt', 's34_칸', 's34_hb', 's34_차', 's34_목표v', 's34_상태',
+          's34_기울기', 's34_완주')
+    # 땅 (복제본 7개가 거리에 맞춰 이어진다)
+    tile = m.S('s34_땅', [('t%d' % k, AD.s34_tile(k - 2)) for k in range(5)], -300, -300, visible=False)
+    for v in ('복제', '내번호', '내칸', '_ls'):
+        tile.local(v, 0)
+    tile.on(on_scene(), hide(), setv('내번호', 0), rep(7, chg('내번호', 1), clone_self()))
+    ti = add(V('s34_칸'), V('내번호'))
+    tile.on(on_clone(), setv('복제', 1), setv('_ls', -1), show(),
+            forever(setv('내칸', ti),
+                    if_(ne(V('내칸'), V('_ls')), setv('_ls', V('내칸')), shape(add(LGET('s34_경사', V('내칸')), 3))),
+                    xy(add(BX, mul(sub(mul(sub(V('내칸'), 1.5), TM), V('s34_거리')), PXM)),
+                       sub(add(GY, sub(add(LGET('s34_높이', V('내칸')), mul(LGET('s34_경사', V('내칸')), 10)), V('s34_hb'))), 110)),
+                    wait(0.016)))
+    import mg_art2 as A2
+    bike = m.S('s34_자전거', A2.bicycle(), BX, GY + 22, scale=1.3)
+    bike.on(on_msg('게임시작'), until(eq(V('게임중'), 0), rot(V('s34_기울기')), wait(0.016)))
+    bike.on(on_msg('s34_헉'), rep(2, mvy(2), wait(0.05), mvy(-2), wait(0.05)))
+    # 코스 미리보기
+    prof = [H[1 + i] for i in range(len(COURSE) + 1)]
+    m.S('s34_코스', AD.s34_profile(prof), 40, 84)
+    dot = m.S('s34_코스점', AD.s39_pop(), -110, 84, scale=0.35)
+    dot.on(on_msg('게임시작'), until(eq(V('게임중'), 0), lx(add(-110, mul(div(V('s34_거리'), goal), 300))), wait(0.1)))
+    m.T('s34_코스글', '코스', -128, 84, 8, C_DIM, F_BODY, True, 0, w=30, h=12)
+    # 계기: 기어, 페달 회전, 체력
+    panel(P, m.sc, 's34_계기판', 150, -92, 170, 70, 'glass')
+    gears = m.S('s34_기어', [('g%d' % g, AD.s34_gears(g)) for g in range(1, 6)], 108, -76, scale=0.75)
+    gears.on(on_msg('s34_변속'), shape(V('s34_기어')))
+    gt_ = m.T('s34_기어글', '', 108, -96, 11, C_WHITE, F_NUM, False, 0, w=80, h=16)
+    gt_.on(on_msg('s34_변속'), write(join('기어 ', V('s34_기어'))))
+    m.T('s34_기어도움', '↑ 무겁게  ↓ 가볍게', 108, -112, 7, C_DIM, F_BODY, True, 0, w=90, h=11)
+    m.S('s34_회전계', AD.s34_gauge(), 192, -88)
+    nd = m.S('s34_바늘', AD.s34_needle(), 192, -110)
+    nd.on(on_msg('게임시작'), until(eq(V('게임중'), 0), rot(mul(V('s34_차'), -26)), wait(0.03)))
+    sta = m.S('s34_체력막대', K.bar_set('s34_stamina', 70, 7, 'green'), 192, -120)
+    sta.on(on_msg('게임시작'), until(eq(V('게임중'), 0), shape(add(rounded(mul(V('s34_체력'), 0.4)), 1)), wait(0.1)))
+    spd = m.T('s34_속도글', '', -150, -110, 12, C_WHITE, F_NUM, False, 0, w=160, h=18)
+    spd.on(on_msg('게임시작'), until(eq(V('게임중'), 0), write(join(rounded(mul(V('s34_v'), 1.0)), ' m/s · ', rounded(V('s34_거리')), ' / ', goal, 'm')),
+                                    wait(0.12)))
+    say = m.T('s34_말', '', BX, 34, 10, C_WHITE, F_BODY, True, 0, w=170, h=30)
+    say.local('_ls', -1)
+    say.on(on_msg('게임시작'), until(eq(V('게임중'), 0),
+                                  if_(ne(V('s34_상태'), V('_ls')), setv('_ls', V('s34_상태')),
+                                      ifelse(eq(V('s34_상태'), 1), [write('끙... 너무 무거워!\n↓ 로 기어를 가볍게'), text_color('#FF8C9A')],
+                                             [ifelse(eq(V('s34_상태'), 2), [write('헛바퀴 빙글빙글!\n↑ 로 기어를 무겁게'), text_color('#FFC27A')],
+                                                     [ifelse(eq(V('s34_상태'), 3), [write('헉헉... 지쳤어요'), text_color('#FF5C70')],
+                                                             [write('')])])])),
+                                  wait(0.1)))
+    # 주행
+    for kc, d in ((K_UP, 1), (K_DOWN, -1)):
+        hidden(m, 's34_키%d' % (d + 1)).on(on_key(kc), if_(eq(V('게임중'), 1), chg('s34_기어', d),
+                                                          if_(gt(V('s34_기어'), 5), setv('s34_기어', 5)),
+                                                          if_(lt(V('s34_기어'), 1), setv('s34_기어', 1)), cast('s34_변속'), cast('s34_딸깍')))
+    cur = add(V('s34_칸'), 2)          # 지금 달리는 칸 (목록 번호)
+    mgr = hidden(m, 's34_담당')
+    mgr.on(on_msg('게임시작'), setv('s34_last', timer()),
+           until(or_(eq(V('게임중'), 0), ge(V('s34_거리'), goal)),
+                 setv('s34_dt', sub(timer(), V('s34_last'))), setv('s34_last', timer()), if_(gt(V('s34_dt'), 0.1), setv('s34_dt', 0.1)),
+                 setv('s34_칸', floor(div(V('s34_거리'), TM))),
+                 setv('s34_hb', add(LGET('s34_높이', cur), mul(mul(LGET('s34_경사', cur), 10 * PXM), sub(div(V('s34_거리'), TM), V('s34_칸'))))),
+                 setv('s34_차', sub(V('s34_기어'), sub(3, LGET('s34_경사', cur)))),
+                 setv('s34_목표v', LGET('s34_속력', cur)), setv('s34_상태', 0),
+                 ifelse(gt(V('s34_차'), 0),
+                        [setv('s34_목표v', mul(V('s34_목표v'), sub(1, mul(V('s34_차'), 0.3)))),
+                         chg('s34_체력', mul(V('s34_dt'), mul(V('s34_차'), -9))), setv('s34_상태', 1),
+                         if_(and_(ge(V('s34_차'), 2), ge(LGET('s34_경사', cur), 1)), setv('s34_목표v', mul(LGET('s34_속력', cur), 0.15)))],
+                        [ifelse(lt(V('s34_차'), 0),
+                                [setv('s34_목표v', mul(V('s34_목표v'), add(1, mul(V('s34_차'), 0.28)))), chg('s34_체력', mul(V('s34_dt'), 1)),
+                                 setv('s34_상태', 2)],
+                                [chg('s34_체력', mul(V('s34_dt'), 3))])]),
+                 if_(lt(V('s34_체력'), 0), setv('s34_체력', 0)), if_(gt(V('s34_체력'), 100), setv('s34_체력', 100)),
+                 if_(lt(V('s34_체력'), 1), setv('s34_목표v', mul(V('s34_목표v'), 0.45)), setv('s34_상태', 3)),
+                 chg('s34_v', mul(sub(V('s34_목표v'), V('s34_v')), mul(V('s34_dt'), 2.5))),
+                 chg('s34_거리', mul(V('s34_v'), V('s34_dt'))),
+                 setv('s34_기울기', mul(LGET('s34_경사', cur), -13)),
+                 setv('미니표시', join(rounded(V('s34_거리')), ' / ', goal, 'm'))),
+           if_(eq(V('게임중'), 1), setv('s34_완주', 1), setv('s34_v', 0), cast('s34_완주'), wait(1.2),
+               *m.end_blocks(add(80, mul(V('남은시간'), 1.5)))))
+    G.big_pop(P, m.sc, 's34_완주글', K.big_text('완주!', 40, 'royal'), 0, 20, 's34_완주', hold=0.8)
+    mgr.on(on_msg('시간끝'), *m.end_blocks(sub(mul(div(V('s34_거리'), goal), 85), 10)))
+    m.on_start(setv('s34_거리', 0), setv('s34_v', 0), setv('s34_기어', 3), setv('s34_체력', 100), setv('s34_칸', 0), setv('s34_hb', 0),
+               setv('s34_차', 0), setv('s34_상태', 0), setv('s34_완주', 0), setv('s34_기울기', 0), cast('s34_변속'))
+    m.snd('s34_딸깍', play('click'))
+    m.snd('s34_완주', play('fanfare'))
+    m.finish('금강 자전거길 %dm 달리기! 오르막은 가벼운 기어(1·2),\n평지는 3, 내리막은 무거운 기어(4·5)로 바꿔야 빨라요.' % goal,
+             '조작: ↑ 기어 무겁게 · ↓ 기어 가볍게  ·  바늘이 초록이면 딱 맞는 기어')
+    return True
+
+
+# ================================================================== 36. 민원 창구 안내 (대기열 관리)
+@game(36)
+def g36(P, ctx):
+    TL, NQ = 60, 6
+    SERVE = [3.0, 5.0, 4.0, 4.0]
+    CXS, CY = [-165, -55, 55, 165], 52
+    SXS, SY = [-178 + k * 60 for k in range(NQ)], -60
+    m = mg(P, ctx, T, 36, time_limit=TL, status='처리 0', dim=80)
+    P.list('s36_요청', [0] * NQ)
+    P.list('s36_인내', [0] * NQ)
+    P.list('s36_바쁨', [0] * 4)
+    P.list('s36_처리시간', SERVE)
+    vars_(P, 's36_선택', 's36_창구', 's36_수', 's36_속도', 's36_x', 's36_y', 's36_뺄')
+    P.var('s36_글', '')
+    persons = [('p%d_%d' % (k, md), AD.s36_person(k, md)) for k in range(4) for md in range(3)]
+    # 창구
+    for k in range(4):
+        c = m.S('s36_창구%d' % (k + 1), AD.s36_counter(k), CXS[k], CY)
+        c.on(on_click(), if_(eq(V('게임중'), 1), setv('s36_창구', k + 1), cast('s36_창구누름')))
+        G.hover_scripts(c, 106)
+        sv = m.S('s36_손님%d' % (k + 1), persons, CXS[k], CY - 34, visible=False)
+        sv.on(on_msg('s36_배정'), if_(eq(V('s36_창구'), k + 1), shape(add(mul(k, 3), 1)), xy(V('s36_x'), V('s36_y')), show(),
+                                    setv('_ma', obj_x()), setv('_mb', obj_y()),
+                                    *flat([[xy(add(V('_ma'), mul(sub(CXS[k], V('_ma')), j / 8.0)), add(V('_mb'), mul(sub(CY - 34, V('_mb')), j / 8.0))),
+                                            wait(0.016)] for j in range(1, 9)])))
+        sv.local('_ma', 0)
+        sv.local('_mb', 0)
+        bar = m.S('s36_처리막대%d' % (k + 1), K.bar_set('s36_busy', 70, 6, 'royal'), CXS[k], CY - 64, visible=False)
+        bar.on(on_msg('s36_틱'), ifelse(gt(LGET('s36_바쁨', k + 1), 0),
+                                       [shape(add(rounded(mul(sub(1, div(LGET('s36_바쁨', k + 1), SERVE[k])), 40)), 1)), show()],
+                                       [hide()]))
+        sv.on(on_msg('s36_틱'), if_(le(LGET('s36_바쁨', k + 1), 0), hide()))
+    # 대기 줄
+    ring = m.S('s36_고름', AD.s36_ring(), -300, -300, visible=False)
+    ring.on(on_msg('s36_줄갱신'), ifelse(gt(V('s36_선택'), 0), [xy(LGET('s36_x목록', V('s36_선택')), SY), show()], [hide()]))
+    P.list('s36_x목록', SXS)
+    for j in range(1, NQ + 1):
+        q = m.S('s36_줄%d' % j, persons, SXS[j - 1], SY, visible=False)
+        q.local('_ls', -1)
+        req, pat = LGET('s36_요청', j), LGET('s36_인내', j)
+        q.on(on_msg('s36_줄갱신'),
+             ifelse(gt(req, 0),
+                    [setv('_mk', 3), if_(gt(pat, 25), setv('_mk', 2)), if_(gt(pat, 55), setv('_mk', 1)),
+                     setv('_mk', add(mul(sub(req, 1), 3), V('_mk'))),
+                     if_(ne(V('_mk'), V('_ls')), setv('_ls', V('_mk')), shape(V('_ls'))), show()],
+                    [hide(), setv('_ls', -1)]))
+        q.on(on_click(), if_(and_(eq(V('게임중'), 1), gt(req, 0)),
+                             ifelse(eq(V('s36_선택'), j), [setv('s36_선택', 0)], [setv('s36_선택', j)]), cast('s36_줄갱신'), cast('s36_딸깍')))
+        pb = m.S('s36_인내%d' % j, K.bar_set('s36_pat', 40, 6, 'red'), SXS[j - 1], SY - 34, visible=False)
+        pb.local('_ls', -1)
+        pb.on(on_msg('s36_줄갱신'), ifelse(gt(req, 0),
+                                         [setv('_mk', add(rounded(mul(pat, 0.4)), 1)), if_(ne(V('_mk'), V('_ls')), setv('_ls', V('_mk')), shape(V('_ls'))),
+                                          show()], [hide(), setv('_ls', -1)]))
+    m.T('s36_줄글', '대기 줄 (민원인 클릭 → 창구 클릭)', -60, -100, 9, C_DIM, F_BODY, True, 0, w=300, h=14)
+    msg = m.T('s36_말', '', 0, 0, 13, C_WHITE, F_NUM, False, 0, w=260, h=20)
+    msg.on(on_msg('s36_말'), write(V('s36_글')), show(), wait(0.9), write(''))
+    say = lambda t, sig=None: [setv('s36_글', t), cast('s36_말')] + ([cast(sig)] if sig else [])
+    # 줄에서 j번째 빼기 (뒤 사람들이 앞으로)
+    remove = [lst_del('s36_요청', V('s36_뺄')), lst_add('s36_요청', 0), lst_del('s36_인내', V('s36_뺄')), lst_add('s36_인내', 0),
+              chg('s36_수', -1),
+              if_(eq(V('s36_선택'), V('s36_뺄')), setv('s36_선택', 0)), if_(gt(V('s36_선택'), V('s36_뺄')), chg('s36_선택', -1)),
+              cast('s36_줄갱신')]
+    sel_req = LGET('s36_요청', V('s36_선택'))
+    mgr = hidden(m, 's36_담당')
+    k_ = V('s36_창구')
+    mgr.on(on_msg('s36_창구누름'),
+           ifelse(eq(V('s36_선택'), 0), say('먼저 줄에 선 민원인을 고르세요'),
+                  [ifelse(gt(LGET('s36_바쁨', k_), 0), say('그 창구는 아직 바빠요!', 's36_삐'),
+                          [ifelse(ne(sel_req, k_),
+                                  [chg('틀림', 1), chg('합계', -2), lst_set('s36_인내', V('s36_선택'), sub(LGET('s36_인내', V('s36_선택')), 35)),
+                                   setv('s36_선택', 0), cast('s36_줄갱신'), *say('여기가 아니잖아요! (화남)', 's36_틀림')],
+                                  [chg('맞춤', 1), chg('합계', add(2, div(LGET('s36_인내', V('s36_선택')), 50))),
+                                   lst_set('s36_바쁨', k_, LGET('s36_처리시간', k_)),
+                                   setv('s36_x', LGET('s36_x목록', V('s36_선택'))), setv('s36_y', SY), cast('s36_배정'),
+                                   setv('s36_뺄', V('s36_선택')), *remove, *say('안내 완료!', 's36_맞음')])])]),
+           setv('미니표시', join('처리 ', V('맞춤'), ' · 점수 ', rounded(V('합계')))))
+    # 0.1초마다: 인내심 줄이기, 창구 시간, 화나서 떠나기
+    tick = []
+    for j in range(1, NQ + 1):
+        tick.append(if_(gt(LGET('s36_요청', j), 0), lst_set('s36_인내', j, sub(LGET('s36_인내', j), V('s36_속도')))))
+    for k in range(1, 5):
+        tick.append(if_(gt(LGET('s36_바쁨', k), 0), lst_set('s36_바쁨', k, sub(LGET('s36_바쁨', k), 0.1))))
+    tick.append(setv('s36_뺄', 0))
+    for j in range(NQ, 0, -1):
+        tick.append(if_(gt(LGET('s36_요청', j), 0), if_(le(LGET('s36_인내', j), 0), setv('s36_뺄', j))))
+    tick.append(if_(gt(V('s36_뺄'), 0), chg('실패', 1), chg('합계', -3), *remove, *say('기다리다 화나서 가 버렸어요!', 's36_떠남'),
+                    setv('미니표시', join('처리 ', V('맞춤'), ' · 점수 ', rounded(V('합계'))))))
+    tick += [cast('s36_줄갱신'), cast('s36_틱')]
+    mgr.on(on_msg('게임시작'), until(eq(V('게임중'), 0), setv('s36_속도', add(0.55, mul(sub(TL, V('남은시간')), 0.006))), *tick, wait(0.1)))
+    mgr.on(on_msg('게임시작'), until(eq(V('게임중'), 0),
+                                  if_(lt(V('s36_수'), NQ), chg('s36_수', 1), lst_set('s36_요청', V('s36_수'), rnd(1, 4)),
+                                      lst_set('s36_인내', V('s36_수'), 100), cast('s36_줄갱신'), cast('s36_딩동')),
+                                  wait(sub(div(rnd(150, 270), 100), mul(sub(TL, V('남은시간')), 0.012)))))
+    mgr.on(on_msg('시간끝'), *m.end_blocks(V('합계')))
+    m.on_start(setv('합계', 0), setv('맞춤', 0), setv('틀림', 0), setv('실패', 0), setv('s36_선택', 0), setv('s36_수', 0),
+               *[lst_set('s36_요청', j, 0) for j in range(1, NQ + 1)], *[lst_set('s36_바쁨', k, 0) for k in range(1, 5)])
+    m.snd('s36_딸깍', play('click'))
+    m.snd('s36_맞음', play('coin'))
+    m.snd('s36_틀림', play('bad'))
+    m.snd('s36_떠남', play('fail_big'))
+    m.snd('s36_삐', play('beep'))
+    m.snd('s36_딩동', play('news'))
+    m.finish('세종시청 민원실 안내원이 되어 민원인을 알맞은 빈 창구로!\n오래 기다리면 화나서 가 버려요. 급한 사람부터 보내세요.',
+             '조작: 줄에 선 민원인 클릭 → 말풍선 그림과 같은 창구 클릭')
+    return True
+
+
+# ================================================================== 32. 옛 분교 교무실 방탈출
+S32_NAMES = ['강다온', '김나래', '박도윤', '서하준', '윤봄', '최이안']
+
+
+@game(32)
+def g32(P, ctx):
+    TL = 170
+    m = mg(P, ctx, T, 32, time_limit=TL, status='단서를 찾아라', dim=0)
+    sc = m.sc
+    vars_(P, 's32_창', 's32_선택템', 's32_힌트', 's32_틀림', 's32_액자', 's32_서랍', 's32_풍금', 's32_난로', 's32_꽂음', 's32_금고',
+          's32_탈출', 's32_연주', 's32_음', 's32_눌린건반', 's32_다이얼', 's32_방향', 's32_금고단계', 's32_커서', 's32_고른칸',
+          's32_휠1', 's32_휠2', 's32_휠3')
+    for v in ('s32_글', 's32_서랍코드', 's32_출석글'):
+        P.var(v, '')
+    P.list('s32_이름', S32_NAMES)
+    P.list('s32_결석', [0] * 6)
+    P.list('s32_배치', [1, 2, 3, 4, 5, 6])     # 자리 k 에 앉는 학생 번호
+    P.list('s32_자리', [1, 2, 3, 4, 5, 6])     # 학생 k 의 자리 번호
+    P.list('s32_가락', [1, 3, 5, 3, 1])
+    P.list('s32_금고수', [3, 7, 1])
+    P.list('s32_가방', [0] * 5)
+    can = lambda: and_(eq(V('게임중'), 1), eq(V('s32_창'), 0))
+    say = lambda t: [setv('s32_글', t), cast('s32_말')]
+    sel = V('s32_선택템')
+
+    def add_item(it):
+        return [setv('_ma', 0), *[if_(and_(eq(V('_ma'), 0), eq(LGET('s32_가방', k), 0)), lst_set('s32_가방', k, it), setv('_ma', 1))
+                                 for k in range(1, 6)], cast('s32_가방갱신'), cast('s32_찾음')]
+
+    def use_item(it):       # 쓴 물건은 가방에서 뺀다
+        return [*[if_(eq(LGET('s32_가방', k), it), lst_set('s32_가방', k, 0)) for k in range(1, 6)], setv('s32_선택템', 0), cast('s32_가방갱신')]
+
+    def open_win(n):
+        return [setv('s32_창', n), cast('s32_창갱신'), cast('s32_딸깍')]
+    m.S('s32_방', AD.s32_room(), 0, 1)
+    # ---------------- 방 안 물건
+    frame = m.S('s32_액자', [('hang', AD.s32_frame('hang')), ('moved', AD.s32_frame('moved'))], -190, 62)
+    chart = m.S('s32_배치표', AD.s32_paper('chart', 58, 42, '자리 배치표'), -128, 62)
+    board = m.S('s32_칠판', AD.s32_board(), -40, 60)
+    organ = m.S('s32_풍금', [('closed', AD.s32_organ('closed')), ('open', AD.s32_organ('open'))], -180, -50)
+    m.S('s32_책상', AD.s32_desk(), -30, -66)
+    book = m.S('s32_출석부', AD.s32_book(), -62, -38)
+    drawer = m.S('s32_서랍', [('closed', AD.s32_drawer('closed')), ('open', AD.s32_drawer('open'))], 4, -62)
+    stove = m.S('s32_난로', AD.s32_stove(), 75, -40)
+    safe = m.S('s32_금고', [('closed', AD.s32_safe('closed')), ('open', AD.s32_safe('open'))], 140, -66)
+    door = m.S('s32_문', [('closed', AD.s32_door('closed')), ('open', AD.s32_door('open'))], 205, -8)
+    glow = m.S('s32_불빛', AD.s39_pop(), 75, -79, scale=0.5)
+    glow.on(on_scene(), forever(fx('brightness', rnd(-10, 30)), wait(0.15)))
+    glow.on(on_msg('s32_방갱신'), ifelse(eq(V('s32_난로'), 0), [show()], [hide()]))
+    for o, var in ((frame, 's32_액자'), (organ, 's32_풍금'), (drawer, 's32_서랍'), (safe, 's32_금고'), (door, 's32_탈출')):
+        o.on(on_msg('s32_방갱신'), shape(add(V(var), 1)))
+    for o in (frame, chart, board, organ, book, drawer, stove, safe, door):
+        G.hover_scripts(o, 106)
+    note_txt = join('쪽지: "금고 ▶오른쪽으로 ', LGET('s32_금고수', 1), ', ◀왼쪽으로 ', LGET('s32_금고수', 2), ', ▶오른쪽으로 ',
+                    LGET('s32_금고수', 3), ' (숫자마다 딸깍!)"')
+    frame.on(on_click(), if_(can(), ifelse(eq(V('s32_액자'), 0),
+                                           [setv('s32_액자', 1), cast('s32_방갱신'), *add_item(1), *say('액자를 들추니 뒤에 쪽지가! (가방에서 눌러 읽기)')],
+                                           say('상장: "위 학생은 풍금 연주를 잘하여..."'))))
+    chart.on(on_click(), if_(can(), *open_win(2)))
+    board.on(on_click(), if_(can(), *say('칠판: "서랍 번호 = 오늘 결석한 아이들의 자리 번호 (출석 번호 순서대로)"')))
+    book.on(on_click(), if_(can(), *open_win(1)))
+    drawer.on(on_click(), if_(can(), ifelse(eq(V('s32_서랍'), 0), [*open_win(3), *say('세 자리 번호 자물쇠가 달린 서랍이다.')],
+                                            say('빈 서랍이다.'))))
+    organ.on(on_click(), if_(can(), ifelse(eq(V('s32_풍금'), 0), open_win(4), say('풍금 아래 칸은 이미 열려 있다.'))))
+    stove.on(on_click(), if_(can(), ifelse(eq(V('s32_난로'), 1), say('난로 불이 따뜻하다.'),
+                                           [ifelse(eq(sel, 3), [setv('s32_난로', 1), *use_item(3), cast('s32_방갱신'), *add_item(4),
+                                                                *say('집게로 재를 뒤져 작은 열쇠를 꺼냈다!')],
+                                                   say('난로 속 재 사이에서 뭔가 반짝! 뜨거워서 손으로는 못 꺼내.'))])))
+    safe.on(on_click(), if_(can(), ifelse(eq(V('s32_금고'), 1), say('빈 금고다.'),
+                                          [ifelse(eq(V('s32_꽂음'), 1), open_win(5),
+                                                  [ifelse(eq(sel, 4), [setv('s32_꽂음', 1), *use_item(4), cast('s32_철컥'),
+                                                                       *open_win(5), *say('열쇠를 꽂았다. 이제 다이얼!')],
+                                                          say('작은 열쇠 구멍과 숫자 다이얼이 달린 금고다.'))])])))
+    door.on(on_click(), if_(can(), ifelse(eq(sel, 5), [setv('s32_탈출', 1), *use_item(5), cast('s32_방갱신'), cast('s32_탈출'),
+                                                       *say('문이 열렸다! 탈출 성공!')],
+                                          say('교무실 문이 잠겨 있다. 큰 열쇠 구멍이 있다.'))))
+    # ---------------- 아래: 말 상자, 힌트, 가방
+    panel(P, sc, 's32_말판', -122, -117, 236, 28, 'glass')
+    msg = m.T('s32_말글', '', -122, -117, 9, C_WHITE, F_BODY, True, 0, w=226, h=26)
+    msg.on(on_msg('s32_말'), write(V('s32_글')))
+    hints = [(eq(V('s32_서랍'), 0), '힌트: 출석부에서 결석한 3명을 찾아, 자리 배치표의 자리 번호를 출석 번호 순서로!'),
+             (eq(V('s32_풍금'), 0), '힌트: 풍금을 눌러 악보대로 연주! 맨 아래 덧줄 음이 "도", 한 칸 오를 때마다 레·미·파…'),
+             (eq(V('s32_난로'), 0), '힌트: 가방에서 집게를 고른 뒤 난로를 눌러 봐.'),
+             (eq(V('s32_액자'), 0), '힌트: 벽에 걸린 상장 액자를 눌러 봐.'),
+             (eq(V('s32_금고'), 0), '힌트: 금고 열쇠를 고르고 금고를 눌러. 쪽지대로 돌리고 숫자마다 딸깍!')]
+    chain = say('힌트: 가방에서 큰 열쇠를 고르고 문을 눌러!')
+    for c_, t_ in reversed(hints):
+        chain = [ifelse(c_, say(t_), chain)]
+    button(P, sc, 's32_힌트버튼', '힌트 -8', 24, -117, 62, 26, 'purple',
+           actions=[if_(can(), chg('s32_힌트', 1), cast('s32_힌트음'), *chain)])
+    items = [('none', A.clear_dot())] + [(k, AD.s32_item(k)) for k in ('note', 'sheet', 'tongs', 'key_s', 'key_d')]
+    item_say = {1: None, 2: '악보다. 풍금 앞에서 보면 되겠다.', 3: '부젓가락(집게)이다. 뜨거운 것도 집을 수 있다.',
+                4: '작은 쇠 열쇠다.', 5: '큰 놋쇠 열쇠다!'}
+    for k in range(1, 6):
+        x = 76 + (k - 1) * 34
+        it = LGET('s32_가방', k)
+        bg = m.S('s32_칸%d' % k, [('n', AD.s32_slot(0)), ('s', AD.s32_slot(1))], x, -117)
+        ic = m.S('s32_물건%d' % k, items, x, -117)
+        bg.on(on_msg('s32_가방갱신'), ifelse(and_(gt(it, 0), eq(sel, it)), [shape('s')], [shape('n')]))
+        ic.on(on_msg('s32_가방갱신'), shape(add(it, 1)))
+        act = [if_(and_(can(), gt(it, 0)), ifelse(eq(sel, it), [setv('s32_선택템', 0)], [setv('s32_선택템', it)]),
+                   cast('s32_가방갱신'), cast('s32_딸깍'),
+                   ifelse(eq(it, 1), [setv('s32_글', note_txt), cast('s32_말')],
+                          [*[if_(eq(it, j), *say(t)) for j, t in item_say.items() if t]]))]
+        bg.on(on_click(), *act)
+        ic.on(on_click(), *act)
+    # ---------------- 확대 창 (공용 틀)
+    win = []
+    win.append(m.S('s32_창어둡게', A.plain_rect(480, 270, (2, 3, 12, 175), 'dim_kp'), 0, 0))
+    win.append(panel(P, sc, 's32_창판', 0, 2, 340, 210, 'glass', header='royal'))
+    wt = m.T('s32_창제목', '', 0, 92, 12, C_WHITE, F_NUM, False, 0, w=240, h=18)
+    titles = {1: '출석부 (오늘)', 2: '자리 배치표', 3: '서랍 자물쇠', 4: '풍금', 5: '금고 다이얼'}
+    wt.on(on_msg('s32_창갱신'), *[if_(eq(V('s32_창'), k), write(t)) for k, t in titles.items()])
+    win.append(wt)
+    close = [if_(gt(V('s32_창'), 0), setv('s32_창', 0), cast('s32_창갱신'))]
+    win.append(button(P, sc, 's32_닫기', '닫기', 140, 92, 48, 20, 'gray', actions=close))
+    for o in win:
+        o.on(on_scene(), hide())
+        o.on(on_msg('s32_창갱신'), ifelse(gt(V('s32_창'), 0), [show()], [hide()]))
+
+    def in_win(o, n, extra=None):
+        cond = eq(V('s32_창'), n) if extra is None else and_(eq(V('s32_창'), n), extra)
+        o.on(on_scene(), hide())
+        o.on(on_msg('s32_창갱신'), ifelse(cond, [show()], [hide()]))
+        return o
+    # 1 출석부
+    att = in_win(m.T('s32_출석', '', 0, 6, 12, '#1A1F3A', F_BODY, True, 0, w=240, h=150, bg='#F4F0E2'), 1)
+    att.on(on_msg('s32_창갱신'), if_(eq(V('s32_창'), 1), write(V('s32_출석글'))))
+    # 2 자리 배치표
+    in_win(m.S('s32_자리그림', AD.s32_seats(), 0, -6), 2)
+    for k in range(6):
+        r, c = divmod(k, 3)
+        nt = in_win(m.T('s32_자리이름%d' % (k + 1), '', -64 + 66 * c + 5, 9 - 42 * r - 6, 11, '#1A1F3A', F_BODY, True, 0, w=50, h=16), 2)
+        nt.on(on_msg('s32_창갱신'), if_(eq(V('s32_창'), 2), write(LGET('s32_이름', LGET('s32_배치', k + 1)))))
+    # 3 서랍 번호 바퀴
+    in_win(m.T('s32_서랍도움', '칸 위쪽 클릭 +1 · 아래쪽 클릭 -1 · 숫자키로도 입력', 0, -60, 9, C_DIM, F_BODY, True, 0, w=300, h=14), 3)
+    code_ok = eq(join(join(V('s32_휠1'), V('s32_휠2')), V('s32_휠3')), V('s32_서랍코드'))
+    check_drawer = [if_(and_(eq(V('s32_창'), 3), code_ok),
+                        setv('s32_서랍', 1), setv('s32_창', 0), cast('s32_창갱신'), cast('s32_방갱신'), cast('s32_철컥'), *add_item(2),
+                        *say('철컥! 서랍이 열렸다. 안에 악보가 들어 있다.'))]
+    for k in range(1, 4):
+        wv = 's32_휠%d' % k
+        wh = in_win(m.S('s32_바퀴%d' % k, [('w%d' % n, AD.s32_wheel(n)) for n in range(10)], -50 + (k - 1) * 50, 6, scale=1.4), 3)
+        wh.on(on_msg('s32_휠갱신'), shape(add(V(wv), 1)))
+        wh.on(on_click(), if_(eq(V('s32_창'), 3), ifelse(gt(mouse_y(), obj_y()), [chg(wv, 1)], [chg(wv, -1)]),
+                              setv(wv, mod(add(V(wv), 10), 10)), setv('s32_커서', k), cast('s32_휠갱신'), cast('s32_딸깍'), *check_drawer))
+        cur = in_win(m.S('s32_커서%d' % k, AD.s33_marker(), -50 + (k - 1) * 50, -36), 3)
+        cur.on(on_scene(), rot(-90))
+        cur.on(on_msg('s32_휠갱신'), if_(eq(V('s32_창'), 3), ifelse(eq(V('s32_커서'), k), [show()], [hide()])))
+    for d in range(10):
+        hidden(m, 's32_숫자키%d' % d).on(on_key(48 + d), if_(eq(V('s32_창'), 3),
+                                                            *[if_(eq(V('s32_커서'), k), setv('s32_휠%d' % k, d)) for k in (1, 2, 3)],
+                                                            setv('s32_커서', add(mod(V('s32_커서'), 3), 1)), cast('s32_휠갱신'), cast('s32_딸깍'),
+                                                            *check_drawer))
+    # 4 풍금 건반과 악보
+    owned = lambda it: or_(or_(eq(LGET('s32_가방', 1), it), eq(LGET('s32_가방', 2), it)),
+                           or_(or_(eq(LGET('s32_가방', 3), it), eq(LGET('s32_가방', 4), it)), eq(LGET('s32_가방', 5), it)))
+    in_win(m.S('s32_오선', AD.s32_staff(), 0, 40), 4, owned(2))
+    in_win(m.T('s32_악보없음', '악보가 없다... 무슨 곡이었더라?', 0, 40, 11, C_DIM, F_BODY, True, 0, w=260, h=18), 4, not_(owned(2)))
+    for j in range(1, 6):
+        nh = in_win(m.S('s32_음표%d' % j, [('l', AD.s32_notehead(1)), ('n', AD.s32_notehead(0))], -56 + 30 * j, 20), 4, owned(2))
+        nh.on(on_msg('s32_창갱신'), if_(eq(V('s32_창'), 4), ly(add(19, mul(sub(LGET('s32_가락', j), 1), 4))),
+                                       ifelse(eq(LGET('s32_가락', j), 1), [shape('l')], [shape('n')])))
+    NAMES = ['도', '레', '미', '파', '솔', '라', '시', '도']
+    play_note = lambda n: [if_(eq(V('s32_창'), 4), setv('s32_음', n), cast('s32_건반'))]
+    for n in range(1, 9):
+        x = -98 + 28 * (n - 1)
+        ky = in_win(m.S('s32_건반%d' % n, [('u', AD.s32_key(0)), ('d', AD.s32_key(1))], x, -38), 4)
+        ky.on(on_click(), *play_note(n))
+        ky.on(on_msg('s32_건반'), if_(eq(V('s32_음'), n), shape('d'), wait(0.15), shape('u')))
+        lb = in_win(m.T('s32_건반글%d' % n, NAMES[n - 1], x, -62, 10, '#1A1F3A', F_NUM, False, 0, w=24, h=14), 4)
+        lb.on(on_click(), *play_note(n))
+        hidden(m, 's32_건반키%d' % n).on(on_key(48 + n), *play_note(n))
+    prog = in_win(m.T('s32_연주글', '', 0, -88, 11, C_ACC, F_NUM, False, 0, w=240, h=16), 4)
+    prog.on(on_msg('s32_연주갱신'), write(join('♪ 맞게 친 음 ', V('s32_연주'), ' / 5   (숫자키 1~8 도 돼요)')))
+    prog.on(on_msg('s32_창갱신'), cast('s32_연주갱신'))
+    snd = m.S('s32_풍금소리', A.clear_dot(), -300, -300)
+    for nm, path, dur in AD.s32_notes_snd():
+        snd.add_sound(nm, path, dur)
+    snd.on(on_msg('s32_건반'), *[if_(eq(V('s32_음'), n), play('s32_음%d' % n)) for n in range(1, 9)])
+    pmgr = hidden(m, 's32_풍금담당')
+    pmgr.on(on_msg('s32_건반'),
+            ifelse(eq(V('s32_음'), LGET('s32_가락', add(V('s32_연주'), 1))), [chg('s32_연주', 1)],
+                   [ifelse(eq(V('s32_음'), LGET('s32_가락', 1)), [setv('s32_연주', 1)], [setv('s32_연주', 0)])]),
+            cast('s32_연주갱신'),
+            if_(ge(V('s32_연주'), 5), setv('s32_연주', 0), wait(0.5), setv('s32_풍금', 1), setv('s32_창', 0), cast('s32_창갱신'),
+                cast('s32_방갱신'), *add_item(3), *say('♪ 연주가 끝나자 풍금 아래 칸이 열렸다! 집게(부젓가락)가 있다.')))
+    # 5 금고 다이얼
+    dial = in_win(m.S('s32_다이얼', AD.s32_dial(), 0, 4), 5)
+    dial.on(on_msg('s32_다이얼갱신'), rot(mul(V('s32_다이얼'), -36)))
+    ptr = in_win(m.S('s32_바늘', AD.s33_marker(), 0, 66), 5)
+    ptr.on(on_scene(), rot(90))
+    dn = in_win(m.T('s32_다이얼수', '', 64, 66, 12, C_WHITE, F_NUM, False, 0, w=60, h=16), 5)
+    dn.on(on_msg('s32_다이얼갱신'), write(join('▲ ', V('s32_다이얼'))))
+    turn = lambda d: [if_(eq(V('s32_창'), 5), setv('s32_다이얼', mod(add(V('s32_다이얼'), 10 - d if d > 0 else 1), 10)),
+                          setv('s32_방향', d), cast('s32_다이얼갱신'), cast('s32_딸깍'))]
+    win5 = [button(P, sc, 's32_왼쪽', '◀ 왼쪽', -112, 4, 72, 26, 'steel', actions=turn(-1)),
+            button(P, sc, 's32_오른쪽', '오른쪽 ▶', 112, 4, 72, 26, 'steel', actions=turn(1)),
+            button(P, sc, 's32_딸깍', '딸깍!', 0, -72, 80, 26, 'royal', actions=[if_(eq(V('s32_창'), 5), cast('s32_금고확인'))])]
+    for o in win5:
+        in_win(o, 5)
+    stp = in_win(m.T('s32_금고단계글', '', 0, -94, 9, C_DIM, F_BODY, True, 0, w=260, h=14), 5)
+    stp.on(on_msg('s32_다이얼갱신'), write(join('맞춘 숫자 ', V('s32_금고단계'), ' / 3')))
+    smgr = hidden(m, 's32_금고담당')
+    want_dir = sub(1, mul(mod(V('s32_금고단계'), 2), 2))     # 단계 0,2: 오른쪽(1) / 단계 1: 왼쪽(-1)
+    smgr.on(on_msg('s32_금고확인'),
+            ifelse(and_(eq(V('s32_다이얼'), LGET('s32_금고수', add(V('s32_금고단계'), 1))), eq(V('s32_방향'), want_dir)),
+                   [chg('s32_금고단계', 1), cast('s32_딸깍'), cast('s32_다이얼갱신')],
+                   [setv('s32_금고단계', 0), chg('s32_틀림', 1), cast('s32_삐'), cast('s32_다이얼갱신'), *say('덜컥... 처음부터 다시 돌려야 한다.')]),
+            if_(ge(V('s32_금고단계'), 3), wait(0.3), setv('s32_금고', 1), setv('s32_창', 0), cast('s32_창갱신'), cast('s32_방갱신'),
+                cast('s32_철컥'), *add_item(5), *say('금고가 열렸다! 큰 놋쇠 열쇠를 찾았다.')))
+    # ---------------- 탈출과 점수
+    flash = m.S('s32_탈출빛', A.plain_rect(480, 270, (200, 220, 255, 255), 'white_full'), 0, 0, visible=False)
+    flash.on(on_msg('s32_탈출'), wait(0.4), fx('transparency', 100), show(), rep(10, fx_add('transparency', -8), wait(0.03)))
+    G.big_pop(P, sc, 's32_탈출글', K.big_text('탈출 성공!', 40, 'royal'), 0, 20, 's32_탈출', hold=1.2)
+    mgr = hidden(m, 's32_담당')
+    mgr.on(on_msg('s32_탈출'), setv('_mk', sub(sub(TL, V('남은시간')), 80)), if_(lt(V('_mk'), 0), setv('_mk', 0)),
+           setv('합계', sub(sub(100, mul(V('s32_힌트'), 8)), mul(V('_mk'), 0.3))), if_(lt(V('합계'), 40), setv('합계', 40)),
+           wait(1.6), *m.end_blocks(V('합계')))
+    part = sub(add(add(mul(V('s32_서랍'), 14), mul(V('s32_풍금'), 12)), add(add(mul(V('s32_난로'), 8), mul(V('s32_액자'), 5)),
+                                                                          mul(V('s32_금고'), 14))), mul(V('s32_힌트'), 4))
+    mgr.on(on_msg('시간끝'), setv('s32_창', 0), cast('s32_창갱신'), *say('시간이 다 됐다... 갇혀 버렸다!'), wait(1.0), *m.end_blocks(part))
+    mgr.on(on_msg('게임시작'), until(eq(V('게임중'), 0), setv('미니표시', join('힌트 ', V('s32_힌트'), ' · 실수 ', V('s32_틀림'))), wait(0.25)))
+    # ---------------- 시작: 정답을 무작위로
+    shuffle = []
+    for k in range(6, 1, -1):
+        shuffle += [setv('_mk', rnd(1, k)), setv('_mv', LGET('s32_배치', k)), lst_set('s32_배치', k, LGET('s32_배치', V('_mk'))),
+                    lst_set('s32_배치', V('_mk'), V('_mv'))]
+    m.on_start(setv('s32_창', 0), setv('s32_선택템', 0), setv('s32_힌트', 0), setv('s32_틀림', 0), setv('s32_액자', 0), setv('s32_서랍', 0),
+               setv('s32_풍금', 0), setv('s32_난로', 0), setv('s32_꽂음', 0), setv('s32_금고', 0), setv('s32_탈출', 0), setv('s32_연주', 0),
+               setv('s32_다이얼', 0), setv('s32_방향', 0), setv('s32_금고단계', 0), setv('s32_커서', 1),
+               setv('s32_휠1', 0), setv('s32_휠2', 0), setv('s32_휠3', 0),
+               *[lst_set('s32_가방', k, 0) for k in range(1, 6)],
+               *[lst_set('s32_배치', k, k) for k in range(1, 7)], *shuffle,
+               *[lst_set('s32_자리', LGET('s32_배치', k), k) for k in range(1, 7)],
+               *[lst_set('s32_결석', k, 0) for k in range(1, 7)],
+               setv('_ma', rnd(1, 6)), setv('_mb', rnd(1, 6)), until(ne(V('_mb'), V('_ma')), setv('_mb', rnd(1, 6))),
+               setv('_mk', rnd(1, 6)), until(and_(ne(V('_mk'), V('_ma')), ne(V('_mk'), V('_mb'))), setv('_mk', rnd(1, 6))),
+               lst_set('s32_결석', V('_ma'), 1), lst_set('s32_결석', V('_mb'), 1), lst_set('s32_결석', V('_mk'), 1),
+               setv('s32_서랍코드', ''), setv('s32_출석글', ''),
+               *[ifelse(eq(LGET('s32_결석', k), 1),
+                        [setv('s32_서랍코드', join(V('s32_서랍코드'), LGET('s32_자리', k))),
+                         setv('s32_출석글', join(V('s32_출석글'), '%d번  %s   ✕ 결석\n' % (k, S32_NAMES[k - 1])))],
+                        [setv('s32_출석글', join(V('s32_출석글'), '%d번  %s   ○ 출석\n' % (k, S32_NAMES[k - 1])))])
+                 for k in range(1, 7)],
+               *[lst_set('s32_가락', j, rnd(1, 8)) for j in range(1, 6)],
+               lst_set('s32_금고수', 1, rnd(1, 9)),
+               lst_set('s32_금고수', 2, rnd(0, 9)), until(ne(LGET('s32_금고수', 2), LGET('s32_금고수', 1)), lst_set('s32_금고수', 2, rnd(0, 9))),
+               lst_set('s32_금고수', 3, rnd(0, 9)), until(ne(LGET('s32_금고수', 3), LGET('s32_금고수', 2)), lst_set('s32_금고수', 3, rnd(0, 9))),
+               setv('s32_글', '교무실에 갇혔다! 물건을 눌러 단서를 찾자.'),
+               cast('s32_방갱신'), cast('s32_가방갱신'), cast('s32_말'), cast('s32_다이얼갱신'), cast('s32_휠갱신'))
+    m.snd('s32_딸깍', play('tick'))
+    m.snd('s32_찾음', play('good'))
+    m.snd('s32_삐', play('bad'))
+    m.snd('s32_철컥', play('stamp'))
+    m.snd('s32_힌트음', play('pop'))
+    m.snd('s32_탈출', play('fanfare'))
+    m.finish('연동면 옛 분교 교무실에 갇혔다! 출석부·풍금·난로·금고의\n단서를 차례로 풀고 문 열쇠를 찾아 탈출하세요. 정답은 매번 달라요.',
+             '조작: 마우스 클릭 (숫자키도 돼요)  ·  가방 물건을 고른 뒤 쓸 곳 클릭  ·  힌트 -8점')
+    return True

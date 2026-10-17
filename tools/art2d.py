@@ -256,7 +256,9 @@ def s35_road():
 
 
 def s35_dash():
-    return A3.box('s35_dash', 30, 4, (230, 230, 240), rim=None, r=1)
+    def f(d, im, s):
+        d.rectangle((0, 0, im.width, im.height), fill=(230, 230, 240, 255))
+    return art('s35_dash', 30, 4, f)
 
 
 def s35_rider(lean):
@@ -452,3 +454,463 @@ def s40_switch(state):
         hx, hy = pts[1]
         d.polygon([(hx + 3 * s, hy - sgn * 3 * s), (hx - 6 * s, hy - sgn * 1 * s), (hx + 1 * s, hy + sgn * 7 * s)], fill=(255, 220, 90, 255))
     return art('s40_switch_%s' % state, 24, 24, f)
+
+
+# ================================================================== 34. 자전거 기어
+def s34_tile(slope, TW=80, TH=300):
+    def f(d, im, s):
+        W, H = im.size
+        ym = 40 * s
+        yl, yr = ym + slope * 10 * s, ym - slope * 10 * s
+        d.polygon([(0, yl), (W, yr), (W, H), (0, H)], fill=(58, 46, 70, 255))
+        d.polygon([(0, yl), (W, yr), (W, yr + 9 * s), (0, yl + 9 * s)], fill=(90, 150, 90, 255))
+        d.line([(0, yl), (W, yr)], fill=(170, 230, 150, 255), width=int(2 * s))
+        d.line([(0, yl + 4 * s), (W, yr + 4 * s)], fill=(120, 124, 140, 255), width=int(3 * s))
+        for k in range(3):
+            x = (10 + k * 26) * s
+            y = yl + (yr - yl) * x / W + (40 + k * 30) * s
+            d.ellipse((x - 4 * s, y - 2 * s, x + 4 * s, y + 2 * s), fill=(80, 66, 92, 255))
+    return art('s34_tile_%d' % (slope + 2), TW + 1, TH, f)
+
+
+def s34_gauge():
+    def f(d, im, s):
+        W, H = im.size
+        c, r = W / 2, W / 2 - 2 * s
+        d.pieslice((c - r, H - r - 2 * s, c + r, H + r - 2 * s), 180, 360, fill=(10, 14, 36, 230), outline=(120, 150, 250, 255), width=int(1.4 * s))
+        for a0, a1, col in ((180, 236, (230, 70, 90)), (236, 304, (50, 200, 120)), (304, 360, (240, 160, 60))):
+            d.arc((c - r * 0.86, H - r * 0.86 - 2 * s, c + r * 0.86, H + r * 0.86 - 2 * s), a0, a1, fill=col + (255,), width=int(5 * s))
+        d.text((c - r * 0.58, H - 9 * s), '무거움', font=font('nsr', int(6 * s)), fill=(255, 150, 160, 255), anchor='mm')
+        d.text((c + r * 0.58, H - 9 * s), '헛돎', font=font('nsr', int(6 * s)), fill=(255, 200, 140, 255), anchor='mm')
+    return art('s34_gauge', 86, 46, f)
+
+
+def s34_needle(L=36):
+    def f(d, im, s):
+        W, H = im.size
+        d.line([(W / 2, H / 2), (W / 2, 2 * s)], fill=(255, 255, 255, 255), width=int(2.4 * s))
+        d.ellipse((W / 2 - 3 * s, H / 2 - 3 * s, W / 2 + 3 * s, H / 2 + 3 * s), fill=(255, 90, 110, 255))
+    return art('s34_needle', 8, 2 * L, f)
+
+
+def s34_gears(g):
+    def f(d, im, s):
+        W, H = im.size
+        for k in range(5):
+            r = (5 + (4 - k) * 1.6) * s
+            cx, cy = (12 + k * 21) * s, H / 2
+            on = k + 1 == g
+            col = (255, 210, 80, 255) if on else (90, 100, 140, 255)
+            for t in range(10):
+                a = math.radians(t * 36)
+                d.line([(cx, cy), (cx + math.cos(a) * (r + 2 * s), cy + math.sin(a) * (r + 2 * s))], fill=col, width=int(2 * s))
+            d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=col, outline=(10, 12, 30, 255), width=int(s))
+            d.ellipse((cx - 2 * s, cy - 2 * s, cx + 2 * s, cy + 2 * s), fill=(10, 12, 30, 255))
+    return art('s34_gears_%d' % g, 110, 26, f)
+
+
+def s34_profile(heights, w=300, h=30):
+    key = abs(hash(tuple(heights))) % 100000
+
+    def f(d, im, s):
+        W, H = im.size
+        lo, hi = min(heights), max(heights)
+        pts = [(W * i / (len(heights) - 1), (H - 3 * s) - (H - 6 * s) * (v - lo) / max(1, hi - lo)) for i, v in enumerate(heights)]
+        d.rounded_rectangle((0, 0, W - 1, H - 1), 4 * s, fill=(8, 12, 30, 200), outline=(90, 110, 190, 255), width=int(s))
+        d.polygon(pts + [(W, H), (0, H)], fill=(60, 90, 70, 255))
+        d.line(pts, fill=(170, 230, 150, 255), width=int(1.4 * s))
+        d.line([(W - 2 * s, 0), (W - 2 * s, H)], fill=(255, 255, 255, 255), width=int(2 * s))
+    return art('s34_profile_%d' % key, w, h, f)
+
+
+# ================================================================== 36. 민원 창구
+S36_COL = [(70, 120, 255), (160, 100, 240), (50, 180, 120), (240, 100, 140)]
+
+
+def _s36_icon(d, k, cx, cy, r, s):
+    w = (255, 255, 255, 255)
+    if k == 0:      # 집 (전입신고)
+        d.polygon([(cx - r, cy), (cx, cy - r), (cx + r, cy)], fill=w)
+        d.rectangle((cx - r * 0.7, cy, cx + r * 0.7, cy + r * 0.8), fill=w)
+        d.rectangle((cx - r * 0.2, cy + r * 0.25, cx + r * 0.2, cy + r * 0.8), fill=S36_COL[0] + (255,))
+    elif k == 1:    # 여권
+        d.rounded_rectangle((cx - r * 0.7, cy - r, cx + r * 0.7, cy + r), 1.5 * s, fill=w)
+        d.ellipse((cx - r * 0.35, cy - r * 0.45, cx + r * 0.35, cy + r * 0.25), outline=S36_COL[1] + (255,), width=int(1.2 * s))
+        d.line([(cx - r * 0.4, cy + r * 0.6), (cx + r * 0.4, cy + r * 0.6)], fill=S36_COL[1] + (255,), width=int(s))
+    elif k == 2:    # 세금 (동전)
+        d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=w)
+        d.text((cx, cy + 0.5 * s), '₩', font=font('nanum', int(r * 1.5)), fill=S36_COL[2] + (255,), anchor='mm')
+    else:           # 복지 (하트)
+        d.ellipse((cx - r, cy - r * 0.8, cx, cy + r * 0.2), fill=w)
+        d.ellipse((cx, cy - r * 0.8, cx + r, cy + r * 0.2), fill=w)
+        d.polygon([(cx - r * 0.95, cy - r * 0.15), (cx + r * 0.95, cy - r * 0.15), (cx, cy + r)], fill=w)
+
+
+S36_NAMES = ['전입신고', '여권', '세금', '복지']
+
+
+def s36_counter(k):
+    col = S36_COL[k]
+
+    def f(d, im, s):
+        W, H = im.size
+        # 직원
+        d.ellipse((W / 2 - 8 * s, 18 * s, W / 2 + 8 * s, 34 * s), fill=(250, 214, 182, 255), outline=(60, 40, 30, 255), width=int(s))
+        d.pieslice((W / 2 - 9 * s, 16 * s, W / 2 + 9 * s, 30 * s), 180, 360, fill=(40, 30, 30, 255))
+        d.rounded_rectangle((W / 2 - 12 * s, 33 * s, W / 2 + 12 * s, 48 * s), 4 * s, fill=(60, 70, 110, 255))
+        # 책상
+        d.rounded_rectangle((2 * s, 40 * s, W - 2 * s, H - s), 3 * s, fill=(36, 42, 70, 255), outline=col + (255,), width=int(1.5 * s))
+        d.rectangle((2 * s, 40 * s, W - 2 * s, 44 * s), fill=(200, 205, 225, 255))
+        # 간판
+        d.rounded_rectangle((6 * s, 1 * s, W - 6 * s, 15 * s), 3 * s, fill=col + (255,), outline=(255, 255, 255, 200), width=int(s))
+        _s36_icon(d, k, 15 * s, 8 * s, 4.5 * s, s)
+        d.text((W / 2 + 6 * s, 8 * s), S36_NAMES[k], font=font('jalnan', int(8 * s)), fill=(255, 255, 255, 255), anchor='mm')
+    return art('s36_counter_%d' % k, 100, 64, f)
+
+
+def s36_person(k, mood, look=0):
+    col = S36_COL[k]
+    shirts = [(110, 130, 170), (170, 120, 90), (90, 150, 140)]
+
+    def f(d, im, s):
+        W, H = im.size
+        cx = W * 0.42
+        skin = (250, 214, 182, 255) if mood < 2 else (255, 150, 140, 255)
+        d.rounded_rectangle((cx - 10 * s, 30 * s, cx + 10 * s, H - s), 6 * s, fill=shirts[look] + (255,), outline=(20, 24, 40, 255), width=int(s))
+        d.ellipse((cx - 9 * s, 12 * s, cx + 9 * s, 30 * s), fill=skin, outline=(60, 40, 30, 255), width=int(s))
+        d.pieslice((cx - 9.5 * s, 11 * s, cx + 9.5 * s, 25 * s), 180, 360, fill=(50, 36, 30, 255))
+        ey = 21 * s
+        for ex in (cx - 3.5 * s, cx + 3.5 * s):
+            d.ellipse((ex - 1.2 * s, ey - 1.2 * s, ex + 1.2 * s, ey + 1.2 * s), fill=(20, 20, 30, 255))
+        if mood == 0:
+            d.arc((cx - 4 * s, 22 * s, cx + 4 * s, 28 * s), 20, 160, fill=(120, 40, 40, 255), width=int(1.2 * s))
+        elif mood == 1:
+            d.line([(cx - 3.5 * s, 26 * s), (cx + 3.5 * s, 26 * s)], fill=(120, 40, 40, 255), width=int(1.2 * s))
+        else:
+            d.arc((cx - 4 * s, 25 * s, cx + 4 * s, 31 * s), 200, 340, fill=(120, 20, 20, 255), width=int(1.4 * s))
+            d.line([(cx - 6 * s, 17 * s), (cx - 1.5 * s, 19 * s)], fill=(60, 10, 10, 255), width=int(1.2 * s))
+            d.line([(cx + 6 * s, 17 * s), (cx + 1.5 * s, 19 * s)], fill=(60, 10, 10, 255), width=int(1.2 * s))
+        # 말풍선
+        bx, by, r = W - 10 * s, 9 * s, 8.5 * s
+        d.ellipse((bx - r, by - r, bx + r, by + r), fill=col + (255,), outline=(255, 255, 255, 255), width=int(1.2 * s))
+        d.polygon([(bx - 6 * s, by + 4 * s), (bx - 2 * s, by + 7 * s), (bx - 10 * s, by + 11 * s)], fill=col + (255,))
+        _s36_icon(d, k, bx, by, 4.6 * s, s)
+    return art('s36_p%d_%d_%d' % (k, mood, look), 40, 56, f)
+
+
+def s36_ring():
+    def f(d, im, s):
+        W, H = im.size
+        d.rounded_rectangle((s, s, W - s, H - s), 8 * s, outline=(255, 220, 90, 255), width=int(2.4 * s))
+    return art('s36_ring', 50, 66, f)
+
+
+# ================================================================== 32. 옛 분교 교무실 방탈출
+WOOD, WOOD_D, WOOD_L = (140, 92, 56), (64, 38, 20), (186, 132, 86)
+
+
+def s32_room():
+    def f(d, im, s):
+        W, H = im.size
+        fy = H - 70 * s           # 바닥 시작
+        d.rectangle((0, 0, W, fy), fill=(58, 70, 96, 255))
+        d.rectangle((0, fy - 34 * s, W, fy), fill=(92, 66, 48, 255))
+        d.line([(0, fy - 34 * s), (W, fy - 34 * s)], fill=(140, 104, 74, 255), width=int(2 * s))
+        for x in range(0, int(W), int(40 * s)):
+            d.line([(x, fy - 32 * s), (x, fy)], fill=(70, 50, 36, 255), width=int(s))
+        d.rectangle((0, fy, W, H), fill=(110, 78, 52, 255))
+        for k in range(1, 6):
+            y = fy + k * 12 * s
+            d.line([(0, y), (W, y)], fill=(86, 60, 40, 255), width=int(s))
+        # 창문 (밤)
+        wx, wy = 300 * s, 22 * s
+        d.rectangle((wx, wy, wx + 70 * s, wy + 52 * s), fill=(14, 20, 46, 255), outline=WOOD_L + (255,), width=int(3 * s))
+        d.line([(wx + 35 * s, wy), (wx + 35 * s, wy + 52 * s)], fill=WOOD_L + (255,), width=int(2 * s))
+        d.line([(wx, wy + 26 * s), (wx + 70 * s, wy + 26 * s)], fill=WOOD_L + (255,), width=int(2 * s))
+        d.ellipse((wx + 46 * s, wy + 6 * s, wx + 58 * s, wy + 18 * s), fill=(240, 240, 210, 255))
+        # 천장 띠와 '교무실' 팻말
+        d.rectangle((0, 0, W, 6 * s), fill=(40, 46, 66, 255))
+    return art('s32_room', 480, 206, f)
+
+
+def s32_organ(state):
+    def f(d, im, s):
+        W, H = im.size
+        d.rounded_rectangle((4 * s, 6 * s, W - 4 * s, H - 4 * s), 4 * s, fill=WOOD + (255,), outline=WOOD_D + (255,), width=int(1.4 * s))
+        d.rectangle((10 * s, 2 * s, W - 10 * s, 10 * s), fill=WOOD_L + (255,), outline=WOOD_D + (255,), width=int(s))
+        d.rectangle((14 * s, 28 * s, W - 14 * s, 38 * s), fill=(250, 248, 240, 255), outline=(40, 30, 20, 255), width=int(s))
+        for k in range(1, 14):
+            x = 14 * s + k * (W - 28 * s) / 14
+            d.line([(x, 28 * s), (x, 38 * s)], fill=(60, 50, 40, 255), width=int(0.6 * s))
+            if k % 7 not in (0, 3):
+                d.rectangle((x - 1.2 * s, 28 * s, x + 1.2 * s, 34 * s), fill=(20, 20, 24, 255))
+        d.rectangle((W * 0.3, 12 * s, W * 0.7, 24 * s), fill=(240, 236, 220, 255))
+        for k in range(4):
+            d.line([(W * 0.32, (14 + k * 2.6) * s), (W * 0.68, (14 + k * 2.6) * s)], fill=(60, 60, 70, 255), width=int(0.5 * s))
+        # 아래 칸
+        bx = (W * 0.3, H - 26 * s, W * 0.7, H - 8 * s)
+        if state == 'open':
+            d.rectangle(bx, fill=(30, 18, 10, 255), outline=WOOD_D + (255,), width=int(s))
+        else:
+            d.rectangle(bx, fill=WOOD_L + (255,), outline=WOOD_D + (255,), width=int(s))
+            d.ellipse((W / 2 - 2 * s, H - 19 * s, W / 2 + 2 * s, H - 15 * s), fill=(220, 200, 120, 255))
+        for x in (10 * s, W - 14 * s):
+            d.rectangle((x, H - 8 * s, x + 4 * s, H), fill=WOOD_D + (255,))
+    return art('s32_organ_%s' % state, 96, 76, f)
+
+
+def s32_frame(state):
+    def f(d, im, s):
+        W, H = im.size
+        if state == 'moved':
+            d.rectangle((12 * s, 8 * s, W - 12 * s, H - 8 * s), fill=(250, 250, 236, 255), outline=(120, 120, 110, 255), width=int(s))
+            for k in range(3):
+                d.line([(16 * s, (14 + k * 5) * s), (W - 16 * s, (14 + k * 5) * s)], fill=(90, 90, 120, 255), width=int(0.8 * s))
+        box = (2 * s, 2 * s, W * 0.62, H * 0.62) if state == 'moved' else (4 * s, 3 * s, W - 4 * s, H - 3 * s)
+        d.rectangle(box, fill=(196, 160, 70, 255), outline=(90, 64, 20, 255), width=int(1.4 * s))
+        x0, y0, x1, y1 = box
+        d.rectangle((x0 + 4 * s, y0 + 4 * s, x1 - 4 * s, y1 - 4 * s), fill=(250, 246, 230, 255))
+        d.text(((x0 + x1) / 2, y0 + (y1 - y0) * 0.36), '상장', font=font('jalnan', int((7 if state == 'hang' else 5) * s)), fill=(150, 30, 40, 255),
+               anchor='mm')
+        for k in range(2):
+            yy = y0 + (y1 - y0) * (0.58 + k * 0.14)
+            d.line([(x0 + 8 * s, yy), (x1 - 8 * s, yy)], fill=(120, 120, 130, 255), width=int(0.6 * s))
+    return art('s32_frame_%s' % state, 54, 42, f)
+
+
+def s32_paper(name, w, h, title):
+    def f(d, im, s):
+        W, H = im.size
+        d.rectangle((s, s, W - s, H - s), fill=(244, 240, 226, 255), outline=(110, 100, 80, 255), width=int(s))
+        d.text((W / 2, 7 * s), title, font=font('nsr', int(6 * s)), fill=(40, 40, 60, 255), anchor='mm')
+        for r in range(2):
+            for c in range(3):
+                x, y = (8 + c * (w - 14) / 3) * s, (15 + r * (h - 20) / 2) * s
+                d.rectangle((x, y, x + ((w - 14) / 3 - 4) * s, y + ((h - 20) / 2 - 4) * s), outline=(90, 90, 110, 255), width=int(0.8 * s))
+        d.ellipse((W / 2 - 2 * s, -1 * s, W / 2 + 2 * s, 3 * s), fill=(220, 60, 60, 255))
+    return art('s32_%s' % name, w, h, f)
+
+
+def s32_board():
+    def f(d, im, s):
+        W, H = im.size
+        d.rectangle((0, 0, W, H), fill=WOOD + (255,))
+        d.rectangle((3 * s, 3 * s, W - 3 * s, H - 3 * s), fill=(34, 70, 52, 255))
+        d.text((W / 2, 11 * s), '알림', font=font('nsr', int(8 * s)), fill=(240, 240, 230, 255), anchor='mm')
+        for k, ln in enumerate(('서랍 번호 =', '결석한 아이들 자리', '(출석 번호 순)')):
+            d.text((W / 2, (23 + k * 9) * s), ln, font=font('nsr', int(6.4 * s)), fill=(230, 236, 220, 255), anchor='mm')
+    return art('s32_board', 96, 56, f)
+
+
+def s32_desk():
+    def f(d, im, s):
+        W, H = im.size
+        d.rectangle((0, 0, W, 8 * s), fill=WOOD_L + (255,), outline=WOOD_D + (255,), width=int(s))
+        d.rectangle((4 * s, 8 * s, W - 4 * s, H), fill=WOOD + (255,), outline=WOOD_D + (255,), width=int(s))
+        d.rectangle((10 * s, 14 * s, 40 * s, H - 4 * s), fill=(120, 78, 46, 255), outline=WOOD_D + (255,), width=int(s))
+    return art('s32_desk', 132, 50, f)
+
+
+def s32_drawer(state):
+    def f(d, im, s):
+        W, H = im.size
+        if state == 'open':
+            d.rectangle((0, 0, W, H), fill=(40, 24, 12, 255), outline=WOOD_D + (255,), width=int(s))
+            d.rectangle((2 * s, H - 6 * s, W - 2 * s, H), fill=WOOD_L + (255,))
+        else:
+            d.rectangle((0, 0, W, H), fill=WOOD_L + (255,), outline=WOOD_D + (255,), width=int(s))
+            d.rounded_rectangle((W / 2 - 7 * s, H / 2 - 3 * s, W / 2 + 7 * s, H / 2 + 3 * s), 2 * s, fill=(150, 156, 176, 255),
+                                outline=(40, 40, 60, 255), width=int(s))
+    return art('s32_drawer_%s' % state, 50, 18, f)
+
+
+def s32_book():
+    def f(d, im, s):
+        W, H = im.size
+        d.polygon([(2 * s, H - 2 * s), (W - 6 * s, H - 2 * s), (W - 2 * s, 2 * s), (6 * s, 2 * s)], fill=(40, 70, 150, 255), outline=(10, 20, 50, 255))
+        d.text((W / 2, H / 2), '출석부', font=font('nsr', int(5 * s)), fill=(255, 255, 255, 255), anchor='mm')
+    return art('s32_book', 32, 14, f)
+
+
+def s32_stove():
+    def f(d, im, s):
+        W, H = im.size
+        d.rectangle((W / 2 - 4 * s, 0, W / 2 + 4 * s, H - 60 * s), fill=(70, 74, 86, 255), outline=(20, 20, 30, 255), width=int(s))
+        d.ellipse((6 * s, H - 66 * s, W - 6 * s, H - 54 * s), fill=(80, 84, 96, 255), outline=(20, 20, 30, 255), width=int(s))
+        d.rounded_rectangle((6 * s, H - 60 * s, W - 6 * s, H - 10 * s), 6 * s, fill=(54, 58, 70, 255), outline=(20, 20, 30, 255), width=int(1.4 * s))
+        d.rounded_rectangle((14 * s, H - 46 * s, W - 14 * s, H - 26 * s), 3 * s, fill=(255, 130, 50, 255), outline=(20, 20, 30, 255), width=int(s))
+        d.ellipse((18 * s, H - 40 * s, W - 18 * s, H - 30 * s), fill=(255, 220, 120, 255))
+        for x in (10 * s, W - 14 * s):
+            d.rectangle((x, H - 10 * s, x + 4 * s, H), fill=(30, 30, 40, 255))
+    return art('s32_stove', 50, 130, f)
+
+
+def s32_safe(state):
+    def f(d, im, s):
+        W, H = im.size
+        d.rounded_rectangle((s, s, W - s, H - s), 4 * s, fill=(70, 80, 104, 255), outline=(16, 20, 34, 255), width=int(1.4 * s))
+        if state == 'open':
+            d.rectangle((5 * s, 5 * s, W - 5 * s, H - 5 * s), fill=(16, 18, 26, 255))
+            d.rectangle((W - 7 * s, 5 * s, W - 1 * s, H - 5 * s), fill=(110, 120, 150, 255))
+        else:
+            d.rectangle((5 * s, 5 * s, W - 5 * s, H - 5 * s), outline=(130, 140, 170, 255), width=int(s))
+            d.ellipse((W / 2 - 9 * s, H / 2 - 11 * s, W / 2 + 9 * s, H / 2 + 7 * s), fill=(200, 205, 220, 255), outline=(30, 30, 40, 255),
+                      width=int(s))
+            d.ellipse((W / 2 - 3 * s, H / 2 - 5 * s, W / 2 + 3 * s, H / 2 + 1 * s), fill=(60, 60, 80, 255))
+            d.rectangle((W / 2 - 1 * s, H / 2 + 11 * s, W / 2 + 1 * s, H / 2 + 16 * s), fill=(20, 20, 30, 255))
+    return art('s32_safe_%s' % state, 46, 50, f)
+
+
+def s32_door(state):
+    def f(d, im, s):
+        W, H = im.size
+        d.rectangle((0, 0, W, H), fill=WOOD_D + (255,))
+        if state == 'open':
+            d.rectangle((4 * s, 4 * s, W - 4 * s, H), fill=(230, 236, 255, 255))
+            d.polygon([(4 * s, 4 * s), (16 * s, 10 * s), (16 * s, H - 6 * s), (4 * s, H)], fill=WOOD + (255,))
+        else:
+            d.rectangle((4 * s, 4 * s, W - 4 * s, H), fill=WOOD + (255,), outline=(50, 30, 16, 255), width=int(s))
+            d.rectangle((10 * s, 12 * s, W - 10 * s, 50 * s), fill=(150, 190, 220, 160), outline=(50, 30, 16, 255), width=int(s))
+            d.line([(W / 2, 12 * s), (W / 2, 50 * s)], fill=(50, 30, 16, 255), width=int(s))
+            d.ellipse((W - 14 * s, H / 2, W - 8 * s, H / 2 + 6 * s), fill=(230, 200, 100, 255))
+            d.rectangle((W - 13 * s, H / 2 + 9 * s, W - 9 * s, H / 2 + 15 * s), fill=(30, 30, 30, 255))
+            d.rounded_rectangle((W / 2 - 16 * s, 56 * s, W / 2 + 16 * s, 66 * s), 2 * s, fill=(240, 236, 220, 255))
+            d.text((W / 2, 61 * s), '교무실', font=font('nsr', int(6 * s)), fill=(40, 30, 30, 255), anchor='mm')
+    return art('s32_door_%s' % state, 56, 124, f)
+
+
+def s32_item(kind):
+    def f(d, im, s):
+        W, H = im.size
+        if kind == 'note':
+            d.polygon([(5 * s, 6 * s), (W - 4 * s, 4 * s), (W - 6 * s, H - 5 * s), (4 * s, H - 4 * s)], fill=(250, 246, 220, 255), outline=(90, 80, 60, 255))
+            for k in range(3):
+                d.line([(8 * s, (10 + k * 4) * s), (W - 9 * s, (9 + k * 4) * s)], fill=(60, 60, 120, 255), width=int(0.8 * s))
+        elif kind == 'sheet':
+            d.rectangle((4 * s, 4 * s, W - 4 * s, H - 4 * s), fill=(250, 250, 244, 255), outline=(90, 90, 100, 255), width=int(s))
+            for k in range(5):
+                d.line([(6 * s, (8 + k * 2.6) * s), (W - 6 * s, (8 + k * 2.6) * s)], fill=(40, 40, 60, 255), width=int(0.5 * s))
+            for x, y in ((10, 17), (15, 13), (20, 15)):
+                d.ellipse(((x - 2) * s, (y - 1.5) * s, (x + 2) * s, (y + 1.5) * s), fill=(20, 20, 30, 255))
+        elif kind == 'tongs':
+            d.line([(5 * s, H - 5 * s), (W - 6 * s, 5 * s)], fill=(160, 166, 186, 255), width=int(2.2 * s))
+            d.line([(9 * s, H - 4 * s), (W - 4 * s, 9 * s)], fill=(130, 136, 156, 255), width=int(2.2 * s))
+            d.ellipse((3 * s, H - 9 * s, 10 * s, H - 2 * s), outline=(200, 205, 220, 255), width=int(1.4 * s))
+        else:
+            big = kind == 'key_d'
+            col = (230, 196, 80, 255) if big else (190, 200, 220, 255)
+            r = (6 if big else 4.5) * s
+            d.ellipse((4 * s, H / 2 - r, 4 * s + 2 * r, H / 2 + r), outline=col, width=int(2.4 * s))
+            d.line([(4 * s + 2 * r, H / 2), (W - 3 * s, H / 2)], fill=col, width=int(2.4 * s))
+            for x in (W - 6 * s, W - 10 * s):
+                d.line([(x, H / 2), (x, H / 2 + 5 * s)], fill=col, width=int(2 * s))
+    return art('s32_item_%s' % kind, 26, 26, f)
+
+
+def s32_slot(sel):
+    def f(d, im, s):
+        W, H = im.size
+        d.rounded_rectangle((s, s, W - s, H - s), 5 * s, fill=(10, 14, 34, 220),
+                            outline=(255, 220, 90, 255) if sel else (90, 110, 180, 255), width=int((2 if sel else 1) * s))
+    return art('s32_slot_%d' % sel, 32, 30, f)
+
+
+def s32_seats():
+    def f(d, im, s):
+        W, H = im.size
+        d.rectangle((0, 0, W, H), fill=(244, 240, 226, 255), outline=(110, 100, 80, 255), width=int(1.4 * s))
+        d.rounded_rectangle((W / 2 - 30 * s, 4 * s, W / 2 + 30 * s, 16 * s), 2 * s, fill=WOOD + (255,))
+        d.text((W / 2, 10 * s), '교탁', font=font('nsr', int(7 * s)), fill=(255, 255, 255, 255), anchor='mm')
+        for r in range(2):
+            for c in range(3):
+                x, y = (14 + c * 66) * s, (24 + r * 42) * s
+                d.rounded_rectangle((x, y, x + 56 * s, y + 34 * s), 3 * s, fill=(226, 196, 150, 255), outline=WOOD_D + (255,), width=int(s))
+                d.ellipse((x + 2 * s, y + 2 * s, x + 14 * s, y + 14 * s), fill=(40, 60, 140, 255))
+                d.text((x + 8 * s, y + 8 * s), str(r * 3 + c + 1), font=font('jalnan', int(8 * s)), fill=(255, 255, 255, 255), anchor='mm')
+    return art('s32_seats', 212, 112, f)
+
+
+def s32_staff():
+    def f(d, im, s):
+        W, H = im.size
+        d.rounded_rectangle((0, 0, W, H), 4 * s, fill=(250, 248, 240, 255), outline=(110, 100, 80, 255), width=int(s))
+        for k in range(5):
+            y = (16 + k * 8) * s
+            d.line([(8 * s, y), (W - 8 * s, y)], fill=(30, 30, 40, 255), width=int(0.8 * s))
+        d.text((14 * s, 56 * s), '도', font=font('nsr', int(6 * s)), fill=(150, 150, 170, 255), anchor='mm')
+        d.text((16 * s, 9 * s), '풍금 악보', font=font('nsr', int(6 * s)), fill=(90, 90, 120, 255), anchor='lm')
+        d.line([(W - 8 * s, 16 * s), (W - 8 * s, 48 * s)], fill=(30, 30, 40, 255), width=int(1.4 * s))
+    return art('s32_staff', 236, 70, f)
+
+
+def s32_notehead(ledger):
+    def f(d, im, s):
+        W, H = im.size
+        if ledger:
+            d.line([(0, H / 2), (W, H / 2)], fill=(30, 30, 40, 255), width=int(0.8 * s))
+        d.ellipse((5 * s, H / 2 - 3 * s, W - 5 * s, H / 2 + 3 * s), fill=(20, 20, 30, 255))
+        d.line([(W - 5.6 * s, H / 2), (W - 5.6 * s, H / 2 - 20 * s)], fill=(20, 20, 30, 255), width=int(1 * s))
+    return art('s32_note_%d' % ledger, 20, 46, f)
+
+
+def s32_key(pressed):
+    def f(d, im, s):
+        W, H = im.size
+        d.rounded_rectangle((s, 0, W - s, H - s), 3 * s, fill=(255, 255, 250, 255) if not pressed else (190, 210, 255, 255),
+                            outline=(40, 40, 50, 255), width=int(1.2 * s))
+    return art('s32_key_%d' % pressed, 28, 72, f)
+
+
+def s32_dial():
+    def f(d, im, s):
+        W = im.width
+        c = W / 2
+        d.ellipse((s, s, W - s, W - s), fill=(160, 166, 186, 255), outline=(30, 34, 50, 255), width=int(2 * s))
+        d.ellipse((W * 0.18, W * 0.18, W * 0.82, W * 0.82), fill=(40, 44, 60, 255))
+        for k in range(10):
+            a = math.radians(-90 + k * 36)
+            d.text((c + math.cos(a) * W * 0.4, c + math.sin(a) * W * 0.4), str(k), font=font('jalnan', int(10 * s)), fill=(20, 24, 40, 255),
+                   anchor='mm')
+            a2 = math.radians(-90 + k * 36 + 18)
+            d.line([(c + math.cos(a2) * W * 0.34, c + math.sin(a2) * W * 0.34), (c + math.cos(a2) * W * 0.47, c + math.sin(a2) * W * 0.47)],
+                   fill=(60, 64, 80, 255), width=int(s))
+        d.ellipse((c - 8 * s, c - 8 * s, c + 8 * s, c + 8 * s), fill=(120, 126, 150, 255))
+    return art('s32_dial', 110, 110, f)
+
+
+def s32_wheel(n):
+    def f(d, im, s):
+        W, H = im.size
+        d.rounded_rectangle((s, s, W - s, H - s), 4 * s, fill=(30, 34, 50, 255), outline=(170, 176, 200, 255), width=int(1.4 * s))
+        for y, a in ((6 * s, 90), (H - 6 * s, 90)):
+            d.text((W / 2, y), str((n + (1 if y < H / 2 else -1)) % 10), font=font('jalnan', int(7 * s)), fill=(120, 126, 150, a), anchor='mm')
+        d.rectangle((3 * s, H / 2 - 10 * s, W - 3 * s, H / 2 + 10 * s), fill=(236, 238, 246, 255))
+        d.text((W / 2, H / 2 + s), str(n), font=font('jalnan', int(15 * s)), fill=(20, 24, 40, 255), anchor='mm')
+    return art('s32_wheel_%d' % n, 30, 46, f)
+
+
+def s32_notes_snd():
+    """풍금 소리 8음 (도~도) mp3. [(이름, 경로, 길이)]"""
+    import numpy as np
+    out = []
+    SR = 22050
+    for k, midi in enumerate((60, 62, 64, 65, 67, 69, 71, 72)):
+        p = os.path.join(ensure_out(), 's32_organ_%d.mp3' % (k + 1))
+        dur = 0.5
+        if not os.path.exists(p):
+            import lameenc
+            t = np.arange(int(SR * dur)) / SR
+            f0 = 440 * 2 ** ((midi - 69) / 12)
+            x = sum(a * np.sin(2 * np.pi * f0 * h * t) for h, a in ((1, 1.0), (2, 0.5), (3, 0.3), (4, 0.15), (5, 0.08)))
+            env = np.minimum(1, t / 0.02) * np.minimum(1, (dur - t) / 0.12)
+            x = x * env
+            x = x / np.max(np.abs(x)) * 0.7
+            enc = lameenc.Encoder()
+            enc.set_bit_rate(64)
+            enc.set_in_sample_rate(SR)
+            enc.set_channels(1)
+            enc.set_quality(2)
+            data = enc.encode((x * 32767).astype(np.int16).tobytes()) + enc.flush()
+            open(p, 'wb').write(data)
+        out.append(('s32_음%d' % (k + 1), p, dur))
+    return out

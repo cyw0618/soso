@@ -362,7 +362,6 @@ def g24(P, ctx):
     bat = m.S('타자', [('ready', AC.batter('ready')), ('swing', AC.batter('swing')), ('follow', AC.batter('follow'))], -50, -72)
     bat.on(on_msg('k24_스윙'), shape('swing'), wait(0.09), shape('follow'), wait(0.45), shape('ready'))
     ball = m.S('공', AC.baseball(), RX, RY, visible=False)
-    BP = sub(timer(), W('t0'))
     ball.on(on_msg('k24_던짐'), S_('hit', 0), ball.pct(30), xy(RX, RY), show(),
             until(or_(gt(W('p'), 1.12), eq(W('hit'), 1)),
                   S_('p', div(sub(timer(), W('t0')), W('T'))),
@@ -693,9 +692,7 @@ def g27(P, ctx):
             lst_set('k27_deck', V('_ma'), LGET('k27_deck', V('_mb'))), lst_set('k27_deck', V('_mb'), V('_mk'))),
         S_('mi', rnd(1, W('n'))), S_('miss', LGET('k27_deck', W('mi'))),
         *[ifelse(le(s, W('n')), [lst_set('k27_show', s, LGET('k27_deck', s))], [lst_set('k27_show', s, 0)]) for s in range(1, 10)],
-        cast('k27_시작'), cast('k27_그림'), setv('미니표시', join('라운드 ', V('라운드'), '/', R, ' · ', V('맞춤'), '개')),
-        write(''), wait(0.01)]
-    mgr2 = m.T('안내담당', '', -300, -300, 8, visible=False)
+        cast('k27_시작'), cast('k27_그림'), setv('미니표시', join('라운드 ', V('라운드'), '/', R, ' · ', V('맞춤'), '개'))]
     msg.on(on_msg('k27_시작'), write(join('물건 ', W('n'), '개! 잘 기억하세요')))
     msg.on(on_msg('k27_덮기'), write('하나를 몰래 꺼내는 중...'))
     msg.on(on_msg('k27_보기'), write('무엇이 사라졌을까요?'))
@@ -711,7 +708,7 @@ def g27(P, ctx):
                          [lst_set('k27_opt', qq, LGET('k27_deck', add(W('n'), qq - 1)))])]) for qq in range(1, 5)]]
     mgr.on(on_msg('게임시작'), setv('라운드', 1),
            until(or_(gt(V('라운드'), R), eq(V('게임중'), 0)),
-                 *rnd_round[:-2],
+                 *rnd_round,
                  wait(LGET('k27_st', V('라운드'))),
                  cast('k27_덮기'), wait(0.5), *rearrange, wait(0.4), cast('k27_그림'), cast('k27_열기'), cast('k27_보기'),
                  S_('ans', 0), S_('t0', timer()), S_('rdy', 1),
@@ -729,3 +726,241 @@ def g27(P, ctx):
     m.finish('서문시장 장바구니 속 물건을 잘 기억하세요! 보자기를\n걷으면 하나가 사라져요. 빠진 물건을 고르세요 (6라운드)',
              '조작: 오른쪽 보기 4개 중 하나 클릭  ·  빨리 맞히면 보너스')
     return True
+
+
+# ================================================================== 28. 대나무 칼 꽂기
+@game(28)
+def g28(P, ctx):
+    TL, LIVES = 60, 3
+    CX, CY, RR = 0, 34, 46
+    KD = RR + 19                       # 꽂힌 칼 가운데까지 거리
+    HY = -96                           # 던지기 전 칼 위치
+    NK = [6, 8, 10]
+    PRE = [0, 2, 3]
+    m = mg(P, ctx, T, 28, time_limit=TL, status='1단계 · ♥3', dim=60)
+    vars_(P, *['k28_' + v for v in ('th', 'w', 'lv', 'left', 'pts', 'cur', 'lives', 'fly', 'na', 'hit', 'dt', 'lt', 't0', 'rdy', 'run')])
+    W = lambda n: V('k28_' + n)
+    S_ = lambda n, v: setv('k28_' + n, v)
+    C_ = lambda n, v: chg('k28_' + n, v)
+    P.list('k28_nk', NK)
+    P.list('k28_pre', PRE)
+    log = m.S('대나무통', AC.bamboo_log(RR), CX, CY)
+    log.on(on_msg('게임시작'), until(eq(W('run'), 0), rot(W('th'))))
+    log.on(on_msg('k28_통과'), rep(3, log.pct(112), wait(0.05), log.pct(100), wait(0.05)))
+    stuck = m.S('꽂힌칼', AC.knife(), 0, -300, visible=False)
+    for v in ('k28_a', '복제', 'k28_d'):
+        stuck.local(v, 0)
+    stuck.on(on_msg('k28_꽂기'), if_(eq(V('복제'), 0), setv('k28_a', W('na')), clone_self()))
+    stuck.on(on_clone(), setv('복제', 1), show(),
+             until(eq(W('run'), 0),
+                   setv('k28_d', add(V('k28_a'), W('th'))),
+                   xy(add(CX, mul(KD, sin_(V('k28_d')))), add(CY, mul(KD, cos_(V('k28_d'))))), rot(sub(V('k28_d'), 180))),
+             del_clone())
+    stuck.on(on_msg('k28_검사'), if_(eq(V('복제'), 1),
+                                    if_(lt(abs_(sub(mod(add(sub(V('k28_a'), W('na')), 540), 360), 180)), 13), S_('hit', 1))))
+    stuck.on(on_msg('k28_비우기'), if_(eq(V('복제'), 1), rep(8, mvy(-6), fx_add('transparency', 12), wait(0.02)), del_clone()))
+    hand = m.S('던질칼', AC.knife(), 0, HY)
+    hand.on(on_msg('k28_던짐'), rep(6, mvy((CY - KD - HY) / 6.0), wait(0.012)))
+    hand.on(on_msg('k28_튕김'), rep(14, mvy(-6), mvx(4), rot_by(25), wait(0.016)), rot(0))
+    hand.on(on_msg('k28_장전'), rot(0), xy(0, HY - 30), show(), glide(0.08, 0, HY))
+    hand.on(on_msg('k28_숨김'), hide())
+    left = m.T('남은칼', '', -176, -100, 12, C_WHITE, F_BODY, True, 0, w=110, h=20)
+    left.on(on_msg('k28_정보'), write(join('남은 칼 ', W('left'), '개')))
+    keys = hidden(m, '칼키')
+    keys.on(on_key(K_SPACE), if_(and_(eq(W('rdy'), 1), eq(W('fly'), 0)), S_('fly', 1), cast('k28_휙')))
+    # 회전 담당 (시간 기준이라 프레임 속도와 무관)
+    spin = hidden(m, '회전담당')
+    spin.on(on_msg('게임시작'), S_('lt', timer()),
+            until(eq(W('run'), 0),
+                  S_('dt', sub(timer(), W('lt'))), S_('lt', timer()), *clamp('k28_dt', 0, 0.1),
+                  ifelse(eq(W('lv'), 1), [S_('w', 2.1)],
+                         [ifelse(eq(W('lv'), 2), [S_('w', add(2.4, mul(1.7, sin_(mul(sub(timer(), W('t0')), 110)))))],
+                                 [S_('w', add(0.7, mul(3.6, sin_(mul(sub(timer(), W('t0')), 75)))))])]),
+                  S_('th', mod(add(W('th'), mul(mul(W('w'), W('dt')), 60)), 360))))
+    mgr = hidden(m, '칼담당')
+    start_level = [cast_wait('k28_비우기'), S_('left', LGET('k28_nk', W('lv'))), S_('cur', 0), S_('t0', timer()),
+                   rep(LGET('k28_pre', W('lv')), S_('na', rnd(0, 359)), S_('hit', 0), cast_wait('k28_검사'),
+                       if_(eq(W('hit'), 0), cast_wait('k28_꽂기'))),
+                   cast('k28_정보'), cast('k28_장전'), S_('fly', 0), S_('rdy', 1),
+                   setv('미니표시', join(W('lv'), '단계 · ♥', W('lives')))]
+    score = add(mul(add(W('pts'), W('cur')), 3.6), ifelse_score(W))
+    mgr.on(on_msg('게임시작'), S_('lv', 1), *start_level)
+    mgr.on(on_msg('k28_휙'),
+           cast('k28_던짐'), wait(0.08),
+           S_('na', mod(sub(180, W('th')), 360)), S_('hit', 0), cast_wait('k28_검사'),
+           ifelse(eq(W('hit'), 1),
+                  [S_('rdy', 0), cast('k28_쨍'), cast('k28_튕김'), C_('lives', -1), wait(0.8),
+                   ifelse(le(W('lives'), 0), [S_('cur', 0), *m.end_blocks(score)],
+                          [S_('cur', 0), cast('k28_실패글'), wait(0.6), *start_level])],
+                  [cast('k28_꽂기'), cast('k28_숨김'), cast('k28_퍽'), C_('cur', 1), C_('left', -1), cast('k28_정보'),
+                   ifelse(le(W('left'), 0),
+                          [S_('rdy', 0), C_('pts', W('cur')), S_('cur', 0), cast('k28_통과'), wait(0.9),
+                           ifelse(ge(W('lv'), 3), [*m.end_blocks(score)], [C_('lv', 1), *start_level])],
+                          [wait(0.05), cast('k28_장전'), wait(0.08), S_('fly', 0)])]))
+    mgr.on(on_msg('시간끝'), S_('rdy', 0), *m.end_blocks(score))
+    mgr.on(on_msg('게임종료'), S_('run', 0))
+    pop_fx(m, '실패글', [('a', K.big_text('칼끼리 쨍! 다시!', 24, 'red'))], 0, -20, 'k28_실패글', 0.4)
+    pop_fx(m, '통과글', [('a', K.big_text('통과!', 34, 'royal'))], 0, -20, 'k28_통과', 0.4)
+    m.on_start(S_('th', 0), S_('lv', 1), S_('pts', 0), S_('cur', 0), S_('lives', LIVES), S_('fly', 0), S_('rdy', 0), S_('run', 1),
+               S_('left', NK[0]), cast('k28_정보'))
+    m.snd('k28_퍽', play('hit'))
+    m.snd('k28_쨍', play('fail_big'))
+    m.snd('k28_통과', play('good'))
+    m.snd('k28_휙', play('jump'))
+    m.finish('돌아가는 대나무 통에 칼을 모두 꽂으면 다음 단계!\n이미 꽂힌 칼에 부딪히면 ♥를 잃어요. (3단계)',
+             '조작: SPACE 칼 던지기  ·  통은 빨라졌다 느려졌다, 거꾸로도 돌아요')
+    return True
+
+
+def ifelse_score(W):
+    """3단계까지 다 깨면 남은 ♥ 하나에 4.5점."""
+    return mul(mul(W('lives'), 4.5), div(sub(W('pts'), mod(W('pts'), 24)), 24))
+
+
+# ================================================================== 29. 정확히 10초
+@game(29)
+def g29(P, ctx):
+    R = 5
+    TG = [5, 10, 7, 12, 10]
+    PX, PY = 30, -10
+    m = mg(P, ctx, T, 29, status='1/%d 라운드' % R, dim=60)
+    vars_(P, *['k29_' + v for v in ('tg', 'st', 't0', 'el', 'e', 'pt', 'fill', 'ft', 'dist')])
+    W = lambda n: V('k29_' + n)
+    S_ = lambda n, v: setv('k29_' + n, v)
+    P.list('k29_tg', TG)
+    m.S('논', AC.paddy(), PX, PY)
+    water = m.S('물', AC.paddy_water(), PX, PY, visible=False)
+    water.on(on_msg('k29_라운드'), hide())
+    water.on(on_msg('k29_열림'), water.pct(4), xy(PX - 99, PY), show(),
+             until(ne(W('st'), 1),
+                   S_('fill', div(sub(timer(), W('t0')), W('ft'))), if_(gt(W('fill'), 1), S_('fill', 1)),
+                   water.pct(add(4, mul(W('fill'), 96))), lx(add(PX - 99, mul(W('fill'), 99))), wait(0.03)))
+    m.S('모', AC.seedlings(), PX, PY)
+    gate = m.S('물꼬', [('c', AC.water_gate(0)), ('o', AC.water_gate(1))], PX - 120, PY)
+    gate.on(on_msg('k29_라운드'), shape('c'))
+    gate.on(on_msg('k29_열림'), shape('o'))
+    gate.on(on_msg('k29_닫힘'), shape('c'))
+    fr = m.S('개구리', [('a', AC.frog(0)), ('b', AC.frog(1))], PX + 120, PY - 50)
+    fr.on(on_msg('k29_열림'), until(ne(W('st'), 1), wait(div(rnd(60, 220), 100)),
+                                   if_(and_(eq(W('st'), 1), ge(W('dist'), 1)), shape('b'), cast('k29_개굴'), wait(0.25), shape('a'))))
+    bird = m.S('참새', AC.sparrow(), -300, 60, visible=False)
+    bird.on(on_msg('k29_열림'), wait(div(rnd(100, 400), 100)),
+            if_(and_(eq(W('st'), 1), ge(W('dist'), 2)), xy(-260, rnd(30, 80)), show(), glide(div(rnd(15, 30), 10), 260, rnd(20, 80)), hide()))
+    tick = hidden(m, '가짜시계')
+    tick.on(on_msg('k29_열림'), wait(0.4), until(ne(W('st'), 1), if_(ge(W('dist'), 3), cast('k29_똑딱')), wait(0.83)))
+    tgt = m.T('목표글', '', PX, 74, 16, C_WHITE, F_BODY, True, 0, w=260, h=24)
+    tgt.on(on_msg('k29_라운드'), write(join('목표: 딱 ', W('tg'), '초')))
+    help_ = m.T('도움글', '', PX, -86, 11, C_ACC, F_BODY, True, 0, w=320, h=18)
+    help_.on(on_msg('k29_라운드'), write('SPACE로 물꼬를 여세요'))
+    help_.on(on_msg('k29_열림'), write('머릿속으로 세다가 SPACE로 닫기!'))
+    help_.on(on_msg('k29_닫힘'), write(join('기록 ', div(rounded(mul(W('el'), 100)), 100), '초 · 오차 ',
+                                           div(rounded(mul(W('e'), 100)), 100), '초')))
+    rate = m.S('평가', [('a', K.big_text('완벽!', 34, 'royal')), ('b', K.big_text('훌륭해요', 28, 'white')),
+                       ('c', K.big_text('아쉬워요', 26, 'gray')), ('d', K.big_text('너무 달라요', 24, 'red'))], PX, 30, visible=False)
+    rate.on(on_msg('k29_닫힘'), shape(V('_mv')), rate.pct(130), show(), rep(5, rate.grow_pct(-6), wait(0.016)), wait(1.3), hide())
+    keys = hidden(m, '물꼬키')
+    keys.on(on_key(K_SPACE), if_(eq(V('게임중'), 1),
+                                 ifelse(eq(W('st'), 0), [S_('t0', timer()), S_('st', 1), cast('k29_열림')],
+                                        [if_(eq(W('st'), 1), S_('el', sub(timer(), W('t0'))), S_('st', 2))])))
+    mgr = hidden(m, '시간담당')
+    mgr.on(on_msg('게임시작'), setv('라운드', 1),
+           until(gt(V('라운드'), R),
+                 S_('tg', LGET('k29_tg', V('라운드'))), S_('dist', sub(V('라운드'), 1)), S_('st', 0), S_('el', 0),
+                 S_('ft', mul(W('tg'), div(rnd(80, 130), 100))),
+                 cast('k29_라운드'), setv('미니표시', join(V('라운드'), '/', R, ' 라운드 · ', rounded(V('합계')), '점')),
+                 setv('_mt', timer()),
+                 wait_until(or_(ne(W('st'), 0), gt(timer(), add(V('_mt'), 8)))),
+                 if_(eq(W('st'), 1),
+                     wait_until(or_(eq(W('st'), 2), gt(timer(), add(W('t0'), add(mul(W('tg'), 2), 2))))),
+                     if_(eq(W('st'), 1), S_('el', sub(timer(), W('t0'))), S_('st', 2))),
+                 ifelse(eq(W('st'), 2),
+                        [S_('e', abs_(sub(W('el'), W('tg')))), S_('pt', sub(20, mul(W('e'), 16))), if_(lt(W('pt'), 0), S_('pt', 0)),
+                         chg('합계', W('pt')),
+                         ifelse(lt(W('e'), 0.2), [setv('_mv', 1)],
+                                [ifelse(lt(W('e'), 0.6), [setv('_mv', 2)], [ifelse(lt(W('e'), 1.2), [setv('_mv', 3)], [setv('_mv', 4)])])]),
+                         cast('k29_닫힘'), wait(2.2)],
+                        [S_('st', 3)]),
+                 chg('라운드', 1)),
+           *m.end_blocks(V('합계')))
+    m.on_start(setv('합계', 0), S_('st', 0), S_('tg', TG[0]))
+    m.snd('k29_열림', play('splash'))
+    m.snd('k29_닫힘', play('stamp'))
+    m.snd('k29_개굴', play('pop'))
+    m.snd('k29_똑딱', play('tick'))
+    m.finish('SPACE로 물꼬를 열고 머릿속으로 목표 시간을 센 뒤\n다시 SPACE로 닫으세요! 시계는 안 보여요 (5라운드)',
+             '조작: SPACE 열기/닫기  ·  개구리·참새·가짜 똑딱 소리에 속지 마세요')
+    return True
+
+
+# ================================================================== 30. 씨름
+@game(30)
+def g30(P, ctx):
+    TL = 50
+    m = mg(P, ctx, T, 30, time_limit=TL, status='나 0 : 0 상대', dim=60)
+    vars_(P, *['k30_' + v for v in ('bal', 'F', 'tf', 'win', 'lose', 'tip', 'st', 'dt', 'lt', 'f', 'nt', 'cool', 'rnd')])
+    W = lambda n: V('k30_' + n)
+    S_ = lambda n, v: setv('k30_' + n, v)
+    C_ = lambda n, v: chg('k30_' + n, v)
+    m.S('모래판', AC.sand_ring(), 0, -66)
+    pair = m.S('장사', [('n', AC.wrestlers('n')), ('t', AC.wrestlers('t')), ('w', AC.wrestlers('w')), ('l', AC.wrestlers('l'))], 0, -18)
+    pair.on(on_msg('k30_판시작'), shape('n'), rot(0), xy(0, -18))
+    pair.on(on_msg('게임시작'), until(eq(V('게임중'), 0), if_(eq(W('st'), 1), rot(mul(W('bal'), 0.18)), lx(mul(W('bal'), 0.25)))))
+    pair.on(on_msg('k30_기울'), shape('t'))
+    pair.on(on_msg('k30_바로'), if_(eq(W('st'), 1), shape('n')))
+    pair.on(on_msg('k30_이김'), rot(0), shape('w'))
+    pair.on(on_msg('k30_짐'), rot(0), shape('l'))
+    m.S('균형막대', AC.balance_bar(), 0, -112)
+    knob = m.S('균형표시', AC.bar_knob(), 0, -100)
+    knob.on(on_msg('게임시작'), until(eq(V('게임중'), 0), lx(mul(W('bal'), 1.32))))
+    m.S('내얼굴', ctx['PORT']['me'], -196, 70)
+    m.S('상대얼굴', ctx['PORT']['p1'], 196, 70)
+    m.S('나표', K.badge('나', 40, 16, 'royal'), -196, 46)
+    m.S('상대표', K.badge('상대', 40, 16, 'red'), 196, 46)
+    board = m.T('판수', '0 : 0', 0, 84, 18, C_WHITE, F_NUM, False, 0, w=120, h=24)
+    board.on(on_msg('k30_점수'), write(join(W('win'), ' : ', W('lose'))))
+    tipw = m.S('기울었다', K.big_text('기울었다! 지금!', 26, 'royal'), 60, 50, visible=False)
+    tipw.on(on_msg('k30_기울'), tipw.pct(70), show(), rep(4, tipw.grow_pct(8), wait(0.016)))
+    tipw.on(on_msg('k30_바로'), hide())
+    keys = hidden(m, '씨름키')
+    keys.on(on_key(K_SPACE), if_(and_(eq(W('st'), 1), eq(W('cool'), 0)), S_('cool', 1),
+                                 ifelse(and_(eq(W('tip'), 1), lt(abs_(W('bal')), 55)),
+                                        [S_('st', 2), cast('k30_바로'), cast('k30_이김'), C_('win', 1), setv('_mv', 1), cast('k30_판끝')],
+                                        [cast('k30_헛기술'), ifelse(lt(W('bal'), 0), [C_('bal', -30)], [C_('bal', 30)]),
+                                         S_('F', mul(W('F'), 1.6))]),
+                                 wait(0.35), S_('cool', 0)))
+    mgr = hidden(m, '씨름담당')
+    sign_rnd = sub(mul(rnd(0, 1), 2), 1)
+    mgr.on(on_msg('k30_판시작'), S_('bal', 0), S_('F', 0), S_('tip', 0), S_('nt', add(timer(), div(rnd(20, 32), 10))),
+           S_('tf', add(timer(), 0.5)), S_('lt', timer()), S_('st', 1), cast('k30_점수'),
+           until(ne(W('st'), 1),
+                 S_('dt', sub(timer(), W('lt'))), S_('lt', timer()), *clamp('k30_dt', 0, 0.1), S_('f', mul(W('dt'), 60)),
+                 if_(gt(timer(), W('tf')),
+                     S_('F', mul(sign_rnd, div(rnd(50, add(100, mul(W('rnd'), 20))), 100))), S_('tf', add(timer(), div(rnd(4, 11), 10)))),
+                 if_(key(K_LEFT), C_('bal', mul(W('f'), -1.7))), if_(key(K_RIGHT), C_('bal', mul(W('f'), 1.7))),
+                 C_('bal', mul(add(W('F'), mul(W('bal'), 0.012)), W('f'))),
+                 # 상대가 기우는 순간 (기술 기회)
+                 if_(and_(eq(W('tip'), 0), gt(timer(), W('nt'))), S_('tip', 1), S_('nt', add(timer(), 0.75)), cast('k30_기울')),
+                 if_(and_(eq(W('tip'), 1), gt(timer(), W('nt'))), S_('tip', 0), S_('nt', add(timer(), div(rnd(22, 38), 10))),
+                     cast('k30_바로')),
+                 if_(ge(abs_(W('bal')), 100), S_('st', 2), cast('k30_바로'), cast('k30_짐'), C_('lose', 1), setv('_mv', 2), cast('k30_판끝'))))
+    final = ifelse_final(W)
+    mgr.on(on_msg('k30_판끝'), cast('k30_점수'), setv('미니표시', join('나 ', W('win'), ' : ', W('lose'), ' 상대')), wait(1.6),
+           ifelse(or_(ge(W('win'), 2), ge(W('lose'), 2)), [*m.end_blocks(final)], [C_('rnd', 1), cast('k30_판시작')]))
+    mgr.on(on_msg('게임시작'), S_('rnd', 1), cast('k30_판시작'))
+    mgr.on(on_msg('시간끝'), S_('st', 2), *m.end_blocks(final))
+    pop_fx(m, '판결과', [('a', K.big_text('넘겼다! 한 판!', 30, 'royal')), ('b', K.big_text('넘어갔다...', 28, 'red'))],
+           0, 30, 'k30_판끝', 0.7)
+    pop_fx(m, '헛기술', [('a', K.big_text('헛기술!', 22, 'red'))], -60, 40, 'k30_헛기술', 0.2)
+    m.on_start(S_('win', 0), S_('lose', 0), S_('st', 0), S_('bal', 0), S_('tip', 0), S_('cool', 0), cast('k30_점수'))
+    m.snd('k30_기울', play('alarm'))
+    m.snd('k30_헛기술', play('bad'))
+    m.snd('k30_판끝', ifelse(eq(V('_mv'), 1), [play('fanfare')], [play('fail_big')]))
+    m.finish('← → 로 균형을 가운데에 지키며 버티다가, 상대가\n"기울었다!" 할 때 SPACE로 넘기세요! (3판 2선승)',
+             '조작: ← → 버티기 · SPACE 기술  ·  아무 때나 쓰면 헛기술로 흔들려요')
+    return True
+
+
+def ifelse_final(W):
+    """2판을 먼저 이기면 100 - 진 판×20, 아니면 이긴 판×35 + 10."""
+    won = div(sub(W('win'), mod(W('win'), 2)), 2)          # win>=2 이면 1 (win 은 0~2)
+    return add(mul(won, sub(100, mul(W('lose'), 20))), mul(sub(1, won), add(mul(W('win'), 35), 10)))

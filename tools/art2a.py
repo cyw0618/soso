@@ -453,3 +453,346 @@ def s05_ring():
         d.ellipse((1 * s, 1 * s, W - 1 * s, W - 1 * s), outline=(80, 255, 170, 255), width=int(2.4 * s))
         d.ellipse((W * 0.36, W * 0.36, W * 0.64, W * 0.64), fill=(80, 255, 170, 255))
     return art('s05_ring', 22, 22, f)
+
+
+# ================================================================== 6. 모닥불 지키기
+def s06_flame(k):
+    def f(d, im, s):
+        W, H = im.width, im.height
+        layers = [((230, 60, 30), 1.0), ((255, 140, 30), 0.76), ((255, 214, 90), 0.5), ((255, 248, 220), 0.26)]
+        for li, (col, sc) in enumerate(layers):
+            left, right = [], []
+            n = 24
+            for i in range(n + 1):
+                v = i / n
+                hw = W * 0.46 * sc * (1 - v) ** 0.85 * min(1.0, v * 2.6 + 0.45)
+                cx = W / 2 + math.sin(v * 5.0 + k * 2.1 + li) * W * 0.07 * v
+                y = H - 3 * s - v * (H - 6 * s) * (0.35 + 0.65 * sc)
+                left.append((cx - hw, y))
+                right.append((cx + hw, y))
+            d.polygon(left + right[::-1], fill=col + (255,))
+    return art('s06_flame2_%d' % k, 70, 100, f)
+
+
+def s06_pit():
+    def f(d, im, s):
+        W, H = im.width, im.height
+        d.ellipse((6 * s, H * 0.30, W - 6 * s, H - 2 * s), fill=(40, 30, 30, 255))
+        d.ellipse((18 * s, H * 0.38, W - 18 * s, H - 8 * s), fill=(90, 50, 30, 255))
+        rnd = random.Random(6)
+        for i in range(11):
+            a = math.pi * (0.05 + 0.9 * i / 10)
+            x = W / 2 - math.cos(a) * (W / 2 - 10 * s)
+            y = H * 0.66 + math.sin(a) * H * 0.26
+            r = (7 + rnd.random() * 3) * s
+            g = 110 + rnd.randint(0, 40)
+            d.ellipse((x - r, y - r * 0.75, x + r, y + r * 0.75), fill=(g, g - 6, g + 6, 255), outline=(30, 30, 40, 255), width=int(1 * s))
+        d.line([(W * 0.28, H * 0.62), (W * 0.72, H * 0.50)], fill=(80, 46, 24, 255), width=int(7 * s))
+        d.line([(W * 0.30, H * 0.48), (W * 0.70, H * 0.64)], fill=(100, 60, 30, 255), width=int(7 * s))
+    return art('s06_pit', 130, 40, f)
+
+
+def s06_log(lit):
+    def f(d, im, s):
+        W, H = im.width, im.height
+        bark = (110, 66, 34) if not lit else (70, 36, 20)
+        d.rounded_rectangle((1 * s, 2 * s, W - 1 * s, H - 2 * s), 6 * s, fill=bark + (255,), outline=(40, 20, 10, 255), width=int(1 * s))
+        d.ellipse((W - 12 * s, 2 * s, W - 1 * s, H - 2 * s), fill=(214, 170, 110, 255) if not lit else (255, 120, 30, 255),
+                  outline=(40, 20, 10, 255), width=int(1 * s))
+        if lit:
+            for x in (0.2, 0.42, 0.62):
+                d.line([(W * x, H * 0.35), (W * (x + 0.1), H * 0.65)], fill=(255, 150, 40, 255), width=int(1.6 * s))
+        else:
+            d.line([(W * 0.15, H * 0.4), (W * 0.7, H * 0.4)], fill=(80, 46, 20, 255), width=int(1 * s))
+    return art('s06_log_%d' % lit, 44, 14, f)
+
+
+def s06_twig():
+    def f(d, im, s):
+        W, H = im.width, im.height
+        d.line([(2 * s, H * 0.7), (W - 2 * s, H * 0.3)], fill=(120, 80, 40, 255), width=int(2.2 * s))
+        d.line([(W * 0.45, H * 0.5), (W * 0.62, H * 0.1)], fill=(120, 80, 40, 255), width=int(1.6 * s))
+        d.line([(W * 0.25, H * 0.6), (W * 0.30, H * 0.95)], fill=(120, 80, 40, 255), width=int(1.4 * s))
+    return art('s06_twig', 34, 16, f)
+
+
+def s06_gauge():
+    def f(d, im, s):
+        W, H = im.width, im.height
+        top, bot = 3 * s, H - 3 * s
+        h = bot - top
+        d.rounded_rectangle((1 * s, 1 * s, W - 1 * s, H - 1 * s), 6 * s, fill=(8, 10, 24, 245))
+        for a, b, col in ((0, 0.45, (70, 90, 150)), (0.45, 0.75, (60, 200, 110)), (0.75, 0.85, (240, 160, 50)), (0.85, 1.0, (230, 50, 60))):
+            d.rectangle((3.5 * s, bot - h * b, W - 3.5 * s, bot - h * a), fill=col + (255,))
+        d.rounded_rectangle((1 * s, 1 * s, W - 1 * s, H - 1 * s), 6 * s, outline=(230, 236, 255, 255), width=int(1.4 * s))
+    return art('s06_gauge', 16, 150, f)
+
+
+def s06_wind():
+    def f(d, im, s):
+        W, H = im.width, im.height
+        for y, x0, x1 in ((0.2, 0.1, 0.8), (0.5, 0.0, 0.95), (0.8, 0.2, 0.75)):
+            d.line([(W * x0, H * y), (W * x1, H * y)], fill=(230, 240, 255, 255), width=int(2 * s))
+            d.arc((W * x0 - 8 * s, H * y - 10 * s, W * x0 + 8 * s, H * y), 90, 270, fill=(230, 240, 255, 255), width=int(2 * s))
+    return art('s06_wind', 120, 40, f)
+
+
+def s06_drop():
+    return A3.line_img('s06_drop', 4, 14, [(0.5, 0.0), (0.5, 1.0)], (160, 200, 255), width=1.6)
+
+
+def s06_spark():
+    return A3.disc('s06_spark', 3, (255, 200, 60), rim=(255, 120, 30), rimw=0.8)
+
+
+# ================================================================== 8. 기록물 복원
+_DOC = {}
+
+
+def _doc_image(k):
+    """기록물 전체 그림 (A3.S 배 해상도). k=0: 180×180 (3×3) / k=1: 200×150 (4×3)."""
+    if k in _DOC:
+        return _DOC[k]
+    s = A3.S
+    w, h = (180, 180) if k == 0 else (200, 150)
+    im = Image.new('RGBA', (w * s, h * s), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    W, H = im.size
+    rnd = random.Random(80 + k)
+    d.rectangle((0, 0, W, H), fill=(238, 224, 188, 255))
+    for i in range(7):
+        x, y, r = rnd.uniform(0, W), rnd.uniform(0, H), rnd.uniform(10, 26) * s
+        d.ellipse((x - r, y - r * 0.7, x + r, y + r * 0.7), fill=(226, 208, 166, 255))
+    d.rectangle((0, 0, W - 1, H - 1), outline=(170, 140, 96, 255), width=int(2 * s))
+    ink, red = (70, 46, 30, 255), (200, 40, 50, 255)
+    F = lambda sz: font('nsr', int(sz * s))
+    if k == 0:
+        d.rectangle((8 * s, 8 * s, W - 8 * s, 12 * s), fill=red)
+        d.text((W / 2, 22 * s), '대통령 기록물 제1호', font=F(9), fill=red, anchor='mm')
+        d.text((W / 2, 40 * s), '행정수도 건설 계획서', font=F(15), fill=ink, anchor='mm')
+        d.line([(14 * s, 53 * s), (W - 14 * s, 53 * s)], fill=ink, width=int(1.2 * s))
+        # 사진 (오른쪽 가운데)
+        px0, py0, px1, py1 = 104 * s, 62 * s, 168 * s, 116 * s
+        d.rectangle((px0, py0, px1, py1), fill=(120, 150, 190, 255), outline=(60, 50, 40, 255), width=int(1.5 * s))
+        d.rectangle((px0, py0 + (py1 - py0) * 0.62, px1, py1), fill=(90, 130, 90, 255))
+        for i, (bx, bh) in enumerate(((0.12, 0.40), (0.30, 0.55), (0.52, 0.34), (0.72, 0.48))):
+            x0 = px0 + (px1 - px0) * bx
+            d.rectangle((x0, py0 + (py1 - py0) * (0.62 - bh), x0 + (px1 - px0) * 0.15, py0 + (py1 - py0) * 0.62), fill=(70, 80, 110, 255))
+        d.ellipse((px1 - 16 * s, py0 + 5 * s, px1 - 6 * s, py0 + 15 * s), fill=(250, 230, 160, 255))
+        # 글줄 (왼쪽)
+        for i in range(6):
+            y = (66 + i * 9) * s
+            ln = rnd.uniform(0.6, 1.0)
+            d.line([(14 * s, y), (14 * s + 80 * s * ln, y)], fill=(120, 100, 80, 255), width=int(2.4 * s))
+        for i in range(3):
+            y = (126 + i * 9) * s
+            d.line([(14 * s, y), (14 * s + 150 * s * rnd.uniform(0.6, 1.0), y)], fill=(120, 100, 80, 255), width=int(2.4 * s))
+        d.text((16 * s, 163 * s), '2004. 4. 15.', font=F(9), fill=ink, anchor='lm')
+        cx, cy, r = 146 * s, 156 * s, 16 * s
+        d.ellipse((cx - r, cy - r, cx + r, cy + r), outline=red, width=int(2.4 * s))
+        d.ellipse((cx - r * 0.72, cy - r * 0.72, cx + r * 0.72, cy + r * 0.72), outline=red, width=int(1 * s))
+        d.text((cx, cy - 3 * s), '대통령', font=F(6.5), fill=red, anchor='mm')
+        d.text((cx, cy + 5 * s), '기록관', font=F(6.5), fill=red, anchor='mm')
+    else:
+        d.rectangle((0, 0, W, 26 * s), fill=(40, 70, 130, 255))
+        d.text((W / 2, 13 * s), '세종시 출범 기념 사진첩', font=F(12), fill=(255, 255, 255, 255), anchor='mm')
+        px0, py0, px1, py1 = 14 * s, 34 * s, 186 * s, 112 * s
+        d.rectangle((px0, py0, px1, py1), fill=(150, 196, 236, 255), outline=(60, 50, 40, 255), width=int(1.5 * s))
+        d.ellipse((px0 + 18 * s, py0 + 8 * s, px0 + 34 * s, py0 + 24 * s), fill=(255, 220, 120, 255))
+        d.polygon([(px0, py0 + 50 * s), (px0 + 50 * s, py0 + 30 * s), (px0 + 100 * s, py0 + 46 * s), (px1, py0 + 26 * s), (px1, py1), (px0, py1)],
+                  fill=(90, 140, 110, 255))
+        d.rectangle((px0, py0 + 58 * s, px1, py1), fill=(70, 120, 200, 255))
+        for i, (bx, bh, col) in enumerate(((0.55, 34, (230, 230, 240)), (0.64, 44, (200, 210, 230)), (0.74, 28, (240, 236, 220)), (0.84, 38, (210, 220, 240)))):
+            x0 = px0 + (px1 - px0) * bx
+            d.rectangle((x0, py0 + 58 * s - bh * s, x0 + 12 * s, py0 + 58 * s), fill=col + (255,), outline=(90, 100, 120, 255))
+        d.ellipse((px0 + 30 * s, py0 + 50 * s, px0 + 96 * s, py0 + 70 * s), outline=(250, 250, 255, 255), width=int(2.4 * s))
+        for (tx, ty) in ((px0 - 4 * s, py0 - 4 * s), (px1 - 14 * s, py0 - 4 * s)):
+            d.rectangle((tx, ty, tx + 18 * s, ty + 8 * s), fill=(250, 240, 200, 255), outline=(200, 180, 130, 255))
+        d.text((20 * s, 124 * s), '2012. 7. 1. 세종특별자치시 출범', font=F(8.5), fill=ink, anchor='lm')
+        d.line([(20 * s, 136 * s), (120 * s, 136 * s)], fill=(120, 100, 80, 255), width=int(2.2 * s))
+        cx, cy, r = 172 * s, 130 * s, 14 * s
+        d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(250, 220, 220, 255), outline=red, width=int(2.4 * s))
+        d.text((cx, cy), '기록', font=F(8), fill=red, anchor='mm')
+    _DOC[k] = im
+    return im
+
+
+def s08_piece(k, idx):
+    """k 번 문서의 idx(0부터) 번 조각."""
+    cols, cell = (3, 60) if k == 0 else (4, 50)
+    r, c = divmod(idx, cols)
+
+    def f(d, im, s):
+        full = _doc_image(k)
+        crop = full.crop((c * cell * s, r * cell * s, (c + 1) * cell * s, (r + 1) * cell * s))
+        im.paste(crop, (0, 0))
+        d.rectangle((0, 0, im.width - 1, im.height - 1), outline=(110, 84, 50, 255), width=int(1.2 * s))
+    return art('s08_p%d_%02d' % (k, idx), cell, cell, f)
+
+
+def s08_full(k):
+    w, h = (180, 180) if k == 0 else (200, 150)
+
+    def f(d, im, s):
+        im.paste(_doc_image(k), (0, 0))
+    return art('s08_full_%d' % k, w, h, f)
+
+
+def s08_board(k):
+    cols, rows, cell = (3, 3, 60) if k == 0 else (4, 3, 50)
+
+    def f(d, im, s):
+        W, H = im.width, im.height
+        d.rectangle((0, 0, W - 1, H - 1), outline=(150, 170, 230, 255), width=int(1.6 * s))
+        for i in range(1, cols):
+            x = W * i / cols
+            for y in range(0, H, int(6 * s)):
+                d.line([(x, y), (x, y + 3 * s)], fill=(150, 170, 230, 255), width=int(1 * s))
+        for j in range(1, rows):
+            y = H * j / rows
+            for x in range(0, W, int(6 * s)):
+                d.line([(x, y), (x + 3 * s, y)], fill=(150, 170, 230, 255), width=int(1 * s))
+    return art('s08_board_%d' % k, cols * cell, rows * cell, f)
+
+
+# ================================================================== 9. 고구마 캐기
+def s09_potato():
+    def f(d, im, s):
+        W, H = im.width, im.height
+        d.ellipse((2 * s, 3 * s, W - 2 * s, H - 2 * s), fill=(170, 50, 90, 255), outline=(80, 20, 40, 255), width=int(1.4 * s))
+        d.ellipse((W * 0.18, H * 0.18, W * 0.62, H * 0.42), fill=(210, 100, 140, 255))
+        for x, y in ((0.30, 0.62), (0.55, 0.70), (0.72, 0.45), (0.45, 0.35)):
+            d.line([(W * x, H * y), (W * x + 3 * s, H * y + 1 * s)], fill=(100, 30, 60, 255), width=int(1 * s))
+        d.polygon([(W * 0.94, H * 0.48), (W, H * 0.40), (W * 0.98, H * 0.56)], fill=(120, 40, 70, 255))
+    return art('s09_potato', 60, 34, f)
+
+
+def s09_grip():
+    def f(d, im, s):
+        W, H = im.width, im.height
+        g, dk = (70, 170, 80), (24, 90, 40)
+        for a, ln in ((-50, 0.46), (-120, 0.44), (-85, 0.48), (-20, 0.36), (-160, 0.36)):
+            r = math.radians(a)
+            x1, y1 = W / 2 + math.cos(r) * W * ln, H * 0.62 + math.sin(r) * H * ln
+            d.line([(W / 2, H * 0.62), (x1, y1)], fill=dk + (255,), width=int(1.4 * s))
+            d.ellipse((x1 - 5 * s, y1 - 3.5 * s, x1 + 5 * s, y1 + 3.5 * s), fill=g + (255,), outline=dk + (255,), width=int(0.8 * s))
+        d.ellipse((W / 2 - 6 * s, H * 0.62 - 6 * s, W / 2 + 6 * s, H * 0.62 + 6 * s), fill=(250, 220, 190, 255), outline=(120, 70, 40, 255),
+                  width=int(1.2 * s))
+    return art('s09_grip', 36, 34, f)
+
+
+def s09_soil():
+    def f(d, im, s):
+        W, H = im.width, im.height
+        d.rounded_rectangle((0, 0, W, H), 8 * s, fill=(110, 70, 40, 255))
+        d.rectangle((0, 0, W, 8 * s), fill=(90, 140, 60, 255))
+        rnd = random.Random(9)
+        for i in range(26):
+            x, y = rnd.uniform(0, W), rnd.uniform(12 * s, H)
+            r = rnd.uniform(1.5, 4) * s
+            c = rnd.choice([(130, 90, 56), (90, 56, 30), (150, 140, 130)])
+            d.ellipse((x - r, y - r * 0.7, x + r, y + r * 0.7), fill=c + (255,))
+        for i in range(5):
+            x = rnd.uniform(0.1, 0.9) * W
+            d.line([(x, 8 * s), (x + rnd.uniform(-20, 20) * s, rnd.uniform(20, 40) * s)], fill=(160, 120, 80, 255), width=int(1 * s))
+        d.rounded_rectangle((0, 0, W - 1, H - 1), 8 * s, outline=(50, 30, 16, 255), width=int(1.5 * s))
+    return art('s09_soil', 270, 100, f)
+
+
+def s09_meter():
+    def f(d, im, s):
+        W, H = im.width, im.height
+        top, bot = 3 * s, H - 3 * s
+        h = bot - top
+        d.rounded_rectangle((1 * s, 1 * s, W - 1 * s, H - 1 * s), 6 * s, fill=(8, 10, 24, 245))
+        for a, b, col in ((0, 0.12, (90, 100, 130)), (0.12, 0.8, (60, 200, 110)), (0.8, 1.0, (230, 50, 60))):
+            d.rectangle((3.5 * s, bot - h * b, W - 3.5 * s, bot - h * a), fill=col + (255,))
+        d.rounded_rectangle((1 * s, 1 * s, W - 1 * s, H - 1 * s), 6 * s, outline=(230, 236, 255, 255), width=int(1.4 * s))
+        d.text((W / 2, bot - h * 0.9), '!', font=font('jalnan', int(9 * s)), fill=(255, 255, 255, 255), anchor='mm')
+    return art('s09_meter', 16, 140, f)
+
+
+def s09_basket():
+    def f(d, im, s):
+        W, H = im.width, im.height
+        d.polygon([(2 * s, H * 0.3), (W - 2 * s, H * 0.3), (W * 0.85, H - 2 * s), (W * 0.15, H - 2 * s)], fill=(196, 150, 80, 255),
+                  outline=(110, 76, 30, 255))
+        for i in range(1, 4):
+            y = H * 0.3 + (H * 0.7 - 2 * s) * i / 4
+            d.line([(W * 0.06, y), (W * 0.94, y)], fill=(150, 110, 50, 255), width=int(1.2 * s))
+        d.ellipse((2 * s, H * 0.18, W - 2 * s, H * 0.42), outline=(110, 76, 30, 255), width=int(2 * s))
+    return art('s09_basket', 64, 40, f)
+
+
+# ================================================================== 10. 마라톤 페이스
+def s10_runner(col, frame):
+    """col: 셔츠 색, frame: a / b / fall."""
+    def f(d, im, s):
+        W, H = im.width, im.height
+        skin, pants = (236, 196, 166), (20, 24, 50)
+        hip, sh = (W * 0.50, H * 0.58), (W * 0.54, H * 0.32)
+        poses = {'a': dict(fl=((0.68, 0.74), (0.80, 0.94)), bl=((0.38, 0.76), (0.22, 0.90)), fa=((0.70, 0.40), (0.80, 0.30)),
+                           ba=((0.40, 0.44), (0.30, 0.54))),
+                 'b': dict(fl=((0.58, 0.78), (0.52, 0.97)), bl=((0.44, 0.78), (0.40, 0.97)), fa=((0.62, 0.46), (0.70, 0.54)),
+                           ba=((0.46, 0.42), (0.40, 0.30))),
+                 'fall': dict(fl=((0.60, 0.80), (0.62, 0.97)), bl=((0.42, 0.80), (0.36, 0.97)), fa=((0.66, 0.50), (0.70, 0.66)),
+                              ba=((0.44, 0.50), (0.40, 0.66)))}[frame]
+        lw = 4.2 * s
+
+        def limb(a, b, c, cc):
+            d.line([a, (W * b[0], H * b[1]), (W * c[0], H * c[1])], fill=cc + (255,), width=int(lw), joint='curve')
+        if frame == 'fall':
+            hip, sh = (W * 0.50, H * 0.66), (W * 0.62, H * 0.44)
+        limb(hip, *poses['bl'], pants)
+        limb(sh, *poses['ba'], skin)
+        d.line([hip, sh], fill=col + (255,), width=int(9 * s))
+        limb(hip, *poses['fl'], pants)
+        limb(sh, *poses['fa'], skin)
+        hx, hy = sh[0] + 1.5 * s, sh[1] - H * 0.14
+        d.ellipse((hx - 6.5 * s, hy - 7 * s, hx + 6.5 * s, hy + 7 * s), fill=skin + (255,), outline=(40, 24, 16, 255), width=int(1 * s))
+        d.chord((hx - 7 * s, hy - 8 * s, hx + 7 * s, hy + 4 * s), 180, 360, fill=(20, 18, 24, 255))
+        d.rectangle((hx - 7 * s, hy - 3 * s, hx + 7 * s, hy - 1 * s), fill=col + (255,))
+        if frame == 'fall':
+            for k in range(3):
+                d.ellipse((hx + (8 + k * 4) * s, hy - (6 - k * 3) * s, hx + (10 + k * 4) * s, hy - (2 - k * 3) * s), fill=(120, 200, 255, 255))
+    name = 's10_run_%d_%d_%d_%s' % (col + (frame,))
+    return art(name, 44, 56, f)
+
+
+def s10_track_bar():
+    def f(d, im, s):
+        W, H = im.width, im.height
+        d.rounded_rectangle((0, H * 0.3, W, H * 0.7), H * 0.2, fill=(10, 14, 34, 240), outline=(150, 170, 230, 255), width=int(1 * s))
+        for i in range(0, 4):
+            x = W * 0.02 + (W * 0.96) * i / 3
+            d.line([(x, H * 0.15), (x, H * 0.85)], fill=(150, 170, 230, 255), width=int(1 * s))
+        for i in range(8):
+            for j in range(2):
+                c = (255, 255, 255) if (i + j) % 2 == 0 else (20, 20, 30)
+                x0 = W * 0.98 - 1 * s + 0
+                d.rectangle((W - 8 * s + (i % 2) * 4 * s, j * H / 2, W - 4 * s + (i % 2) * 4 * s, (j + 1) * H / 2), fill=c + (255,)) if False else None
+        d.rectangle((W - 5 * s, 0, W - 1 * s, H), fill=(255, 255, 255, 255))
+    return art('s10_bar', 300, 12, f)
+
+
+def s10_post():
+    def f(d, im, s):
+        W, H = im.width, im.height
+        d.rectangle((W * 0.45, H * 0.2, W * 0.55, H), fill=(220, 224, 236, 255))
+        d.rounded_rectangle((0, 0, W, H * 0.34), 2 * s, fill=(40, 70, 160, 255), outline=(230, 236, 255, 255), width=int(1 * s))
+    return art('s10_post', 20, 40, f)
+
+
+def s10_finish():
+    def f(d, im, s):
+        W, H = im.width, im.height
+        for x in (0, W - 4 * s):
+            d.rectangle((x, 0, x + 4 * s, H), fill=(220, 224, 236, 255))
+        d.rectangle((0, 0, W, 14 * s), fill=(200, 40, 60, 255))
+        d.text((W / 2, 7 * s), 'FINISH', font=font('jalnan', int(9 * s)), fill=(255, 255, 255, 255), anchor='mm')
+        n = 6
+        for i in range(n):
+            for j in range(2):
+                c = (255, 255, 255) if (i + j) % 2 == 0 else (20, 20, 30)
+                d.rectangle((W * 0.3 + i * 3 * s, H - (j + 1) * 3 * s, W * 0.3 + (i + 1) * 3 * s, H - j * 3 * s), fill=c + (255,))
+    return art('s10_finish', 70, 90, f)

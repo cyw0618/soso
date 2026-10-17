@@ -703,3 +703,180 @@ def cloth(w=232, h=178):
         for y in range(0, int(H), int(16 * s)):
             d.line((0, y, W, y), fill=(240, 240, 240, 140), width=int(2 * s))
     return art('k27_cloth', w, h, f, colors=32)
+
+
+# ================================================================== 28 대나무 칼 꽂기
+def bamboo_log(r=46):
+    def f(d, im, s):
+        W = im.width
+        c = W / 2
+        d.ellipse((0, 0, W - 1, W - 1), fill=(40, 120, 60, 255), outline=(20, 70, 30, 255), width=int(1.5 * s))
+        d.ellipse((5 * s, 5 * s, W - 5 * s, W - 5 * s), fill=(214, 190, 120, 255))
+        for k in range(3):
+            rr = (r - 10 - k * 9) * s
+            d.ellipse((c - rr, c - rr, c + rr, c + rr), outline=(180, 150, 90, 255), width=int(1 * s))
+        for i in range(8):
+            a = math.radians(i * 45)
+            d.line((c + 9 * s * math.cos(a), c + 9 * s * math.sin(a), c + (r - 7) * s * math.cos(a), c + (r - 7) * s * math.sin(a)),
+                   fill=(170, 135, 80, 255), width=int(1.2 * s))
+        d.ellipse((c - 8 * s, c - 8 * s, c + 8 * s, c + 8 * s), fill=(120, 90, 50, 255))
+        d.rectangle((c - 3 * s, 4 * s, c + 3 * s, 16 * s), fill=(200, 40, 50, 255))   # 빨간 표시 (회전 보이게)
+    return art('k28_log', r * 2, r * 2, f)
+
+
+def knife():
+    def f(d, im, s):
+        W, H = im.width, im.height
+        c = W / 2
+        d.polygon([(c, 0), (c + 4.5 * s, 9 * s), (c + 4.5 * s, 30 * s), (c - 4.5 * s, 30 * s), (c - 4.5 * s, 9 * s)],
+                  fill=(220, 228, 240, 255), outline=(120, 130, 150, 255))
+        d.line((c, 3 * s, c, 29 * s), fill=(255, 255, 255, 200), width=int(1 * s))
+        d.rectangle((c - 6 * s, 30 * s, c + 6 * s, 33 * s), fill=(90, 90, 100, 255))
+        d.rounded_rectangle((c - 3.5 * s, 33 * s, c + 3.5 * s, H - 1 * s), 2 * s, fill=(140, 80, 40, 255))
+        for y in (37, 42, 47):
+            d.line((c - 3.5 * s, y * s, c + 3.5 * s, y * s), fill=(90, 50, 20, 255), width=int(1 * s))
+    return art('k28_knife', 14, 52, f)
+
+
+# ================================================================== 29 정확히 10초
+def paddy(w=210, h=112):
+    def f(d, im, s):
+        W, H = im.width, im.height
+        d.rounded_rectangle((0, 0, W - 1, H - 1), 8 * s, fill=(120, 150, 90, 255))
+        d.rounded_rectangle((6 * s, 6 * s, W - 6 * s, H - 6 * s), 5 * s, fill=(120, 86, 56, 255))
+        rnd = random.Random(5)
+        for _ in range(60):
+            x, y = rnd.uniform(8, w - 8) * s, rnd.uniform(8, h - 8) * s
+            d.ellipse((x - 1.5 * s, y - 1 * s, x + 1.5 * s, y + 1 * s), fill=(100, 70, 46, 255))
+    return art('k29_paddy', w, h, f, colors=64)
+
+
+def paddy_water(w=198, h=100):
+    def f(d, im, s):
+        W, H = im.width, im.height
+        d.rounded_rectangle((0, 0, W - 1, H - 1), 6 * s, fill=(90, 160, 240, 170))
+        for k in range(6):
+            y = (12 + k * 15) * s
+            d.arc((20 * s + k * 9 * s, y, 70 * s + k * 9 * s, y + 8 * s), 200, 340, fill=(220, 240, 255, 150), width=int(1.2 * s))
+    return art('k29_water', w, h, f, colors=64)
+
+
+def seedlings(w=198, h=100):
+    def f(d, im, s):
+        for r in range(5):
+            for k in range(9):
+                x, y = (12 + k * 22) * s, (12 + r * 19) * s
+                for dx in (-2.5, 0, 2.5):
+                    d.line((x, y + 3 * s, x + dx * s, y - 4 * s), fill=(70, 190, 80, 255), width=int(1.4 * s))
+    return art('k29_seed', w, h, f, colors=32)
+
+
+def water_gate(op):
+    def f(d, im, s):
+        W, H = im.width, im.height
+        d.rectangle((0, 0, 5 * s, H), fill=(110, 80, 50, 255))
+        d.rectangle((W - 5 * s, 0, W, H), fill=(110, 80, 50, 255))
+        if op:
+            d.rectangle((5 * s, 0, W - 5 * s, 8 * s), fill=(180, 130, 70, 255))
+            d.rectangle((5 * s, 8 * s, W - 5 * s, H), fill=(90, 160, 240, 220))
+        else:
+            d.rectangle((5 * s, 6 * s, W - 5 * s, H - 2 * s), fill=(180, 130, 70, 255))
+            for y in range(int(10 * s), int(H), int(7 * s)):
+                d.line((5 * s, y, W - 5 * s, y), fill=(140, 100, 50, 255), width=int(1 * s))
+    return art('k29_gate%d' % op, 26, 40, f, colors=32)
+
+
+def frog(croak):
+    def f(d, im, s):
+        W, H = im.width, im.height
+        d.ellipse((2 * s, 8 * s, W - 2 * s, H - 1 * s), fill=(70, 170, 70, 255))
+        for x in (8, 22):
+            d.ellipse((x * s - 5 * s, 3 * s, x * s + 5 * s, 13 * s), fill=(70, 170, 70, 255))
+            d.ellipse((x * s - 3 * s, 5 * s, x * s + 3 * s, 11 * s), fill=(255, 255, 255, 255))
+            d.ellipse((x * s - 1.5 * s, 6.5 * s, x * s + 1.5 * s, 9.5 * s), fill=(20, 20, 20, 255))
+        if croak:
+            d.ellipse((9 * s, 15 * s, 21 * s, 25 * s), fill=(240, 230, 160, 255))
+        else:
+            d.arc((10 * s, 12 * s, 20 * s, 18 * s), 20, 160, fill=(30, 80, 30, 255), width=int(1 * s))
+    return art('k29_frog%d' % croak, 30, 26, f, colors=32)
+
+
+def sparrow():
+    def f(d, im, s):
+        W, H = im.width, im.height
+        d.ellipse((6 * s, 6 * s, 24 * s, 18 * s), fill=(150, 100, 60, 255))
+        d.ellipse((18 * s, 3 * s, 28 * s, 13 * s), fill=(150, 100, 60, 255))
+        d.polygon([(28 * s, 8 * s), (32 * s, 9 * s), (28 * s, 10 * s)], fill=(250, 200, 60, 255))
+        d.polygon([(10 * s, 8 * s), (16 * s, 0), (19 * s, 9 * s)], fill=(120, 80, 50, 255))
+        d.polygon([(6 * s, 12 * s), (0, 8 * s), (1 * s, 15 * s)], fill=(120, 80, 50, 255))
+        d.ellipse((23 * s, 6 * s, 25 * s, 8 * s), fill=(0, 0, 0, 255))
+    return art('k29_bird', 32, 20, f, colors=32)
+
+
+# ================================================================== 30 씨름
+def wrestlers(pose):
+    """두 장사 (왼쪽 파랑 = 나, 오른쪽 빨강 = 상대). pose: n 맞잡기, t 상대 기울어짐, w 내가 이김, l 내가 짐."""
+    def man(d, s, cx, by, col, lean, flip, lying=False):
+        u = s
+        if lying:
+            d.rounded_rectangle((cx - 30 * u, by - 14 * u, cx + 18 * u, by), 7 * u, fill=(240, 200, 170, 255))
+            d.rectangle((cx - 8 * u, by - 14 * u, cx + 4 * u, by), fill=_c(col))
+            d.ellipse((cx + 14 * u, by - 18 * u, cx + 32 * u, by), fill=(240, 200, 170, 255))
+            return
+        # 다리
+        d.line((cx, by - 30 * u, cx - 10 * u * flip, by), fill=(240, 200, 170, 255), width=int(8 * u))
+        d.line((cx, by - 30 * u, cx + 6 * u * flip, by), fill=(240, 200, 170, 255), width=int(8 * u))
+        # 몸 (기울기)
+        tx, ty = cx + lean * flip * u, by - 62 * u
+        d.line((cx, by - 30 * u, tx, ty), fill=(240, 200, 170, 255), width=int(20 * u))
+        d.line((cx - 1 * u, by - 32 * u, cx + 1 * u, by - 26 * u), fill=_c(col), width=int(22 * u))
+        d.ellipse((tx - 9 * u, ty - 16 * u, tx + 9 * u, ty + 2 * u), fill=(240, 200, 170, 255))
+        d.chord((tx - 9 * u, ty - 17 * u, tx + 9 * u, ty - 3 * u), 180, 360, fill=(30, 30, 30, 255))
+        # 팔 (상대 쪽으로)
+        d.line((tx, ty + 6 * u, tx + 22 * u * flip, ty + 14 * u), fill=(240, 200, 170, 255), width=int(7 * u))
+
+    def f(d, im, s):
+        W, H = im.width, im.height
+        by = H - 2 * s
+        if pose == 'n':
+            man(d, s, W * 0.36, by, (40, 100, 230), 12, 1)
+            man(d, s, W * 0.64, by, (220, 50, 60), 12, -1)
+        elif pose == 't':
+            man(d, s, W * 0.36, by, (40, 100, 230), 16, 1)
+            man(d, s, W * 0.66, by, (220, 50, 60), -6, -1)
+        elif pose == 'w':
+            man(d, s, W * 0.34, by, (40, 100, 230), 4, 1)
+            man(d, s, W * 0.66, by, (220, 50, 60), 0, -1, lying=True)
+        else:
+            man(d, s, W * 0.38, by, (40, 100, 230), 0, 1, lying=True)
+            man(d, s, W * 0.7, by, (220, 50, 60), 4, -1)
+    return art('k30_pair_%s' % pose, 150, 96, f)
+
+
+def balance_bar(w=280, h=18):
+    def f(d, im, s):
+        W, H = im.width, im.height
+        d.rounded_rectangle((0, 0, W - 1, H - 1), H / 2, fill=(10, 12, 30, 235), outline=(150, 170, 230, 255), width=int(1 * s))
+        n = 28
+        for i in range(n):
+            t = abs(i - (n - 1) / 2) / ((n - 1) / 2)
+            col = (80, 210, 120) if t < 0.38 else ((250, 200, 60) if t < 0.72 else (240, 70, 80))
+            x0 = 3 * s + (W - 6 * s) * i / n
+            d.rectangle((x0 + 0.5 * s, 3 * s, x0 + (W - 6 * s) / n - 0.5 * s, H - 3 * s), fill=_c(col, 200))
+        d.line((W / 2, 1 * s, W / 2, H - 1 * s), fill=(255, 255, 255, 255), width=int(1.4 * s))
+    return art('k30_bar', w, h, f, colors=64)
+
+
+def bar_knob():
+    def f(d, im, s):
+        W, H = im.width, im.height
+        d.polygon([(W / 2, H), (0, H * 0.45), (0, 0), (W, 0), (W, H * 0.45)], fill=(255, 255, 255, 255), outline=(20, 30, 80, 255))
+    return art('k30_knob', 12, 16, f, colors=16)
+
+
+def sand_ring(w=300, h=60):
+    def f(d, im, s):
+        W, H = im.width, im.height
+        d.ellipse((0, 0, W - 1, H - 1), fill=(220, 190, 130, 255), outline=(250, 250, 240, 255), width=int(2 * s))
+        d.ellipse((W * 0.1, H * 0.15, W * 0.9, H * 0.85), outline=(200, 168, 110, 255), width=int(1 * s))
+    return art('k30_ring', w, h, f, colors=32)

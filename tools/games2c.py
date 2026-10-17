@@ -81,7 +81,7 @@ def g21(P, ctx):
     ghost = m.S('지난힘', AC.s21_mark(), -40, -105, visible=False)
     ghost.on(on_msg('s21_자리'), if_(gt(V('s21_지난힘'), 0), xy(add(sub(V('s21_선수x'), 30), mul(V('s21_지난힘'), 0.6)), -105), show()),
              if_(eq(V('s21_지난힘'), 0), hide()))
-    dist = m.T('거리글', '', -40, -125, 9, C_WHITE, F_NUM, False, 0, w=90, h=13)
+    dist = m.T('거리글', ' ', -40, -125, 9, C_WHITE, F_NUM, False, 0, w=90, h=13)
     dist.on(on_msg('s21_자리'), lx(V('s21_선수x')),
             write(join('거리 ', div(rounded(div(sub(162, V('s21_선수x')), 5)), 10), 'm')))
     # 공
@@ -303,7 +303,7 @@ def g23(P, ctx):
                   hide(), chg('s23_번호', 1), wait(0.3)),
             setv('미니표시', join('정확 ', V('맞춤'), '/', N)),
             *m.end_blocks(mul(V('맞춤'), 100.0 / N)))
-    expl = m.T('검사설명', '', SX, -58, 10, C_WHITE, F_BODY, True, 0, w=200, h=16, bg=C_BOX, visible=False)
+    expl = m.T('검사설명', ' ', SX, -58, 10, C_WHITE, F_BODY, True, 0, w=200, h=16, bg=C_BOX, visible=False)
     expl.on(on_msg('s23_판정'), ifelse(eq(V('s23_뒤집힘'), 0), [write('정답: 정상 (돌리면 도면과 같아요)'), text_color('#7DFFB0')],
                                      [write('정답: 불량 (뒤집힌 모양이에요!)'), text_color('#FF8C9C')]),
             show(), wait(1.0), hide())
@@ -355,9 +355,9 @@ def g24(P, ctx):
     m.S('목표틀', AC.s24_frame(), LX, CY)
     mfr = m.S('내틀', AC.s24_frame(), RX, CY)
     mfr.on(on_msg('s24_성공'), rep(3, mfr.pct(108), wait(0.08), mfr.pct(100), wait(0.08)))
-    tname = m.T('목표이름', '', LX, CY - 58, 11, C_ACC, F_NUM, False, 0, w=120, h=16)
+    tname = m.T('목표이름', ' ', LX, CY - 58, 11, C_ACC, F_NUM, False, 0, w=120, h=16)
     tname.on(on_msg('s24_새목표'), write(join(LGET('s24_이름', V('s24_시작')), ' 시약')))
-    cnt = m.T('조절글', '', RX, CY - 58, 10, C_DIM, F_BODY, True, 0, w=120, h=16)
+    cnt = m.T('조절글', ' ', RX, CY - 58, 10, C_DIM, F_BODY, True, 0, w=120, h=16)
     cnt.on(on_msg('s24_갱신'), write(join('조절 ', V('s24_조절'), '번')))
     # 빨강·초록·파랑 조절기
     check = [setv('s24_비슷', sub(100, mul(add(abs_(sub(V('s24_r'), V('s24_tr'))), abs_(sub(V('s24_g'), V('s24_tg'))),
@@ -380,7 +380,7 @@ def g24(P, ctx):
     m.T('비슷글', '비슷한 정도', -112, -96, 9, C_DIM, F_BODY, True, 0, w=80, h=13)
     sb = m.S('비슷막대', K.bar_set('s24_sim', 200, 9, 'green'), 30, -96)
     sb.on(on_msg('s24_갱신'), shape(add(floor(mul(V('s24_비슷'), 0.4)), 1)))
-    pct = m.T('비슷값', '', 158, -96, 10, C_WHITE, F_NUM, False, 0, w=50, h=14)
+    pct = m.T('비슷값', ' ', 158, -96, 10, C_WHITE, F_NUM, False, 0, w=50, h=14)
     pct.on(on_msg('s24_갱신'), write(join(rounded(V('s24_비슷')), '%')))
     judge_pop(m, '배합판정', [('똑같아요!', 30, 'green')], 0, 70, 's24_성공', var='s24_맞음', hold=0.6)
     mgr = hidden(m, '배합담당')
@@ -449,7 +449,7 @@ def g25(P, ctx):
     best = m.S('최고높이', AC.s25_marker((255, 90, 110)), 200, RY0 - 62, visible=False)
     best.on(on_msg('s25_판정'), ly(add(RY0 - 62, mul(V('s25_최고'), VS * 0.8))), show())
     best.on(on_scene(), rot(180))
-    hgt = m.T('높이글', '', ME, 40, 13, C_WHITE, F_NUM, False, 0, w=90, h=18, visible=False)
+    hgt = m.T('높이글', ' ', ME, 40, 13, C_WHITE, F_NUM, False, 0, w=90, h=18, visible=False)
     hgt.on(on_msg('s25_판정'), write(join(div(rounded(div(V('s25_H'), 10)), 10), 'm')), show(), wait(0.9), hide())
     u = V('s25_u')
     arc = lambda Hv: add(add(HIGH, mul(LOW - HIGH, u)), mul(mul(Hv, VS * 4), mul(u, sub(1, u))))
@@ -551,7 +551,7 @@ def g26(P, ctx):
     panel(P, m.sc, '단서판', -60, 66, 250, 72, 'glass', header='red')
     m.T('단서제목', '엄마: "우리 아이를 찾아 주세요!"', -60, 90, 10, C_WHITE, F_NUM, False, 0, w=230, h=15)
     for k in range(3):
-        t_ = m.T('단서%d' % (k + 1), '', -60, 70 - k * 15, 10, C_WHITE, F_BODY, True, 0, w=230, h=14)
+        t_ = m.T('단서%d' % (k + 1), ' ', -60, 70 - k * 15, 10, C_WHITE, F_BODY, True, 0, w=230, h=14)
         t_.on(on_msg('s26_새판'), write(join('· ', LGET('s26_단서%d' % (k + 1), V('s26_판')))))
     # 군중 (복제본 21명)
     pics = [('c%d%d%d' % (h, s, i), AC.s26_kid(h, s, i)) for h in range(4) for s in range(4) for i in range(4)]
@@ -597,4 +597,422 @@ def g26(P, ctx):
     m.snd('s26_판정', ifelse(eq(V('_mv'), 1), [play('good')], [play('bad')]))
     m.finish('엄마가 알려 준 세 가지 단서(모자·옷·손에 든 것)에\n모두 맞는 아이는 딱 한 명! 찾아서 클릭하세요. (5명)',
              '조작: 마우스 클릭  ·  잘못 누르면 감점, 빨리 찾을수록 보너스')
+    return True
+
+
+# ================================================================== 27. 과일 저울 맞추기 (무게 맞추기)
+S27_NAMES = ['귤', '사과', '복숭아', '배', '포도']
+S27_W = [100, 250, 300, 400, 500]
+
+
+def _s27_orders():
+    rng = random.Random(2727)
+    tg, st = [], []
+    for o in range(5):
+        for v in range(3):
+            while True:
+                stock = [rng.randint(0, 1 if o >= 2 else 2)] + [rng.randint(1, 3) for _ in range(4)]
+                pool = [k for k in range(5) for _ in range(stock[k])]
+                n = rng.randint(3, min(len(pool), 4 + o // 2))
+                pick = rng.sample(pool, n)
+                w = sum(S27_W[k] for k in pick)
+                if 700 <= w <= 1950:
+                    break
+            tg.append(w)
+            st += stock
+    return tg, st
+
+
+@game(27)
+def g27(P, ctx):
+    NO, NS = 5, 10
+    tg, st = _s27_orders()
+    m = mg(P, ctx, T, 27, time_limit=75, status='주문 1/%d' % NO, dim=70)
+    vars_(P, 's27_목표', 's27_무게', 's27_주문', 's27_판', 's27_대기', 's27_새칸', 's27_새종류', 's27_각', 's27_글', 's27_끝')
+    P.list('s27_목표표', tg)
+    P.list('s27_재고표', st)
+    P.list('s27_재고', [0] * 5)
+    P.list('s27_무게표', S27_W)
+    P.list('s27_접시', [0] * NS)
+    SX, SY = 142, -36
+    fmt = lambda var: [ifelse(ge(V(var), 1000),
+                              [setv('s27_글', join(floor(div(V(var), 1000)), ',', substr(add(1000, mod(V(var), 1000)), 2, 4), ' g'))],
+                              [setv('s27_글', join(V(var), ' g'))])]
+    # 주문서
+    panel(P, m.sc, '주문판', -120, 66, 236, 64, 'glass', header='royal')
+    on_ = m.T('주문번호', ' ', -120, 88, 10, C_WHITE, F_NUM, False, 0, w=220, h=14)
+    on_.on(on_msg('s27_새주문'), write(join('주문 ', V('s27_주문'), '/', NO, ' · 이 무게로 담아 주세요!')))
+    ow = m.T('주문무게', ' ', -120, 60, 22, C_ACC, F_NUM, False, 0, w=200, h=30)
+    ow.on(on_msg('s27_새주문'), *fmt('s27_목표'), write(V('s27_글')))
+    # 선반 (과일 5종)
+    pos = [(-196, 0), (-128, 0), (-60, 0), (-162, -74), (-94, -74)]
+    for k in range(5):
+        x, y = pos[k]
+        bg_ = m.S('선반%d' % k, K.panel(64, 66, 'card'), x, y)
+        ic = m.S('과일칸%d' % k, AC.s27_fruit(k, 30), x, y + 10)
+        m.T('과일이름%d' % k, '%s %dg' % (S27_NAMES[k], S27_W[k]), x, y - 12, 9, C_WHITE, F_BODY, True, 0, w=64, h=13)
+        cnt = m.T('재고%d' % k, ' ', x + 20, y + 22, 9, C_ACC, F_NUM, False, 0, w=30, h=13)
+        cnt.on(on_msg('s27_갱신'), write(join('×', LGET('s27_재고', k + 1))))
+        for o in (bg_, ic):
+            o.on(on_msg('s27_갱신'), ifelse(eq(LGET('s27_재고', k + 1), 0), [fx('brightness', -45)], [fx('brightness', 0)]))
+        find = [setv('s27_새칸', 0)] + [if_(eq(LGET('s27_접시', j), 0), setv('s27_새칸', j)) for j in range(NS, 0, -1)]
+        add_ = [if_(and_(eq(V('s27_대기'), 1), gt(LGET('s27_재고', k + 1), 0)),
+                    *find,
+                    if_(gt(V('s27_새칸'), 0),
+                        lst_set('s27_접시', V('s27_새칸'), k + 1), lst_set('s27_재고', k + 1, sub(LGET('s27_재고', k + 1), 1)),
+                        chg('s27_무게', S27_W[k]), setv('s27_새종류', k + 1), cast('s27_올림'), cast('s27_갱신')))]
+        for o in (bg_, ic):
+            o.on(on_click(), *add_)
+        ic.on(on_click(), ic.pct(85), wait(0.06), ic.pct(100))
+        G.hover_scripts(ic, 112)
+    # 저울
+    m.S('저울', AC.s27_scale(), SX, SY)
+    tm = m.S('목표표시', AC.s27_tmark(), SX, SY - 20)
+    tm.on(on_msg('s27_새주문'), rot(add(-135, mul(V('s27_목표'), 0.135))))
+    nd = m.S('바늘', AC.s27_needle(), SX, SY - 20)
+    nd.on(on_scene(), rot(-135), setv('s27_각', -135))
+    nd.on(on_msg('게임시작'), until(eq(V('게임중'), 0),
+                                   setv('_ma', add(-135, mul(V('s27_무게'), 0.135))), if_(gt(V('_ma'), 140), setv('_ma', 140)),
+                                   if_(gt(abs_(sub(V('_ma'), V('s27_각'))), 0.3),
+                                       chg('s27_각', mul(sub(V('_ma'), V('s27_각')), 0.25)), rot(V('s27_각'))), wait(0.016)))
+    # 접시 위 과일 (복제본: 누르면 빠진다)
+    fr = m.S('접시과일', [('f%d' % (k + 1), AC.s27_fruit(k, 22)) for k in range(5)], 0, -300, visible=False)
+    for v in ('slot', 'kind', '복제'):
+        fr.local(v, 0)
+    fr.on(on_msg('s27_올림'), if_(eq(V('복제'), 0), setv('slot', V('s27_새칸')), setv('kind', V('s27_새종류')), clone_self()))
+    fr.on(on_clone(), setv('복제', 1), shape(V('kind')),
+          xy(add(SX - 36, mul(mod(sub(V('slot'), 1), 5), 18)), add(SY + 140, mul(floor(div(sub(V('slot'), 1), 5)), 15))), show(),
+          glide(0.15, add(SX - 36, mul(mod(sub(V('slot'), 1), 5), 18)), add(SY + 74, mul(floor(div(sub(V('slot'), 1), 5)), 15))))
+    fr.on(on_click(), if_(and_(eq(V('복제'), 1), eq(V('s27_대기'), 1)),
+                          lst_set('s27_접시', V('slot'), 0), lst_set('s27_재고', V('kind'), add(LGET('s27_재고', V('kind')), 1)),
+                          chg('s27_무게', mul(-1, LGET('s27_무게표', V('kind')))), cast('s27_갱신'), cast('s27_뺌'), del_clone()))
+    fr.on(on_msg('s27_비움'), if_(eq(V('복제'), 1), del_clone()))
+    fr.on(on_msg('s27_포장됨'), if_(eq(V('복제'), 1), glide(0.3, 40, -150), del_clone()))
+    # 무게 표시 + 버튼
+    rd = m.T('현재무게', ' ', 40, -46, 14, C_WHITE, F_NUM, False, 0, w=110, h=20, bg=C_BOX)
+    rd.on(on_msg('s27_갱신'), *fmt('s27_무게'), write(V('s27_글')),
+          ifelse(eq(V('s27_무게'), V('s27_목표')), [text_color('#6EF2A0')],
+                 [ifelse(gt(V('s27_무게'), V('s27_목표')), [text_color('#FF7A8A')], [text_color('#FFFFFF')])]))
+    m.T('현재무게글', '저울 무게', 40, -28, 8, C_DIM, F_BODY, True, 0, w=80, h=12)
+    pack = [if_(and_(eq(V('s27_대기'), 1), gt(V('s27_무게'), 0)),
+                ifelse(eq(V('s27_무게'), V('s27_목표')), [setv('s27_대기', 0), setv('s27_끝', 1)],
+                       [chg('틀림', 1), setv('_mv', 2), cast('s27_판정')]))]
+    button(P, m.sc, '포장버튼', '포장하기', 40, -78, 96, 26, 'green', actions=pack)
+    clear = [if_(eq(V('s27_대기'), 1),
+                 *[lst_set('s27_재고', k + 1, LGET('s27_재고표', add(mul(sub(V('s27_판'), 1), 5), k + 1))) for k in range(5)],
+                 *[lst_set('s27_접시', j, 0) for j in range(1, NS + 1)], setv('s27_무게', 0), cast('s27_비움'), cast('s27_갱신'))]
+    button(P, m.sc, '비우기버튼', '모두 빼기', 40, -108, 96, 24, 'steel', actions=clear)
+    judge_pop(m, '저울판정', [('포장 완료!', 28, 'green'), ('무게가 달라요!', 24, 'red')], 40, 20, 's27_판정', hold=0.5)
+    mgr = hidden(m, '저울담당')
+    score = add(sub(mul(V('맞춤'), 16), mul(V('틀림'), 3)), mul(V('남은시간'), 0.27))
+    mgr.on(on_msg('게임시작'), setv('s27_주문', 1),
+           until(or_(gt(V('s27_주문'), NO), eq(V('게임중'), 0)),
+                 setv('s27_판', add(mul(sub(V('s27_주문'), 1), 3), rnd(1, 3))),
+                 setv('s27_목표', LGET('s27_목표표', V('s27_판'))),
+                 *[lst_set('s27_재고', k + 1, LGET('s27_재고표', add(mul(sub(V('s27_판'), 1), 5), k + 1))) for k in range(5)],
+                 *[lst_set('s27_접시', j, 0) for j in range(1, NS + 1)], setv('s27_무게', 0), setv('s27_끝', 0),
+                 setv('미니표시', join('주문 ', V('s27_주문'), '/', NO, ' · 완료 ', V('맞춤'))),
+                 cast('s27_새주문'), cast('s27_갱신'), setv('s27_대기', 1),
+                 wait_until(or_(eq(V('s27_끝'), 1), eq(V('게임중'), 0))),
+                 if_(eq(V('s27_끝'), 1), chg('맞춤', 1), setv('_mv', 1), cast('s27_판정'), cast('s27_포장됨'), wait(0.9)),
+                 chg('s27_주문', 1)),
+           setv('미니표시', join('완료 ', V('맞춤'), '/', NO)),
+           *m.end_blocks(score))
+    mgr.on(on_msg('시간끝'), setv('s27_대기', 0), *m.end_blocks(score))
+    m.on_start(setv('맞춤', 0), setv('틀림', 0), setv('s27_대기', 0), setv('s27_무게', 0), setv('s27_목표', 0),
+               *[lst_set('s27_재고', k + 1, 0) for k in range(5)])
+    m.snd('s27_올림', play('pop'))
+    m.snd('s27_뺌', play('tick'))
+    m.snd('s27_판정', ifelse(eq(V('_mv'), 1), [play('cash')], [play('bad')]))
+    m.finish('주문 무게와 딱 맞게 과일을 저울에 올리고 포장하세요!\n과일마다 무게가 달라요. 남은 개수(×)도 잘 보세요. (5주문)',
+             '조작: 선반 과일 클릭 = 올리기 · 저울 위 과일 클릭 = 빼기 · 포장하기')
+    return True
+
+
+# ================================================================== 28. 숲길 기억 (길 기억)
+def _s28_paths():
+    rng = random.Random(2828)
+    C, R = 7, 5
+    out = []
+    for lv, (lo, hi) in enumerate(((9, 11), (12, 14), (15, 18))):
+        got = []
+        while len(got) < 4:
+            r0 = rng.randrange(R)
+            path = [(0, r0)]
+            ok = False
+            for _ in range(60):
+                c, r = path[-1]
+                if c == C - 1:
+                    ok = True
+                    break
+                moves = [(1, 0)] * 2 + [(0, 1), (0, -1)] * (2 + lv) + ([(-1, 0)] if lv == 2 and c > 1 else [])
+                rng.shuffle(moves)
+                for dc, dr in moves:
+                    nc, nr = c + dc, r + dr
+                    if not (0 <= nc < C and 0 <= nr < R) or (nc, nr) in path:
+                        continue
+                    if any(abs(nc - pc) + abs(nr - pr) == 1 for (pc, pr) in path[:-1]):
+                        continue
+                    path.append((nc, nr))
+                    break
+                else:
+                    break
+            if ok and lo <= len(path) <= hi and path not in got:
+                got.append(path)
+        out += got
+    return out
+
+
+@game(28)
+def g28(P, ctx):
+    C, R, CS, NL = 7, 5, 36, 3
+    paths = _s28_paths()
+    cell_list, order_list, lens = [], [], []
+    for p in paths:
+        cells = [0] * (C * R)
+        for k, (c, r) in enumerate(p):
+            cells[r * C + c] = k + 1
+        cell_list += cells
+        order_list += [r * C + c + 1 for (c, r) in p] + [0] * (20 - len(p))
+        lens.append(len(p))
+    GX, GY = 0, -16
+    X = lambda c: add(GX - 3 * CS, mul(c, CS))
+    Y = lambda r: sub(GY + 2 * CS, mul(r, CS))
+    m = mg(P, ctx, T, 28, time_limit=90, status='숲길 1/%d' % NL, dim=60)
+    vars_(P, 's28_판', 's28_c', 's28_r', 's28_nc', 's28_nr', 's28_dc', 's28_dr', 's28_v', 's28_L', 's28_움직임', 's28_대기',
+          's28_통과', 's28_레벨', 's28_보기')
+    P.list('s28_칸', cell_list)
+    P.list('s28_순서', order_list)
+    P.list('s28_길이', lens)
+    m.S('숲바닥', AC.s28_floor(C, R, CS), GX, GY)
+    # 길 표시 돌 (복제본 20개, 미리 보기 때 순서대로 나타남)
+    st = m.S('징검돌', AC.s28_stone(), 0, -300, visible=False)
+    for v in ('k', '복제'):
+        st.local(v, 0)
+    st.on(on_msg('게임시작'), *[flat(setv('k', k + 1), clone_self()) for k in range(20)])
+    cellno = LGET('s28_순서', add(mul(sub(V('s28_판'), 1), 20), V('k')))
+    st.on(on_msg('s28_보기'), if_(and_(eq(V('복제'), 1), le(V('k'), V('s28_L'))),
+                               xy(X(mod(sub(cellno, 1), C)), Y(floor(div(sub(cellno, 1), C)))),
+                               wait(mul(V('k'), 0.08)), if_(eq(V('s28_보기'), 1), show())))
+    st.on(on_msg('s28_숨김'), hide())
+    dark = m.S('어둠', AC.s28_dark(), 0, 0, visible=False)
+    pl = m.S('나', ctx['PORT']['me'], 0, 0, scale=1.15)
+    pl.on(on_scene(), hide())
+    ex = m.S('출구판', AC.s28_sign('출구', (30, 150, 80)), 0, 0, visible=False)
+    last = LGET('s28_순서', add(mul(sub(V('s28_판'), 1), 20), V('s28_L')))
+    ex.on(on_msg('s28_새길'), xy(add(X(mod(sub(last, 1), C)), 30), add(Y(floor(div(sub(last, 1), C))), 6)), show())
+    dark.on(on_msg('게임시작'), until(eq(V('게임중'), 0),
+                                    ifelse(eq(V('s28_보기'), 1), [hide()], [show(), xy(obj_x(pl.name), obj_y(pl.name))]),
+                                    wait(0.016)), hide())
+    first = LGET('s28_순서', add(mul(sub(V('s28_판'), 1), 20), 1))
+    pl.on(on_msg('s28_새길'), setv('s28_c', mod(sub(first, 1), C)), setv('s28_r', floor(div(sub(first, 1), C))),
+          xy(X(V('s28_c')), Y(V('s28_r'))), show())
+    pl.on(on_msg('s28_이동'),
+          setv('s28_nc', add(V('s28_c'), V('s28_dc'))), setv('s28_nr', add(V('s28_r'), V('s28_dr'))),
+          if_(and_(and_(ge(V('s28_nc'), 0), lt(V('s28_nc'), C)), and_(ge(V('s28_nr'), 0), lt(V('s28_nr'), R))),
+              setv('s28_v', LGET('s28_칸', add(mul(sub(V('s28_판'), 1), C * R), mul(V('s28_nr'), C), V('s28_nc'), 1))),
+              glide(0.1, X(V('s28_nc')), Y(V('s28_nr'))),
+              ifelse(gt(V('s28_v'), 0),
+                     [setv('s28_c', V('s28_nc')), setv('s28_r', V('s28_nr')), cast('s28_발'),
+                      if_(eq(V('s28_v'), V('s28_L')), setv('s28_통과', 1))],
+                     [chg('틀림', 1), setv('_mv', 2), cast('s28_판정'), wait(0.4),
+                      glide(0.15, X(V('s28_c')), Y(V('s28_r'))), cast('s28_잠깐')])),
+          setv('s28_움직임', 0))
+    keys = hidden(m, '숲길키')
+    for kc, dc, dr in ((K_LEFT, -1, 0), (K_RIGHT, 1, 0), (K_UP, 0, -1), (K_DOWN, 0, 1)):
+        keys.on(on_key(kc), if_(and_(eq(V('s28_대기'), 1), eq(V('s28_움직임'), 0)),
+                                setv('s28_움직임', 1), setv('s28_dc', dc), setv('s28_dr', dr), cast('s28_이동')))
+    keys.on(on_msg('s28_잠깐'), setv('s28_보기', 1), cast('s28_보기'), wait(0.9), setv('s28_보기', 0), cast('s28_숨김'))
+    info = m.T('숲길안내', ' ', 0, 86, 11, C_WHITE, F_NUM, False, 0, w=300, h=16, bg=C_BOX)
+    info.on(on_msg('s28_외워'), write('길을 잘 외우세요!'), text_color('#FFE08A'))
+    info.on(on_msg('s28_출발'), write('어두워졌어요! 방향키로 출구까지'), text_color('#FFFFFF'))
+    judge_pop(m, '숲길판정', [('숲을 빠져나왔다!', 26, 'green'), ('길을 잃었어요!', 24, 'red')], 0, 40, 's28_판정', hold=0.45)
+    mgr = hidden(m, '숲길담당')
+    score = add(sub(mul(V('맞춤'), 30), mul(V('틀림'), 4)), mul(V('남은시간'), 0.2))
+    mgr.on(on_msg('게임시작'), setv('s28_레벨', 1), wait(0.1),
+           until(or_(gt(V('s28_레벨'), NL), eq(V('게임중'), 0)),
+                 setv('s28_판', add(mul(sub(V('s28_레벨'), 1), 4), rnd(1, 4))), setv('s28_L', LGET('s28_길이', V('s28_판'))),
+                 setv('s28_통과', 0), setv('s28_대기', 0),
+                 setv('미니표시', join('숲길 ', V('s28_레벨'), '/', NL)),
+                 cast('s28_새길'), setv('s28_보기', 1), cast('s28_보기'), cast('s28_외워'),
+                 wait(add(1.6, mul(V('s28_L'), 0.12))),
+                 setv('s28_보기', 0), cast('s28_숨김'), cast('s28_출발'), setv('s28_대기', 1),
+                 wait_until(or_(eq(V('s28_통과'), 1), eq(V('게임중'), 0))),
+                 setv('s28_대기', 0),
+                 if_(eq(V('s28_통과'), 1), chg('맞춤', 1), setv('_mv', 1), cast('s28_판정'),
+                     setv('s28_보기', 1), cast('s28_보기'), wait(1.2), cast('s28_숨김')),
+                 chg('s28_레벨', 1)),
+           *m.end_blocks(score))
+    mgr.on(on_msg('시간끝'), setv('s28_대기', 0), *m.end_blocks(score))
+    m.on_start(setv('맞춤', 0), setv('틀림', 0), setv('s28_대기', 0), setv('s28_보기', 1), setv('s28_판', 1), setv('s28_L', 0))
+    m.snd('s28_발', play('tick'))
+    m.snd('s28_판정', ifelse(eq(V('_mv'), 1), [play('fanfare')], [play('bad')]))
+    m.snd('s28_외워', play('shutter'))
+    m.finish('잠깐 보이는 징검돌 길을 외우세요! 곧 숲이 어두워져요.\n방향키로 기억한 길만 밟아 출구까지! (숲길 3개)',
+             '조작: ← ↑ → ↓ 방향키  ·  길 밖을 밟으면 감점 + 원래 자리로')
+    return True
+
+
+# ================================================================== 29. 모내기 (간격 맞추기)
+@game(29)
+def g29(P, ctx):
+    ROWS = [44, -8, -60]
+    SPD = [78, 98, 122]
+    xs = [[-180 + 45 * i for i in range(9)]]
+    for start, gaps in ((-184, [36, 52, 40, 58, 38, 50, 44, 56]), (-190, [32, 60, 36, 64, 30, 58, 40, 62])):
+        row = [start]
+        for g_ in gaps:
+            row.append(row[-1] + g_)
+        xs.append(row)
+    NM = 9
+    TOT = NM * 3
+    OFF = 30            # 이앙기 가운데에서 심는 곳까지
+    m = mg(P, ctx, T, 29, status='1번째 줄 · 0점', dim=50)
+    vars_(P, 's29_줄', 's29_px', 's29_표', 's29_t0', 's29_d', 's29_등급', 's29_쉼', 's29_진행', 's29_y')
+    P.list('s29_표시', [x for row in xs for x in row] + [999])
+    for y in ROWS:
+        m.S('논줄', AC.s29_row(), 0, y)
+    mark = m.S('표시선', AC.s29_mark(), 0, -300, visible=False)
+    mark.on(on_scene(), pen_clear(),
+            *[flat(xy(xs[r][k], ROWS[r] + 3), show(), stamp()) for r in range(3) for k in range(NM)], hide())
+    seed = m.S('모', [('a', AC.s29_seed(0)), ('b', AC.s29_seed(1)), ('c', AC.s29_seed(2))], 0, -300, visible=False)
+    seed.on(on_scene(), pen_clear(), hide())
+    seed.on(on_msg('s29_심기'), shape(V('s29_등급')), xy(V('s29_px'), add(V('s29_y'), 2)), show(), stamp(), hide())
+    pl = m.S('이앙기', AC.s29_planter(), -260, ROWS[0])
+    ptr = m.S('심는곳', AC.s29_pointer(), -300, -300)
+    nxt = LGET('s29_표시', add(mul(sub(V('s29_줄'), 1), NM), V('s29_표')))
+    judge_mark = [setv('s29_d', abs_(sub(V('s29_px'), nxt)))]
+    pl.on(on_msg('게임시작'), setv('s29_줄', 1),
+          until(or_(gt(V('s29_줄'), 3), eq(V('게임중'), 0)),
+                setv('s29_y', LGET('s29_y표', V('s29_줄'))), setv('s29_표', 1), setv('s29_t0', timer()),
+                setv('미니표시', join(V('s29_줄'), '번째 줄 · ', rounded(V('합계')), '점')),
+                setv('s29_진행', 1), cast('s29_새줄'),
+                until(or_(gt(V('s29_px'), 236), eq(V('게임중'), 0)),
+                      setv('s29_px', add(-250 + OFF, mul(sub(timer(), V('s29_t0')), LGET('s29_속도', V('s29_줄'))))),
+                      xy(add(V('s29_px'), OFF), V('s29_y')),
+                      # 지나쳐 버린 표시는 놓침
+                      if_(and_(le(V('s29_표'), NM), gt(sub(V('s29_px'), nxt), 16)),
+                          chg('s29_표', 1), setv('_mv', 4), setv('_ma', V('s29_px')), cast('s29_판정'))),
+                setv('s29_진행', 0), chg('s29_줄', 1), wait(0.6)),
+          *m.end_blocks(mul(V('합계'), 100.0 / (TOT * 10))))
+    P.list('s29_y표', ROWS)
+    P.list('s29_속도', SPD)
+    pl.on(on_msg('s29_새줄'), xy(-250 + 2 * OFF, V('s29_y')))
+    ptr.on(on_msg('게임시작'), until(eq(V('게임중'), 0), xy(V('s29_px'), add(V('s29_y'), 21))), hide())
+    plant = [if_(and_(eq(V('s29_진행'), 1), eq(V('s29_쉼'), 0)),
+                 setv('s29_쉼', 1), *judge_mark, setv('_ma', V('s29_px')),
+                 ifelse(and_(le(V('s29_표'), NM), le(V('s29_d'), 16)),
+                        [ifelse(le(V('s29_d'), 4), [setv('_mv', 1), chg('합계', 10), setv('s29_등급', 1)],
+                                [ifelse(le(V('s29_d'), 9), [setv('_mv', 2), chg('합계', 7), setv('s29_등급', 1)],
+                                        [setv('_mv', 3), chg('합계', 4), setv('s29_등급', 2)])]),
+                         chg('s29_표', 1)],
+                        [setv('_mv', 5), chg('합계', -3), setv('s29_등급', 3)]),
+                 cast('s29_심기'), cast('s29_판정'),
+                 setv('미니표시', join(V('s29_줄'), '번째 줄 · ', rounded(V('합계')), '점')),
+                 wait(0.12), setv('s29_쉼', 0))]
+    hidden(m, '모내기키').on(on_key(K_SPACE), *plant)
+    pop = m.S('모판정', [('j%d' % (k + 1), K.big_text(t_, 14, c_)) for k, (t_, c_) in
+                        enumerate((('딱!', 'green'), ('좋아', 'royal'), ('삐뚤', 'white'), ('놓침', 'red'), ('엉뚱해요', 'red')))],
+              0, -300, visible=False)
+    pop.on(on_msg('s29_판정'), shape(V('_mv')), xy(V('_ma'), add(V('s29_y'), 28)), fx('transparency', 0), to_front(), show(),
+           rep(8, mvy(1.5), fx_add('transparency', 8), wait(0.03)), hide())
+    m.T('모안내', '노란 화살표가 표시선(깃발)에 닿을 때 SPACE!', 0, 84, 10, C_WHITE, F_BODY, True, 0, w=300, h=16, bg=C_BOX)
+    m.on_start(setv('합계', 0), setv('s29_진행', 0), setv('s29_쉼', 0), setv('s29_px', -400), setv('s29_y', ROWS[0]))
+    m.snd('s29_판정', ifelse(le(V('_mv'), 2), [play('pop')], [ifelse(eq(V('_mv'), 3), [play('tick')], [play('bad')])]))
+    m.finish('이앙기가 지나가며 모를 심어요. 노란 화살표가 논의 표시선에\n닿는 순간 SPACE! 딱 맞을수록 점수 UP (3줄, 점점 빨라져요)',
+             '조작: SPACE 로 모 심기  ·  표시선이 없는 곳에 심으면 감점')
+    return True
+
+
+# ================================================================== 30. 바람 활쏘기 (활쏘기)
+@game(30)
+def g30(P, ctx):
+    N = 8
+    TX, TY = 60, 26
+    dists = [30, 30, 50, 50, 50, 70, 70, 70]
+    scl = {30: 1.0, 50: 0.74, 70: 0.54}
+    fac = {30: 1.0, 50: 1.4, 70: 1.8}
+    m = mg(P, ctx, T, 30, time_limit=70, status='화살 1/%d · 0점' % N, dim=40)
+    vars_(P, 's30_발', 's30_바람', 's30_배율', 's30_흐름', 's30_cx', 's30_cy', 's30_hx', 's30_hy', 's30_숨', 's30_흔들',
+          's30_대기', 's30_끝', 's30_점')
+    P.list('s30_거리', dists)
+    P.list('s30_크기', [scl[d_] for d_ in dists])
+    P.list('s30_흐름표', [fac[d_] for d_ in dists])
+    tgt = m.S('과녁', AC.s30_target(), TX, TY - 19)
+    tgt.on(on_msg('s30_새발'), tgt.pct(mul(V('s30_배율'), 100)), ly(sub(TY, mul(19, V('s30_배율')))))
+    stuck = m.S('꽂힌화살', AC.s30_stuck(), 0, -300, visible=False)
+    stuck.on(on_scene(), pen_clear(), hide())
+    stuck.on(on_msg('s30_새발'), pen_clear())
+    stuck.on(on_msg('s30_꽂힘'), xy(V('s30_hx'), V('s30_hy')), show(), stamp(), hide())
+    dtxt = m.T('거리글', ' ', TX, 84, 11, C_WHITE, F_NUM, False, 0, w=120, h=16, bg=C_BOX)
+    dtxt.on(on_msg('s30_새발'), write(join('과녁까지 ', LGET('s30_거리', V('s30_발')), 'm')))
+    # 바람 깃발 + 나뭇잎
+    flag = m.S('바람깃발', [('w%d' % k, AC.s30_flag(k - 5)) for k in range(11)], -170, -10)
+    flag.on(on_msg('s30_새발'), shape(add(V('s30_바람'), 6)))
+    flag.on(on_msg('게임시작'), until(eq(V('게임중'), 0), rot(mul(sin_(mul(timer(), 400)), mul(abs_(V('s30_바람')), 0.6))), wait(0.03)))
+    wtxt = m.T('바람글', ' ', -170, -46, 11, C_WHITE, F_NUM, False, 0, w=110, h=16, bg=C_BOX)
+    wtxt.on(on_msg('s30_새발'), ifelse(eq(V('s30_바람'), 0), [write('바람 없음')],
+                                     [ifelse(gt(V('s30_바람'), 0), [write(join('바람 → ', V('s30_바람')))],
+                                             [write(join('바람 ← ', abs_(V('s30_바람'))))])]))
+    leaf = m.S('나뭇잎', AC.s30_leaf(), 0, -300, visible=False)
+    leaf.local('복제', 0)
+    leaf.on(on_msg('게임시작'), until(eq(V('게임중'), 0), if_(ne(V('s30_바람'), 0), clone_self()), wait(0.35)))
+    leaf.on(on_clone(), setv('복제', 1), xy(mul(-250, div(V('s30_바람'), abs_(V('s30_바람')))), rnd(-100, 90)), show(),
+            until(or_(gt(abs_(obj_x()), 252), eq(V('게임중'), 0)), mvx(mul(V('s30_바람'), 1.1)), mvy(sin_(mul(obj_x(), 4))), rot_by(9)),
+            del_clone())
+    # 화살 (날아가는 모습)
+    arr = m.S('화살', AC.s30_arrow_fly(), 0, -130, visible=False)
+    ring = div(fn('root', add(mul(sub(V('s30_hx'), TX), sub(V('s30_hx'), TX)), mul(sub(V('s30_hy'), TY), sub(V('s30_hy'), TY)))),
+               mul(36, V('s30_배율')))
+    arr.on(on_msg('s30_발사'), xy(0, -140), arr.pct(100), show(),
+           rep(12, xy(add(0, mul(sub(V('s30_hx'), 0), div(V('_mi'), 12))), add(-140, mul(add(140, V('s30_hy')), div(V('_mi'), 12)))),
+               chg('_mi', 1), arr.grow_pct(-6), wait(0.03)),
+           hide(), cast('s30_꽂힘'),
+           setv('_ma', ring),
+           ifelse(lt(V('_ma'), 0.2), [setv('s30_점', 10)],
+                  [ifelse(lt(V('_ma'), 0.4), [setv('s30_점', 8)],
+                          [ifelse(lt(V('_ma'), 0.6), [setv('s30_점', 6)],
+                                  [ifelse(lt(V('_ma'), 0.8), [setv('s30_점', 4)],
+                                          [ifelse(lt(V('_ma'), 1.0), [setv('s30_점', 2)], [setv('s30_점', 0)])])])])]),
+           chg('합계', V('s30_점')), setv('_mv', add(floor(div(sub(10, V('s30_점')), 2)), 1)), cast('s30_판정'),
+           setv('s30_끝', 1))
+    # 조준점: 마우스 + 숨 흔들림 (SPACE 로 숨 참기)
+    ch = m.S('조준점', AC.s30_cross(), 0, 0, visible=False)
+    ch.on(on_msg('게임시작'), show(),
+          until(eq(V('게임중'), 0),
+                ifelse(and_(key(K_SPACE), gt(V('s30_숨'), 0)), [setv('s30_흔들', 2), chg('s30_숨', -1.1)],
+                       [setv('s30_흔들', 10), if_(lt(V('s30_숨'), 100), chg('s30_숨', 0.45))]),
+                if_(lt(V('s30_숨'), 0), setv('s30_숨', 0)),
+                setv('s30_cx', add(mouse_x(), mul(V('s30_흔들'), sin_(mul(timer(), 115))))),
+                setv('s30_cy', add(mouse_y(), mul(mul(V('s30_흔들'), 0.8), sin_(add(mul(timer(), 77), 40))))),
+                xy(V('s30_cx'), V('s30_cy'))),
+          hide())
+    bb = m.S('숨막대', K.bar_set('s30_breath', 80, 7, 'royal'), 182, -112)
+    m.T('숨글', '숨 (SPACE)', 182, -100, 8, C_DIM, F_BODY, True, 0, w=80, h=12)
+    bb.on(on_msg('게임시작'), until(eq(V('게임중'), 0), shape(add(floor(mul(V('s30_숨'), 0.4)), 1)), wait(0.08)))
+    shoot = [if_(and_(eq(V('s30_대기'), 1), eq(V('게임중'), 1)),
+                 setv('s30_대기', 0), setv('s30_hx', add(V('s30_cx'), V('s30_흐름'))), setv('s30_hy', V('s30_cy')),
+                 setv('_mi', 1), cast('s30_발사'))]
+    hidden(m, '활키').on(on_mouse_down(), *shoot)
+    judge_pop(m, '활판정', [('10점!', 30, 'royal'), ('8점', 26, 'green'), ('6점', 24, 'white'), ('4점', 22, 'white'),
+                         ('2점', 22, 'gray'), ('빗나감...', 22, 'red')], TX, -56, 's30_판정', hold=0.5)
+    mgr = hidden(m, '활담당')
+    mgr.on(on_msg('게임시작'), setv('s30_발', 1),
+           until(or_(gt(V('s30_발'), N), eq(V('게임중'), 0)),
+                 setv('s30_바람', rnd(-5, 5)), if_(eq(V('s30_발'), 1), setv('s30_바람', 2)),
+                 setv('s30_배율', LGET('s30_크기', V('s30_발'))),
+                 setv('s30_흐름', mul(mul(V('s30_바람'), 5), LGET('s30_흐름표', V('s30_발')))),
+                 setv('미니표시', join('화살 ', V('s30_발'), '/', N, ' · ', V('합계'), '점')),
+                 cast('s30_새발'), setv('s30_끝', 0), wait(0.3), setv('s30_대기', 1),
+                 wait_until(or_(eq(V('s30_끝'), 1), eq(V('게임중'), 0))),
+                 setv('미니표시', join('화살 ', V('s30_발'), '/', N, ' · ', V('합계'), '점')),
+                 wait(0.9), chg('s30_발', 1)),
+           *m.end_blocks(mul(V('합계'), 100.0 / (N * 10))))
+    mgr.on(on_msg('시간끝'), setv('s30_대기', 0), *m.end_blocks(mul(V('합계'), 100.0 / (N * 10))))
+    m.on_start(setv('합계', 0), setv('s30_대기', 0), setv('s30_숨', 100), setv('s30_바람', 0), setv('s30_배율', 1), setv('s30_발', 1))
+    m.snd('s30_발사', play('jump'))
+    m.snd('s30_꽂힘', play('hit'))
+    m.snd('s30_판정', ifelse(le(V('_mv'), 2), [play('good')], [ifelse(eq(V('_mv'), 6), [play('bad')], [play('pop')])]))
+    m.finish('화살은 바람 따라 옆으로 밀려요! 깃발을 보고 바람 반대쪽을\n겨누세요. 멀수록 더 많이 밀려요. (화살 8발)',
+             '조작: 마우스로 조준, 클릭하면 발사  ·  SPACE 를 누르고 있으면 숨 참기 (덜 흔들림)')
     return True

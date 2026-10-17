@@ -333,7 +333,7 @@ def s23_plan(i):
         for k in range(3, 14):
             d.line([(4 * s, k * 11 * s), (W - 4 * s, k * 11 * s)], fill=(120, 160, 240, 60), width=max(1, int(0.5 * s)))
         d.rectangle((1.5 * s, 1.5 * s, W - 1.5 * s, 18 * s), fill=(14, 40, 110, 255))
-        d.text((W / 2, 10 * s), '도면 No.%d' % (i + 1), font=font('jalnan', int(10 * s)), fill=(230, 240, 255, 255), anchor='mm')
+        d.text((W / 2, 10 * s), '도면 No.%d' % (i + 1), font=font('nsr', int(10 * s)), fill=(230, 240, 255, 255), anchor='mm')
         ox = (W - gw * cs * s) / 2
         oy = 20 * s + (H - 20 * s - gh * cs * s) / 2
         _cells_draw(d, cells, ox, oy, cs, s, (60, 110, 220, 255), (240, 248, 255, 255), 1.8,
@@ -606,3 +606,280 @@ def s26_mom():
         d.ellipse((*P(9, 58), *P(15, 62)), fill=(30, 30, 40, 255))
         d.ellipse((*P(19, 58), *P(25, 62)), fill=(30, 30, 40, 255))
     return art('s26_mom', 34, 62, f)
+
+
+# ================================================================== 27. 과일 저울
+def s27_fruit(k, size=24):
+    """k: 0 귤, 1 사과, 2 복숭아, 3 배, 4 포도."""
+    def f(d, im, s):
+        W = im.width
+        c = W / 2
+        R = W * 0.4
+        if k == 4:
+            for (dx, dy) in ((-5, -5), (0, -6), (5, -5), (-2.5, -1), (2.5, -1), (-5, 3), (0, 3), (5, 3), (-2.5, 7), (2.5, 7),
+                             (0, 10)):
+                x, y = c + dx * s * size / 24, c + dy * s * size / 24
+                r = 3.4 * s * size / 24
+                d.ellipse((x - r, y - r, x + r, y + r), fill=(120, 60, 170, 255), outline=(50, 16, 80, 255), width=max(1, int(0.5 * s)))
+                d.ellipse((x - r * 0.5, y - r * 0.6, x, y - r * 0.1), fill=(220, 190, 255, 140))
+            d.line([(c, c - 9 * s), (c + 2 * s, c - 12 * s)], fill=(90, 60, 30, 255), width=int(1.2 * s))
+            d.polygon([(c + 1 * s, c - 10 * s), (c + 8 * s, c - 12 * s), (c + 5 * s, c - 7 * s)], fill=(70, 160, 70, 255))
+            return
+        col, rim = {0: ((255, 150, 30), (150, 70, 0)), 1: ((220, 40, 50), (110, 10, 20)), 2: ((255, 160, 170), (180, 70, 90)),
+                    3: ((226, 200, 110), (140, 110, 40))}[k]
+        if k == 3:
+            d.ellipse((c - R * 0.62, c - R * 0.95, c + R * 0.62, c + R * 0.2), fill=_c(col), outline=_c(rim), width=int(0.8 * s))
+            d.ellipse((c - R, c - R * 0.4, c + R, c + R), fill=_c(col), outline=_c(rim), width=int(0.8 * s))
+            d.ellipse((c - R * 0.55, c - R * 0.7, c + R * 0.5, c + R * 0.9), fill=_c(col))
+        else:
+            d.ellipse((c - R, c - R * 0.9, c + R, c + R), fill=_c(col), outline=_c(rim), width=int(0.8 * s))
+        if k == 2:
+            d.arc((c - R * 0.2, c - R * 0.9, c + R * 0.9, c + R * 0.9), 120, 250, fill=_c(rim), width=int(0.7 * s))
+        d.ellipse((c - R * 0.6, c - R * 0.6, c - R * 0.05, c - R * 0.1), fill=(255, 255, 255, 110))
+        d.line([(c, c - R * 0.8), (c + 1 * s, c - R * 1.2)], fill=(90, 60, 30, 255), width=int(1.2 * s))
+        d.polygon([(c + 0.5 * s, c - R * 1.05), (c + R * 0.8, c - R * 1.3), (c + R * 0.5, c - R * 0.75)], fill=(70, 160, 70, 255))
+        if k == 0:
+            for (dx, dy) in ((-0.3, 0.2), (0.3, 0.4), (0.1, -0.2)):
+                d.ellipse((c + dx * R - 0.6 * s, c + dy * R - 0.6 * s, c + dx * R + 0.6 * s, c + dy * R + 0.6 * s), fill=(220, 110, 0, 255))
+    return art('s27_fruit_%d_%d' % (k, size), size, size, f)
+
+
+def s27_scale():
+    """플랫폼 저울: 120x150. 접시 윗면 y=무대 +54(가운데 기준 +58), 눈금판 중심 = 그림 중심 아래 20."""
+    def f(d, im, s):
+        W, H = im.size
+        P = lambda x, y: (x * s, y * s)
+        d.rounded_rectangle((*P(14, 30), *P(106, 148)), 10 * s, fill=(226, 232, 246, 255), outline=(30, 36, 60, 255), width=int(1.2 * s))
+        d.rounded_rectangle((*P(18, 34), *P(102, 60)), 6 * s, fill=(196, 206, 230, 255))
+        d.rectangle((*P(54, 18), *P(66, 32)), fill=(120, 130, 160, 255), outline=(30, 36, 60, 255))
+        d.ellipse((*P(2, 8), *P(118, 24)), fill=(170, 180, 205, 255), outline=(30, 36, 60, 255), width=int(1 * s))
+        d.ellipse((*P(6, 8), *P(114, 20)), fill=(214, 222, 240, 255))
+        # 눈금판 (중심 60, 95, 반지름 38)
+        cx, cy, r = 60, 95, 38
+        d.ellipse((*P(cx - r - 3, cy - r - 3), *P(cx + r + 3, cy + r + 3)), fill=(40, 46, 76, 255))
+        d.ellipse((*P(cx - r, cy - r), *P(cx + r, cy + r)), fill=(250, 250, 255, 255))
+        for k in range(41):
+            a = math.radians(-135 + k * 270 / 40 - 90)
+            L = 7 if k % 10 == 0 else (4.5 if k % 5 == 0 else 2.5)
+            d.line([P(cx + (r - 2) * math.cos(a), cy + (r - 2) * math.sin(a)),
+                    P(cx + (r - 2 - L) * math.cos(a), cy + (r - 2 - L) * math.sin(a))], fill=(30, 36, 60, 255),
+                   width=max(1, int((1.2 if k % 5 == 0 else 0.6) * s)))
+            if k % 20 == 0:
+                d.text(P(cx + (r - 15) * math.cos(a), cy + (r - 15) * math.sin(a)), str(k // 20),
+                       font=font('jalnan', int(7 * s)), fill=(30, 36, 60, 255), anchor='mm')
+        d.text(P(cx, cy + 16), 'kg', font=font('jalnan', int(6 * s)), fill=(120, 126, 150, 255), anchor='mm')
+    return art('s27_scale', 120, 150, f)
+
+
+def s27_needle(col=(230, 40, 60), length=33, w=1.6, name='needle'):
+    def f(d, im, s):
+        c = im.width / 2
+        d.line([(c, c + 5 * s), (c, c - length * s)], fill=_c(col), width=int(w * s))
+        d.ellipse((c - 3 * s, c - 3 * s, c + 3 * s, c + 3 * s), fill=(40, 46, 76, 255), outline=_c(col), width=int(1 * s))
+    return art('s27_%s' % name, 2 * length + 8, 2 * length + 8, f)
+
+
+def s27_tmark():
+    def f(d, im, s):
+        c = im.width / 2
+        d.polygon([(c, 4.5 * s), (c - 3.5 * s, -0.5 * s), (c + 3.5 * s, -0.5 * s)], fill=(30, 170, 90, 255), outline=(0, 60, 30, 255))
+    return art('s27_tmark', 84, 84, f)
+
+
+# ================================================================== 28. 숲길 기억
+def s28_floor(cols=7, rows=5, cs=36):
+    import random as _r
+
+    def f(d, im, s):
+        W, H = im.size
+        rg = _r.Random(28)
+        d.rounded_rectangle((0, 0, W, H), 8 * s, fill=(26, 52, 40, 255), outline=(10, 24, 16, 255), width=int(1.5 * s))
+        for r in range(rows):
+            for c in range(cols):
+                x0, y0 = (4 + c * cs) * s, (4 + r * cs) * s
+                tone = rg.randint(-8, 8)
+                d.rounded_rectangle((x0 + 1.5 * s, y0 + 1.5 * s, x0 + (cs - 1.5) * s, y0 + (cs - 1.5) * s), 5 * s,
+                                    fill=(44 + tone, 82 + tone, 58 + tone, 255))
+                for _ in range(5):
+                    gx, gy = x0 + rg.uniform(5, cs - 5) * s, y0 + rg.uniform(5, cs - 5) * s
+                    d.line([(gx, gy), (gx + rg.uniform(-1.5, 1.5) * s, gy - 3.5 * s)], fill=(90, 140, 90, 200), width=max(1, int(0.7 * s)))
+    return art('s28_floor', cols * cs + 8, rows * cs + 8, f)
+
+
+def s28_stone():
+    def f(d, im, s):
+        W = im.width
+        c = W / 2
+        _blur_layer(im, lambda dd: dd.ellipse((c - 15 * s, c - 13 * s, c + 15 * s, c + 13 * s), fill=(255, 230, 140, 150)), 3 * s)
+        d2 = ImageDraw.Draw(im)
+        d2.ellipse((c - 11 * s, c - 9 * s, c + 11 * s, c + 10 * s), fill=(214, 200, 170, 255), outline=(90, 76, 50, 255), width=int(1 * s))
+        d2.ellipse((c - 7 * s, c - 6 * s, c + 3 * s, c), fill=(250, 244, 226, 200))
+    return art('s28_stone', 34, 34, f)
+
+
+def s28_dark():
+    def f(d, im, s):
+        W, H = im.size
+        m = Image.new('L', (W // 4, H // 4), 238)
+        md = ImageDraw.Draw(m)
+        c = (W / 8, H / 8)
+        for k in range(20, 0, -1):
+            r = (46 + k * 1.6) * s / 4
+            md.ellipse((c[0] - r, c[1] - r, c[0] + r, c[1] + r), fill=int(238 * k / 21))
+        md.ellipse((c[0] - 44 * s / 4, c[1] - 44 * s / 4, c[0] + 44 * s / 4, c[1] + 44 * s / 4), fill=0)
+        m = m.resize((W, H), Image.BILINEAR)
+        lay = Image.new('RGBA', (W, H), (4, 8, 16, 255))
+        lay.putalpha(m)
+        im.alpha_composite(lay)
+    return art('s28_dark', 600, 420, f)
+
+
+def s28_sign(txt, col):
+    def f(d, im, s):
+        W, H = im.size
+        d.rectangle((W / 2 - 1.5 * s, H * 0.5, W / 2 + 1.5 * s, H), fill=(100, 70, 40, 255))
+        d.rounded_rectangle((1 * s, 1 * s, W - 1 * s, H * 0.58), 4 * s, fill=_c(col), outline=(10, 10, 20, 255), width=int(1 * s))
+        d.text((W / 2, H * 0.3), txt, font=font('jalnan', int(9 * s)), fill=(255, 255, 255, 255), anchor='mm')
+    return art('s28_sign_%s' % txt, 40, 30, f)
+
+
+# ================================================================== 29. 모내기
+def s29_row():
+    def f(d, im, s):
+        W, H = im.size
+        d.rounded_rectangle((0, 0, W, H), 6 * s, fill=(70, 62, 46, 235), outline=(30, 26, 18, 255), width=int(1 * s))
+        d.rounded_rectangle((3 * s, 3 * s, W - 3 * s, H - 3 * s), 5 * s, fill=(92, 110, 120, 235))
+        for k in range(14):
+            x = (10 + k * 33) * s
+            d.line([(x, H * 0.35), (x + 14 * s, H * 0.35)], fill=(170, 200, 220, 90), width=max(1, int(0.8 * s)))
+            d.line([(x + 10 * s, H * 0.68), (x + 20 * s, H * 0.68)], fill=(170, 200, 220, 60), width=max(1, int(0.8 * s)))
+    return art('s29_row', 470, 34, f)
+
+
+def s29_mark():
+    def f(d, im, s):
+        W, H = im.size
+        c = W / 2
+        for k in range(6):
+            y = (8 + k * 4.4) * s
+            d.line([(c, y), (c, y + 2.2 * s)], fill=(255, 255, 255, 200), width=max(1, int(1 * s)))
+        d.rectangle((c - 1 * s, 0, c + 1 * s, 8 * s), fill=(150, 100, 50, 255))
+        d.polygon([(c + 1 * s, 0.5 * s), (c + 6 * s, 2.5 * s), (c + 1 * s, 4.5 * s)], fill=(255, 90, 90, 255))
+    return art('s29_mark', 14, 36, f)
+
+
+def s29_seed(kind):
+    """kind: 0 잘 심음, 1 조금 삐뚤, 2 엉뚱한 곳."""
+    col = [(70, 210, 90), (150, 210, 80), (200, 170, 60)][kind]
+
+    def f(d, im, s):
+        W, H = im.size
+        c = W / 2
+        d.ellipse((c - 5 * s, H - 4 * s, c + 5 * s, H - 0.5 * s), fill=(40, 50, 40, 160))
+        tilt = [0, 2.5, 4][kind]
+        for dx, top in ((-3, 3), (0, 0), (3, 3), (-1.5, 5), (1.5, 5)):
+            d.line([(c + dx * 0.4 * s, H - 2 * s), (c + (dx + tilt) * s, top * s + 1 * s)], fill=_c(col), width=max(1, int(1.2 * s)))
+    return art('s29_seed_%d' % kind, 14, 20, f)
+
+
+def s29_planter():
+    """위에서 본 이앙기 (오른쪽으로 감). 70x44. 심는 곳 = 왼쪽 끝 (그림 가운데에서 -30)."""
+    def f(d, im, s):
+        P = lambda x, y: (x * s, y * s)
+        d.rounded_rectangle((*P(2, 6), *P(14, 38)), 2 * s, fill=(60, 70, 90, 255), outline=(20, 24, 40, 255), width=int(0.8 * s))
+        for k in range(4):
+            y = 9 + k * 8
+            d.rectangle((*P(3.5, y), *P(12.5, y + 5)), fill=(80, 170, 80, 255))
+        d.rectangle((*P(14, 18), *P(22, 26)), fill=(40, 46, 66, 255))
+        d.rounded_rectangle((*P(20, 8), *P(60, 36)), 6 * s, fill=(40, 120, 220, 255), outline=(10, 30, 80, 255), width=int(1 * s))
+        d.rounded_rectangle((*P(22, 10), *P(58, 18)), 4 * s, fill=(110, 170, 255, 255))
+        for (x, y) in ((48, 3), (48, 35), (28, 4), (28, 34)):
+            d.rounded_rectangle((*P(x - 6, y - 3), *P(x + 6, y + 4)), 2 * s, fill=(26, 26, 32, 255))
+        d.ellipse((*P(30, 15), *P(42, 29)), fill=(240, 206, 170, 255), outline=(60, 40, 30, 255), width=max(1, int(0.6 * s)))
+        d.chord((*P(29, 14), *P(43, 30)), 90, 270, fill=(250, 250, 250, 255))
+        d.polygon([P(60, 16), P(68, 22), P(60, 28)], fill=(230, 60, 70, 255))
+    return art('s29_planter', 70, 44, f)
+
+
+def s29_pointer():
+    def f(d, im, s):
+        W, H = im.size
+        d.polygon([(W / 2, H - 1 * s), (1 * s, 1 * s), (W - 1 * s, 1 * s)], fill=(255, 230, 90, 255), outline=(80, 60, 0, 255))
+    return art('s29_pointer', 10, 8, f)
+
+
+# ================================================================== 30. 바람 활쏘기
+def s30_target():
+    """반지름 36 과녁 + 받침 (그림 가운데 = 과녁 중심)."""
+    def f(d, im, s):
+        W, H = im.size
+        c = W / 2
+        d.line([(c - 20 * s, c + 20 * s), (c - 30 * s, H)], fill=(110, 76, 40, 255), width=int(3 * s))
+        d.line([(c + 20 * s, c + 20 * s), (c + 30 * s, H)], fill=(110, 76, 40, 255), width=int(3 * s))
+        cols = [(240, 240, 245), (30, 34, 50), (50, 110, 230), (220, 50, 60), (255, 210, 40)]
+        for k, col in enumerate(cols):
+            r = (36 - k * 7.2) * s
+            d.ellipse((c - r, c - r, c + r, c + r), fill=_c(col), outline=(20, 20, 30, 255), width=max(1, int(0.6 * s)))
+        d.line([(c - 2 * s, c), (c + 2 * s, c)], fill=(30, 30, 40, 255), width=max(1, int(0.6 * s)))
+        d.line([(c, c - 2 * s), (c, c + 2 * s)], fill=(30, 30, 40, 255), width=max(1, int(0.6 * s)))
+    return art('s30_target', 76, 76 + 38, lambda d, im, s: f(d, im, s))
+
+
+def s30_flag(w):
+    """w: -5..5 바람 (음수 = 왼쪽)."""
+    def f(d, im, s):
+        W, H = im.size
+        c = W / 2
+        d.rectangle((c - 1 * s, 6 * s, c + 1 * s, H), fill=(200, 200, 210, 255))
+        d.ellipse((c - 2 * s, 3 * s, c + 2 * s, 7 * s), fill=(230, 230, 240, 255))
+        a = abs(w)
+        sg = 1 if w >= 0 else -1
+        L = 8 + a * 5.5
+        droop = (5 - a) * 3.2
+        tip = (c + sg * L * s, (8 + 7 + droop) * s)
+        pts = [(c, 8 * s), tip, (c + sg * (L - 2) * s, (8 + 9 + droop) * s), (c, 22 * s)]
+        if a == 0:
+            pts = [(c, 8 * s), (c + 3 * s, 26 * s), (c - 1 * s, 30 * s), (c - 2 * s, 22 * s)]
+        d.polygon(pts, fill=(230, 50, 70, 255), outline=(90, 10, 20, 255))
+    return art('s30_flag_%d' % (w + 5), 76, 48, f)
+
+
+def s30_arrow_fly():
+    def f(d, im, s):
+        W, H = im.size
+        c = W / 2
+        d.line([(c, 4 * s), (c, H - 4 * s)], fill=(150, 110, 60, 255), width=int(2 * s))
+        for sg in (-1, 1):
+            d.polygon([(c, H - 18 * s), (c + sg * 7 * s, H - 8 * s), (c + sg * 7 * s, H - 2 * s), (c, H - 10 * s)],
+                      fill=(240, 240, 250, 255), outline=(40, 40, 60, 255))
+        d.polygon([(c, 0), (c - 3 * s, 6 * s), (c + 3 * s, 6 * s)], fill=(180, 190, 210, 255))
+    return art('s30_arrow', 16, 50, f)
+
+
+def s30_stuck():
+    def f(d, im, s):
+        W = im.width
+        c = W / 2
+        for a in (0, 120, 240):
+            ang = math.radians(a - 90)
+            d.line([(c, c), (c + 5.5 * s * math.cos(ang), c + 5.5 * s * math.sin(ang))], fill=(240, 240, 250, 255), width=int(2.2 * s))
+        d.ellipse((c - 2 * s, c - 2 * s, c + 2 * s, c + 2 * s), fill=(120, 80, 40, 255), outline=(20, 20, 30, 255))
+    return art('s30_stuck', 14, 14, f)
+
+
+def s30_cross():
+    def f(d, im, s):
+        W = im.width
+        c = W / 2
+        d.ellipse((c - 11 * s, c - 11 * s, c + 11 * s, c + 11 * s), outline=(255, 255, 255, 230), width=int(1.2 * s))
+        for (dx, dy) in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            d.line([(c + dx * 5 * s, c + dy * 5 * s), (c + dx * 15 * s, c + dy * 15 * s)], fill=(255, 255, 255, 240), width=int(1.2 * s))
+        d.ellipse((c - 1.3 * s, c - 1.3 * s, c + 1.3 * s, c + 1.3 * s), fill=(255, 60, 80, 255))
+    return art('s30_cross', 32, 32, f)
+
+
+def s30_leaf():
+    def f(d, im, s):
+        W, H = im.size
+        d.ellipse((0, H * 0.2, W, H * 0.8), fill=(150, 200, 90, 220))
+    return art('s30_leaf', 7, 4, f)

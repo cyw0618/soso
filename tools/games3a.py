@@ -7,6 +7,8 @@ import mg_art3 as A3
 T = 3
 GAMES, game = registry()
 import art3a as R
+import mg_art as MA
+A = MA
 
 
 # ------------------------------------------------------------------ 공통 도우미
@@ -431,4 +433,551 @@ def g03(P, ctx):
     m.snd('k03_poor', play('bad'))
     m.finish('자갈치 새벽 경매! 별(신선도)과 크기로 진짜 값을 짐작해\n그보다 싸게 사면 이익, 비싸게 사면 손해예요. (5마리)',
              '조작: "입찰!" = 값 올려 부르기 · "포기" = 이번 생선 넘기기\n아무도 안 부르고 3초 지나면 낙찰!')
+    return True
+
+
+# ================================================================== 4. 복숭아 컵 섞기 (야바위)
+@game(4)
+def g04(P, ctx):
+    NR, BY = 6, -40
+    m = mg(P, ctx, T, 4, status='라운드 1/%d' % NR, dim=60)
+    P.list('k04_n', [3, 3, 4, 4, 5, 5])
+    P.list('k04_sw', [5, 7, 8, 9, 10, 12])
+    P.list('k04_du', [0.5, 0.42, 0.4, 0.34, 0.32, 0.27])
+    P.list('k04_db', [0, 0, 25, 35, 40, 50])
+    P.list('k04_gp', [110, 110, 100, 100, 88, 88])
+    P.list('k04_slot', [1, 2, 3, 4, 5])
+    P.list('k04_new', [1, 2, 3, 4, 5])
+    vars_(P, 'k04_n_', 'k04_gap', 'k04_pb', 'k04_dur', 'k04_a', 'k04_b', 'k04_c', 'k04_d', 'k04_ch', 'k04_wait', 'k04_lb',
+          'k04_hold', 'k04_res', 'k04_t0')
+    slotx = lambda s: mul(sub(s, div(add(V('k04_n_'), 1), 2)), V('k04_gap'))
+    m.S('돗자리', R.k04_mat(), 0, BY - 30)
+    peach = m.S('복숭아', MA.peach('ripe'), 0, BY - 12, visible=False)
+    peach.on(on_msg('k04_peach'), xy(slotx(LGET('k04_slot', V('k04_pb'))), BY - 14), show())
+    peach.on(on_msg('k04_hide'), hide())
+    for i in range(1, 6):
+        o = m.S('바구니%d' % i, R.k04_basket(), 0, BY, visible=False)
+        o.local('k04_o', 0)
+        o.local('k04_t', 0)
+        o.on(on_msg('k04_setup'), ifelse(le(i, V('k04_n_')), [xy(slotx(i), BY), o.pct(100), show()], [hide()]))
+        o.on(on_msg('k04_lift'), if_(eq(V('k04_lb'), i), glide(0.2, obj_x(), BY + 50), wait(V('k04_hold')), glide(0.2, obj_x(), BY)))
+        o.on(on_msg('k04_move'), if_(le(i, V('k04_n_')),
+                                     setv('k04_o', LGET('k04_slot', i)), setv('k04_t', LGET('k04_new', i)),
+                                     if_(ne(V('k04_o'), V('k04_t')),
+                                         ifelse(gt(V('k04_t'), V('k04_o')),
+                                                [glide(div(V('k04_dur'), 2), div(add(slotx(V('k04_o')), slotx(V('k04_t'))), 2), BY + 24),
+                                                 glide(div(V('k04_dur'), 2), slotx(V('k04_t')), BY)],
+                                                [to_front(), o.pct(110),
+                                                 glide(div(V('k04_dur'), 2), div(add(slotx(V('k04_o')), slotx(V('k04_t'))), 2), BY - 14),
+                                                 glide(div(V('k04_dur'), 2), slotx(V('k04_t')), BY), o.pct(100)]))))
+        o.on(on_click(), if_(and_(eq(V('k04_wait'), 1), eq(V('게임중'), 1)), setv('k04_ch', i), setv('k04_wait', 0)))
+    m.rival('섞는이', '2', 196, 52, scale=0.34)
+    m.rival_badge('섞는이표', '2번 후보', 196, 20, 62, 'red')
+    say_ = m.T('안내말', '', -20, 66, 12, C_WHITE, F_NUM, False, 0, w=300, h=20, bg=C_BOX)
+    for msg, txt, col in (('k04_m1', '복숭아가 들어간 바구니를 잘 보세요!', C_WHITE), ('k04_m2', '섞는다~ 눈 떼지 마세요!', C_ACC),
+                          ('k04_m3', '어느 바구니일까요? 클릭!', '#7CFFB0'), ('k04_m4', '정답! 눈썰미 최고!', '#7CFFB0'),
+                          ('k04_m5', '땡! 여기 있었어요', C_RED)):
+        say_.on(on_msg(msg), write(txt), text_color(col))
+    popper(m, '판정', [('o', K.big_text('정답!', 30, 'green')), ('x', K.big_text('땡!', 30, 'red'))], 0, 20, 'k04_judge',
+           sel='k04_res', hold=0.6)
+    newslot = []
+    for i in range(1, 6):
+        s_ = LGET('k04_slot', i)
+        newslot.append(ifelse(eq(s_, V('k04_a')), [lst_set('k04_new', i, V('k04_b'))],
+                              [ifelse(eq(s_, V('k04_b')), [lst_set('k04_new', i, V('k04_a'))],
+                                      [ifelse(eq(s_, V('k04_c')), [lst_set('k04_new', i, V('k04_d'))],
+                                              [ifelse(eq(s_, V('k04_d')), [lst_set('k04_new', i, V('k04_c'))],
+                                                      [lst_set('k04_new', i, s_)])])])]))
+    swap = [setv('k04_a', rnd(1, V('k04_n_'))), setv('k04_b', rnd(1, sub(V('k04_n_'), 1))),
+            if_(ge(V('k04_b'), V('k04_a')), chg('k04_b', 1)), setv('k04_c', -1), setv('k04_d', -1),
+            if_(le(rnd(1, 100), LGET('k04_db', V('라운드'))),
+                setv('k04_c', rnd(1, V('k04_n_'))),
+                until(and_(ne(V('k04_c'), V('k04_a')), ne(V('k04_c'), V('k04_b'))), setv('k04_c', rnd(1, V('k04_n_')))),
+                setv('k04_d', rnd(1, V('k04_n_'))),
+                until(and_(and_(ne(V('k04_d'), V('k04_a')), ne(V('k04_d'), V('k04_b'))), ne(V('k04_d'), V('k04_c'))),
+                      setv('k04_d', rnd(1, V('k04_n_'))))),
+            *newslot, cast_wait('k04_move'), cast('k04_swish'),
+            *[lst_set('k04_slot', i, LGET('k04_new', i)) for i in range(1, 6)]]
+    mgr = hidden(m, '섞기담당')
+    mgr.on(on_msg('게임시작'), reset_timer(), start_timer(), setv('라운드', 1),
+           until(or_(gt(V('라운드'), NR), eq(V('게임중'), 0)),
+                 setv('k04_n_', LGET('k04_n', V('라운드'))), setv('k04_gap', LGET('k04_gp', V('라운드'))),
+                 setv('k04_dur', LGET('k04_du', V('라운드'))),
+                 *[lst_set('k04_slot', i, i) for i in range(1, 6)], setv('k04_pb', rnd(1, V('k04_n_'))),
+                 setv('미니표시', join('라운드 ', V('라운드'), '/', NR, ' · 정답 ', V('맞춤'))),
+                 cast_wait('k04_setup'), cast('k04_m1'), wait(0.5),
+                 cast('k04_peach'), setv('k04_lb', V('k04_pb')), setv('k04_hold', 1.0), cast_wait('k04_lift'), cast('k04_hide'),
+                 cast('k04_m2'), wait(0.3),
+                 rep(LGET('k04_sw', V('라운드')), *swap),
+                 cast('k04_m3'), setv('k04_ch', 0), setv('k04_wait', 1), setv('k04_t0', timer()),
+                 wait_until(or_(or_(eq(V('k04_wait'), 0), eq(V('게임중'), 0)), gt(timer(), add(V('k04_t0'), 10)))),
+                 setv('k04_wait', 0),
+                 ifelse(eq(V('k04_ch'), V('k04_pb')),
+                        [chg('맞춤', 1), setv('k04_res', 1), cast('k04_judge'), cast('k04_m4'), cast('k04_peach'),
+                         setv('k04_lb', V('k04_ch')), setv('k04_hold', 0.8), cast_wait('k04_lift')],
+                        [setv('k04_res', 2), cast('k04_judge'), cast('k04_m5'), setv('k04_lb', V('k04_ch')), setv('k04_hold', 0.3),
+                         cast_wait('k04_lift'), cast('k04_peach'), setv('k04_lb', V('k04_pb')), setv('k04_hold', 0.7),
+                         cast_wait('k04_lift')]),
+                 cast('k04_hide'), wait(0.3), chg('라운드', 1)),
+           *m.end_blocks(mul(V('맞춤'), 100.0 / NR)))
+    m.on_start(setv('맞춤', 0), setv('k04_wait', 0), setv('k04_n_', 3), setv('k04_gap', 110))
+    m.snd('k04_swish', play('jump'))
+    m.snd('k04_judge', ifelse(eq(V('k04_res'), 1), [play('good')], [play('bad')]))
+    m.finish('복숭아가 숨은 바구니를 눈으로 따라가세요!\n바구니는 3→4→5개로 늘고 점점 빨라져요. (6라운드)',
+             '조작: 섞기가 끝나면 복숭아가 있는 바구니를 클릭')
+    return True
+
+
+# ================================================================== 5. 커피 정량 따르기
+@game(5)
+def g05(P, ctx):
+    LB = -85
+    ORDER = [1, 2, 3, 1, 3, 2]
+    NC = len(ORDER)
+    m = mg(P, ctx, T, 5, status='1/%d잔' % NC, dim=80)
+    P.list('k05_ord', ORDER)
+    P.list('k05_iw', [c[0] for c in R.CUPS])
+    P.list('k05_ih', [c[1] for c in R.CUPS])
+    P.list('k05_cy', [-91 + (c[1] + 10) / 2.0 for c in R.CUPS])
+    P.list('k05_nm', ['에스프레소', '카페라떼', '아이스 아메리카노'])
+    vars_(P, 'k05_i', 'k05_k', 'k05_L', 'k05_T', 'k05_F', 'k05_ph', 'k05_fl', 'k05_rel', 'k05_tr', 'k05_now', 'k05_prev',
+          'k05_dt', 'k05_pour', 'k05_err', 'k05_s', 'k05_tot', 'k05_res', 'k05_ihv', 'k05_log', 'k05_bk')
+    cur = lambda nm: LGET(nm, V('k05_k'))
+    m.S('커피머신', R.k05_machine(), 0, 74)
+    stream = m.S('물줄기', [('s%d' % k, R.k05_stream(k)) for k in range(3)], 0, 46 - 75, visible=False)
+    stream.on(on_msg('k05_pour'), shape(2), show())
+    stream.on(on_msg('k05_flow'), shape(V('k05_bk')))
+    stream.on(on_msg('k05_stop'), hide())
+    # 거품 = 붓 (붓 자국이 거품 아래에 그려져 커피가 된다)
+    foam = m.S('거품', [('f%d' % k, R.k05_foam(k)) for k in range(3)], 0, LB, visible=False)
+    foam.on(on_msg('k05_new'), pen_up(), pen_clear(), hide(), shape(V('k05_k')), xy(0, LB), pen_size(cur('k05_iw')),
+            pen_color('#4A2810'))
+    foam.on(on_msg('k05_pour'), xy(0, LB), pen_down(), show(),
+            until(eq(V('k05_pour'), 0), setv('_mv', V('k05_L')), if_(gt(V('_mv'), V('k05_ihv')), setv('_mv', V('k05_ihv'))),
+                  ly(add(LB, V('_mv')))),
+            pen_up())
+    cup = m.S('컵', [('c%d' % k, R.k05_cup(k)) for k in range(3)], 0, -50, visible=False)
+    cup.on(on_msg('k05_new'), shape(V('k05_k')), xy(0, cur('k05_cy')), cup.pct(60), show(), rep(5, cup.grow_pct(8), wait(0.016)))
+    line = m.S('목표선', [('l%d' % k, R.k05_line(k)) for k in range(3)], 0, 0, visible=False)
+    line.on(on_msg('k05_new'), shape(V('k05_k')), xy(0, add(LB, V('k05_T'))), show())
+    m.S('카운터', R.k05_counter(), 0, -100)
+    # 왼쪽: 주문표, 오른쪽: 기록
+    panel(P, m.sc, '주문판', -165, 20, 130, 110, 'glass', header='royal')
+    m.T('주문제목', '주문', -165, 66, 11, C_WHITE, F_NUM, False, 0, w=120, h=16)
+    od = m.T('주문글', '', -165, 22, 11, C_WHITE, F_BODY, True, 0, w=122, h=70)
+    od.on(on_msg('k05_new'), write(join(V('k05_i'), '번째 손님\n', cur('k05_nm'), '\n\n빨간 선까지 딱!')))
+    panel(P, m.sc, '기록판', 168, 10, 120, 150, 'glass', header='royal')
+    m.T('기록제목', '점수 기록', 168, 76, 11, C_WHITE, F_NUM, False, 0, w=110, h=16)
+    lg = m.T('기록글', '', 168, 4, 10, C_WHITE, F_BODY, True, 0, w=110, h=124)
+    lg.on(on_msg('k05_done'), write(V('k05_log')))
+    popper(m, '판정', [('a', K.big_text('완벽!', 26, 'green')), ('b', K.big_text('좋아요', 24, 'royal')),
+                     ('c', K.big_text('아쉬워요', 22, 'white')), ('d', K.big_text('넘쳤어요!', 24, 'red'))],
+           0, 10, 'k05_done', sel='k05_res', hold=0.7)
+    tick = [setv('k05_now', timer()), setv('k05_dt', sub(V('k05_now'), V('k05_prev'))), setv('k05_prev', V('k05_now')),
+            if_(gt(V('k05_dt'), 0.1), setv('k05_dt', 0.1))]
+    mgr = hidden(m, '커피담당')
+    mgr.on(on_msg('게임시작'), reset_timer(), start_timer(), setv('k05_i', 1), setv('k05_log', ''),
+           until(or_(gt(V('k05_i'), NC), eq(V('게임중'), 0)),
+                 setv('k05_k', LGET('k05_ord', V('k05_i'))), setv('k05_ihv', cur('k05_ih')),
+                 setv('k05_T', floor(mul(cur('k05_ih'), div(rnd(55, 85), 100)))),
+                 setv('k05_F', mul(cur('k05_ih'), div(rnd(48, 72), 100))), setv('k05_ph', rnd(0, 180)),
+                 setv('k05_L', 0), setv('k05_pour', 0), cast('k05_new'),
+                 setv('미니표시', join(V('k05_i'), '/', NC, '잔')),
+                 wait(0.4), wait_until(or_(key(K_SPACE), eq(V('게임중'), 0))),
+                 setv('k05_pour', 1), setv('k05_bk', 2), cast('k05_pour'), setv('k05_prev', timer()),
+                 until(or_(or_(not_(key(K_SPACE)), eq(V('게임중'), 0)), gt(V('k05_L'), add(V('k05_ihv'), 4))),
+                       *tick,
+                       setv('k05_fl', mul(V('k05_F'), add(0.6, mul(0.8, abs_(sin_(add(mul(V('k05_now'), 110), V('k05_ph')))))))),
+                       chg('k05_L', mul(V('k05_fl'), V('k05_dt'))),
+                       setv('_mk', add(1, floor(mul(div(V('k05_fl'), V('k05_F')), 2.2)))), if_(gt(V('_mk'), 3), setv('_mk', 3)),
+                       if_(ne(V('_mk'), V('k05_bk')), setv('k05_bk', V('_mk')), cast('k05_flow'))),
+                 # 손을 떼도 조금 더 흐른다
+                 setv('k05_rel', V('k05_fl')), setv('k05_tr', timer()), setv('k05_bk', 1), cast('k05_flow'),
+                 until(or_(gt(sub(timer(), V('k05_tr')), 0.5), eq(V('게임중'), 0)),
+                       *tick, chg('k05_L', mul(mul(V('k05_rel'), sub(1, div(sub(V('k05_now'), V('k05_tr')), 0.5))), V('k05_dt')))),
+                 setv('k05_pour', 0), cast('k05_stop'),
+                 setv('k05_err', abs_(sub(V('k05_L'), V('k05_T')))),
+                 ifelse(gt(V('k05_L'), V('k05_ihv')), [setv('k05_s', 0), setv('k05_res', 4)],
+                        [setv('k05_s', sub(100, mul(sub(V('k05_err'), 1.5), 7))), if_(gt(V('k05_s'), 100), setv('k05_s', 100)),
+                         if_(lt(V('k05_s'), 0), setv('k05_s', 0)),
+                         ifelse(le(V('k05_err'), 2.5), [setv('k05_res', 1)],
+                                [ifelse(le(V('k05_err'), 7), [setv('k05_res', 2)], [setv('k05_res', 3)])])]),
+                 setv('k05_s', rounded(V('k05_s'))), chg('k05_tot', V('k05_s')),
+                 setv('k05_log', join(V('k05_log'), V('k05_i'), '잔: ', V('k05_s'), '점\n')),
+                 cast('k05_done'), wait(1.4), chg('k05_i', 1)),
+           *m.end_blocks(div(V('k05_tot'), NC)))
+    m.on_start(setv('k05_tot', 0), setv('k05_pour', 0), setv('k05_k', 1), setv('k05_L', 0))
+    m.snd('k05_pour', play('splash'))
+    m.snd('k05_done', ifelse(le(V('k05_res'), 2), [play('good')], [ifelse(eq(V('k05_res'), 4), [play('fail_big')], [play('bad')])]))
+    m.finish('스페이스를 누르는 동안 커피가 나와요. 빨간 선에 딱!\n떼어도 조금 더 흐르고, 나오는 양도 들쭉날쭉해요. (6잔)',
+             '조작: SPACE 꾹 눌렀다 떼기 (잔마다 한 번만 따를 수 있어요)')
+    return True
+
+
+# ================================================================== 6. 다트 던지기
+@game(6)
+def g06(P, ctx):
+    BX, BY = 62, -14
+    RD = R.DART_R
+    m = mg(P, ctx, T, 6, time_limit=70, status='0점', dim=90)
+    P.list('k06_num', R.DART_ORDER)
+    P.list('k06_amp', [15, 22, 30])
+    vars_(P, 'k06_ax', 'k06_ay', 'k06_hx', 'k06_hy', 'k06_amp_', 'k06_br', 'k06_tired', 'k06_dn', 'k06_pts', 'k06_tot',
+          'k06_rs', 'k06_ready', 'k06_lab', 'k06_r', 'k06_th', 'k06_now', 'k06_prev', 'k06_dt', 'k06_f', 'k06_sm', 'k06_dy')
+    m.S('다트판', R.k06_board(), BX, BY)
+    dart = m.S('다트', R.k06_dart(), 0, -300, visible=False)
+    dart.local('k06_cl', 0)
+    dart.on(on_msg('k06_throw'), xy(add(V('k06_hx'), 50), -160), clone_self())
+    dart.on(on_clone(), setv('k06_cl', 1), dart.pct(190), show(), glide(0.14, V('k06_hx'), V('k06_hy')), dart.pct(100), cast('k06_hit'))
+    dart.on(on_msg('k06_clear'), if_(eq(V('k06_cl'), 1), del_clone()))
+    lab = m.T('점수글', '', 0, 0, 12, C_WHITE, F_NUM, False, 0, w=90, h=18, visible=False, bg=C_BOX)
+    lab.on(on_msg('k06_hit'), xy(V('k06_hx'), add(V('k06_hy'), 24)), write(V('k06_lab')),
+           ifelse(ge(V('k06_pts'), 40), [text_color('#7CFFB0')], [ifelse(eq(V('k06_pts'), 0), [text_color(C_RED)], [text_color(C_WHITE)])]),
+           to_front(), show(), wait(0.9), hide())
+    # 왼쪽 점수판
+    panel(P, m.sc, '점수판', -168, 18, 128, 140, 'glass', header='royal')
+    m.T('점수제목', '점수판', -168, 80, 11, C_WHITE, F_NUM, False, 0, w=110, h=16)
+    sb = m.T('점수판글', '', -168, 28, 11, C_WHITE, F_BODY, True, 0, w=118, h=84)
+    sb.on(on_msg('k06_upd'), write(join('라운드 ', V('라운드'), ' / 3\n다트 ', V('k06_dn'), ' / 3\n이번 라운드 ', V('k06_rs'),
+                                        '점\n합계 ', V('k06_tot'), '점')))
+    m.S('상대얼굴', ctx['PORT']['p1'], -214, -32)
+    m.T('목표', '1번 후보 기록 250점', -160, -32, 9, C_ACC, F_BODY, True, 0, w=100, h=14)
+    m.T('숨글', '숨 참기 (SPACE)', -168, -76, 9, C_WHITE, F_BODY, True, 0, w=120, h=14)
+    br = m.S('숨막대', K.bar_set('k06_breath', 110, 9, 'royal'), -168, -92)
+    br.local('k06_lb', -1)
+    br.on(on_msg('게임시작'), setv('k06_lb', -1),
+          until(eq(V('게임중'), 0), setv('_mk', floor(div(V('k06_br'), 2.5))),
+                if_(ne(V('_mk'), V('k06_lb')), setv('k06_lb', V('_mk')), pad_shape(V('_mk'))), wait(0.05)))
+    tired = m.T('숨참', '헉헉… 숨이 차요!', -168, -110, 9, C_RED, F_NUM, False, 0, w=120, h=14, visible=False)
+    tired.on(on_msg('게임시작'), until(eq(V('게임중'), 0), ifelse(eq(V('k06_tired'), 1), [show()], [hide()]), wait(0.1)))
+    # 조준점: 마우스 + 흔들림 (숨을 참으면 덜 흔들림)
+    aim = m.S('조준', R.k06_aim(), BX, BY)
+    aim.on(on_msg('게임시작'), setv('k06_prev', timer()), setv('k06_sm', 1),
+           until(eq(V('게임중'), 0),
+                 setv('k06_now', timer()), setv('k06_dt', sub(V('k06_now'), V('k06_prev'))), setv('k06_prev', V('k06_now')),
+                 if_(gt(V('k06_dt'), 0.1), setv('k06_dt', 0.1)),
+                 ifelse(and_(key(K_SPACE), and_(gt(V('k06_br'), 0), eq(V('k06_tired'), 0))),
+                        [chg('k06_br', mul(-42, V('k06_dt'))), setv('k06_f', 0.28)],
+                        [chg('k06_br', mul(20, V('k06_dt'))), ifelse(eq(V('k06_tired'), 1), [setv('k06_f', 1.6)], [setv('k06_f', 1)])]),
+                 if_(le(V('k06_br'), 0), setv('k06_br', 0), setv('k06_tired', 1)),
+                 if_(ge(V('k06_br'), 100), setv('k06_br', 100)),
+                 if_(and_(eq(V('k06_tired'), 1), ge(V('k06_br'), 60)), setv('k06_tired', 0)),
+                 setv('_mk', mul(6, V('k06_dt'))), if_(gt(V('_mk'), 1), setv('_mk', 1)),
+                 chg('k06_sm', mul(sub(V('k06_f'), V('k06_sm')), V('_mk'))),
+                 setv('_mv', mul(V('k06_amp_'), V('k06_sm'))),
+                 setv('k06_ax', add(mouse_x(), mul(V('_mv'), add(sin_(mul(V('k06_now'), 97)), mul(0.35, sin_(mul(V('k06_now'), 263))))))),
+                 setv('k06_ay', add(mouse_y(), mul(V('_mv'), add(sin_(add(mul(V('k06_now'), 71), 40)), mul(0.3, cos_(mul(V('k06_now'), 199))))))),
+                 xy(V('k06_ax'), V('k06_ay'))))
+    # 던지기와 점수 계산 (다트판: 중심 거리 → 고리, 각도 → 숫자)
+    calc = [setv('k06_hx', add(V('k06_ax'), div(rnd(-30, 30), 10))), setv('k06_hy', add(V('k06_ay'), div(rnd(-30, 30), 10))),
+            setv('_mx', sub(V('k06_hx'), BX)), setv('k06_dy', add(sub(V('k06_hy'), BY), 0.0001)),
+            setv('k06_r', fn('root', add(mul(V('_mx'), V('_mx')), mul(V('k06_dy'), V('k06_dy'))))),
+            setv('k06_th', fn('atan_radian', div(V('_mx'), V('k06_dy')))),
+            if_(lt(V('k06_dy'), 0), chg('k06_th', 180)),
+            setv('_mi', add(floor(div(mod(add(V('k06_th'), 369), 360), 18)), 1)),
+            setv('_mk', LGET('k06_num', V('_mi'))),
+            ifelse(le(V('k06_r'), RD['bull']), [setv('k06_pts', 50), setv('k06_lab', 'BULL! 50')],
+                   [ifelse(le(V('k06_r'), RD['obull']), [setv('k06_pts', 25), setv('k06_lab', '25점')],
+                           [ifelse(gt(V('k06_r'), RD['d_out']), [setv('k06_pts', 0), setv('k06_lab', 'MISS')],
+                                   [ifelse(and_(ge(V('k06_r'), RD['t_in']), le(V('k06_r'), RD['t_out'])),
+                                           [setv('k06_pts', mul(V('_mk'), 3)), setv('k06_lab', join('트리플 ', V('k06_pts')))],
+                                           [ifelse(ge(V('k06_r'), RD['d_in']),
+                                                   [setv('k06_pts', mul(V('_mk'), 2)), setv('k06_lab', join('더블 ', V('k06_pts')))],
+                                                   [setv('k06_pts', V('_mk')), setv('k06_lab', join(V('_mk'), '점'))])])])])]),
+            chg('k06_rs', V('k06_pts')), chg('k06_tot', V('k06_pts')), chg('k06_dn', 1),
+            setv('미니표시', join(V('k06_tot'), '점')), cast('k06_upd')]
+    mgr = hidden(m, '다트담당')
+    mgr.on(on_mouse_down(), if_(and_(eq(V('k06_ready'), 1), eq(V('게임중'), 1)), setv('k06_ready', 0), *calc, cast('k06_throw'),
+                                wait(0.45), if_(lt(V('k06_dn'), 3), setv('k06_ready', 1))))
+    mgr.on(on_msg('게임시작'), setv('라운드', 1),
+           until(or_(gt(V('라운드'), 3), eq(V('게임중'), 0)),
+                 setv('k06_amp_', LGET('k06_amp', V('라운드'))), setv('k06_dn', 0), setv('k06_rs', 0), cast('k06_upd'),
+                 cast('k06_round'), wait(0.6), setv('k06_ready', 1),
+                 wait_until(or_(ge(V('k06_dn'), 3), eq(V('게임중'), 0))),
+                 setv('k06_ready', 0), wait(1.3), cast('k06_clear'), chg('라운드', 1)),
+           *m.end_blocks(div(V('k06_tot'), 3)))
+    mgr.on(on_msg('시간끝'), setv('k06_ready', 0), *m.end_blocks(div(V('k06_tot'), 3)))
+    rp = m.T('라운드글', '', BX, 104 - 16, 12, C_WHITE, F_NUM, False, 0, w=200, h=18)
+    rp.on(on_msg('k06_round'), write(join('라운드 ', V('라운드'), ' · 점점 더 흔들려요!')), show(), wait(1.2), hide())
+    m.on_start(setv('k06_tot', 0), setv('k06_rs', 0), setv('k06_dn', 0), setv('k06_ready', 0), setv('k06_br', 100),
+               setv('k06_tired', 0), setv('k06_amp_', 15))
+    m.snd('k06_throw', play('jump'))
+    m.snd('k06_hit', play('hit'), if_(ge(V('k06_pts'), 40), play('good')))
+    m.finish('흔들리는 조준점을 다트판에 맞추고 클릭! (3라운드×3발)\n바깥 좁은 고리는 2배, 안쪽 고리는 3배, 한가운데 50점!',
+             '조작: 마우스로 조준, 클릭으로 던지기 · SPACE 누르면 숨 참기(덜 흔들림)')
+    return True
+
+
+# ================================================================== 8. 돌탑 옮기기 (하노이 탑)
+@game(8)
+def g08(P, ctx):
+    PX, BASE, LIFT = [-130, 0, 130], -75, 46
+    m = mg(P, ctx, T, 8, time_limit=100, status='이동 0 · 최소 15', dim=70)
+    P.list('k08_peg', [1, 1, 1, 1])
+    P.list('k08_px', PX)
+    vars_(P, 'k08_held', 'k08_moves', 'k08_top', 'k08_done')
+    for p in range(3):
+        m.S('기둥%d' % (p + 1), R.k08_peg(), PX[p], -40)
+    m.T('도착글', '여기로!', PX[2], -113, 10, '#7CFFB0', F_NUM, False, 0, w=80, h=14)
+    m.T('출발글', '처음 자리', PX[0], -113, 10, C_DIM, F_NUM, False, 0, w=80, h=14)
+    for k in range(1, 5):
+        o = m.S('돌%d' % k, R.k08_stone(k - 1), PX[0], BASE + 20 * (4 - k))
+        o.local('k08_h', 0)
+        cnt = [setv('k08_h', 0)] + [if_(eq(LGET('k08_peg', j), LGET('k08_peg', k)), chg('k08_h', 1)) for j in range(k + 1, 5)]
+        o.on(on_msg('k08_pos'), *cnt,
+             ifelse(eq(V('k08_held'), k), [glide(0.1, LGET('k08_px', LGET('k08_peg', k)), LIFT), fx('brightness', 25)],
+                    [fx('brightness', 0), glide(0.1, LGET('k08_px', LGET('k08_peg', k)), add(BASE, mul(V('k08_h'), 20)))]))
+        o.on(on_msg('k08_bad'), if_(eq(V('k08_held'), k), rep(3, mvx(5), wait(0.03), mvx(-5), wait(0.03))))
+        o.on(on_scene(), xy(PX[0], BASE + 20 * (4 - k)), fx('brightness', 0))
+    win = and_(*[eq(LGET('k08_peg', k), 3) for k in range(1, 5)])
+    for p in range(1, 4):
+        top = [setv('k08_top', 0)] + [if_(eq(LGET('k08_peg', k), p), setv('k08_top', k)) for k in (4, 3, 2, 1)]
+        act = [if_(and_(eq(V('게임중'), 1), eq(V('k08_done'), 0)), *top,
+                   ifelse(eq(V('k08_held'), 0),
+                          [if_(gt(V('k08_top'), 0), setv('k08_held', V('k08_top')), cast('k08_pos'), cast('k08_pick'))],
+                          [ifelse(eq(LGET('k08_peg', V('k08_held')), p), [setv('k08_held', 0), cast('k08_pos'), cast('k08_drop')],
+                                  [ifelse(or_(eq(V('k08_top'), 0), gt(V('k08_top'), V('k08_held'))),
+                                          [lst_set('k08_peg', V('k08_held'), p), setv('k08_held', 0), chg('k08_moves', 1),
+                                           cast('k08_pos'), cast('k08_drop'),
+                                           setv('미니표시', join('이동 ', V('k08_moves'), ' · 최소 15')),
+                                           if_(win, setv('k08_done', 1))],
+                                          [cast('k08_bad')])])]))]
+        h_ = m.S('클릭%d' % p, R.k08_hit(), PX[p - 1], -24)
+        h_.on(on_click(), *act)
+    msg = m.T('안내', '', 0, 80, 11, C_RED, F_NUM, False, 0, w=320, h=16)
+    msg.on(on_msg('k08_bad'), write('작은 돌 위에 큰 돌은 못 올려요!'), text_color(C_RED), wait(1.2), write(''))
+    msg.on(on_msg('k08_pick'), write('어디로 옮길까요? 기둥을 클릭!'), text_color(C_ACC))
+    msg.on(on_msg('k08_drop'), write(''))
+    popper(m, '완성', K.big_text('돌탑 완성!', 34, 'green'), 0, 20, 'k08_win', hold=1.0)
+    mgr = hidden(m, '돌탑담당')
+    finish_score = sub(100, mul(sub(V('k08_moves'), 15), 2.5))
+    mgr.on(on_msg('게임시작'), wait_until(or_(eq(V('k08_done'), 1), eq(V('게임중'), 0))),
+           if_(eq(V('k08_done'), 1), cast('k08_win'), wait(1.3),
+               setv('_mk', finish_score), if_(lt(V('_mk'), 50), setv('_mk', 50)), if_(gt(V('_mk'), 100), setv('_mk', 100)),
+               *m.end_blocks(add(V('_mk'), 0))))
+    partial = [setv('_mk', 0), if_(eq(LGET('k08_peg', 4), 3), chg('_mk', 12), if_(eq(LGET('k08_peg', 3), 3), chg('_mk', 12),
+                                                                                    if_(eq(LGET('k08_peg', 2), 3), chg('_mk', 12))))]
+    mgr.on(on_msg('시간끝'), *partial, *m.end_blocks(V('_mk')))
+    m.on_start(setv('k08_held', 0), setv('k08_moves', 0), setv('k08_done', 0), *[lst_set('k08_peg', k, 1) for k in range(1, 5)])
+    m.snd('k08_pick', play('pop'))
+    m.snd('k08_drop', play('hit'))
+    m.snd('k08_bad', play('bad'))
+    m.snd('k08_win', play('fanfare'))
+    m.finish('돌 4개를 왼쪽 기둥에서 오른쪽 기둥으로 모두 옮기세요!\n한 번에 맨 위 돌 하나, 작은 돌 위에 큰 돌은 안 돼요.',
+             '조작: 기둥 클릭 = 맨 위 돌 들기 → 다른 기둥 클릭 = 내려놓기\n최소 15번! 적게 움직일수록 점수 UP')
+    return True
+
+
+# ================================================================== 9. 감자 장사 (가격 정하기)
+@game(9)
+def g09(P, ctx):
+    S, COST, ND = 30, 18, 5
+    TYPES = {'A': (36, 1, 7, 0, '맑은 평일', '평범한 평일이에요', '손님 보통 · 지갑 보통'),
+             'B': (22, 1, 5, 1, '비', '하루 종일 비가 와요', '손님 적음 · 지갑 얇음'),
+             'C': (90, 3, 10, 0, '감자꽃 축제', '평창 감자꽃 축제 날!', '손님 아주 많음 · 지갑 두둑'),
+             'D': (60, 4, 12, 3, '관광버스', '서울 관광버스 단체 손님!', '손님 많음 · 지갑 아주 두둑'),
+             'E': (28, 1, 6, 2, '무더위', '푹푹 찌는 무더위', '손님 적음 · 지갑 보통'),
+             'F': (50, 2, 8, 0, '주말 장터', '주말 장터가 열려요', '손님 많음 · 지갑 보통')}
+    SETS = ['ABCED', 'BADCF', 'FECBD']
+
+    def sold(N, lo, hi, p):
+        return min(S, sum(1 for k in range(1, N + 1) if lo + (hi - lo) * (k - 0.5) / N >= p))
+    days = [TYPES[c] for st in SETS for c in st]
+    tbl, bestp, bestv, ideal = [], [], [], []
+    for si, st in enumerate(SETS):
+        tot = 0
+        for c in st:
+            N, lo, hi = TYPES[c][:3]
+            row = [sold(N, lo, hi, p) for p in range(1, 10)]
+            tbl += row
+            pr = [p * row[p - 1] - COST for p in range(1, 10)]
+            b = max(range(9), key=lambda i: pr[i])
+            bestp.append(b + 1)
+            bestv.append(pr[b])
+            tot += pr[b]
+        ideal.append(tot)
+    m = mg(P, ctx, T, 9, time_limit=80, status='1일째', dim=70)
+    P.list('k09_sold', tbl)
+    P.list('k09_bp', bestp)
+    P.list('k09_bv', bestv)
+    P.list('k09_ideal', ideal)
+    P.list('k09_n', [d[0] for d in days])
+    P.list('k09_wx', [d[3] + 1 for d in days])
+    P.list('k09_t1', [d[4] for d in days])
+    P.list('k09_t2', [d[5] for d in days])
+    P.list('k09_t3', [d[6] for d in days])
+    vars_(P, 'k09_set', 'k09_d', 'k09_idx', 'k09_p', 'k09_s', 'k09_pf', 'k09_tot', 'k09_show', 'k09_vis')
+    cur = lambda nm: LGET(nm, V('k09_idx'))
+    # 왼쪽: 오늘 정보 + 가격
+    panel(P, m.sc, '날씨판', -150, 42, 172, 104, 'glass', header='royal')
+    m.T('날씨제목', '오늘의 장사 정보', -150, 84, 10, C_WHITE, F_NUM, False, 0, w=160, h=14)
+    wx = m.S('날씨', [('w%d' % k, R.k09_weather(k)) for k in range(4)], -208, 50)
+    wx.on(on_msg('k09_day'), shape(cur('k09_wx')), wx.pct(70), rep(5, wx.grow_pct(6), wait(0.016)))
+    t1 = m.T('날씨이름', '', -128, 60, 13, C_WHITE, F_NUM, False, 1, w=120, h=18)
+    t1.on(on_msg('k09_day'), write(join(V('k09_d'), '일째 · ', cur('k09_t1'))))
+    t2 = m.T('날씨설명', '', -150, 28, 10, C_WHITE, F_BODY, True, 0, w=164, h=34)
+    t2.on(on_msg('k09_day'), write(join(cur('k09_t2'), '\n', cur('k09_t3'))))
+    m.T('재고글', '감자 30상자 준비 (하루 원가 18,000원)', -150, 3, 8, C_DIM, F_BODY, True, 0, w=170, h=12)
+    panel(P, m.sc, '가격판', -150, -62, 172, 84, 'glass')
+    m.T('가격제목', '한 상자 가격', -150, -30, 10, C_ACC, F_NUM, False, 0, w=120, h=14)
+    pt = m.T('가격', '', -150, -54, 20, C_WHITE, F_NUM, False, 0, w=110, h=26)
+    pt.on(on_msg('k09_price'), write(join(V('k09_p'), ',000원')))
+    dn = [if_(and_(eq(V('입력가능'), 1), gt(V('k09_p'), 1)), chg('k09_p', -1), cast('k09_price'))]
+    up = [if_(and_(eq(V('입력가능'), 1), lt(V('k09_p'), 9)), chg('k09_p', 1), cast('k09_price'))]
+    button(P, m.sc, '내림', '◀', -216, -54, 30, 28, 'steel', actions=dn)
+    button(P, m.sc, '올림', '▶', -84, -54, 30, 28, 'steel', actions=up)
+    sell = [if_(and_(eq(V('입력가능'), 1), eq(V('게임중'), 1)), setv('입력가능', 0))]
+    button(P, m.sc, '판매', '판매 시작!', -150, -90, 120, 26, 'green', actions=sell)
+    # 가운데: 가게와 손님
+    m.S('가게', R.k09_stall(), 40, -44)
+    left = m.T('남은감자', '', 40, 18, 11, C_WHITE, F_NUM, False, 0, w=150, h=16, bg=C_BOX)
+    left.on(on_msg('k09_day'), write('남은 감자 30상자'))
+    left.on(on_msg('k09_tick'), write(join('팔린 감자 ', V('k09_show'), '상자')))
+    cu = m.S('손님', [('c%d' % k, R.k09_cust(k)) for k in range(4)], 0, -300, visible=False)
+    cu.local('k09_buy', 0)
+    cu.local('k09_side', 0)
+    cu.local('k09_cl', 0)
+    cu.on(on_msg('k09_sell'), setv('k09_vis', 0),
+          rep(10, setv('k09_side', rnd(0, 1)), setv('k09_buy', 0), if_(le(rnd(1, cur('k09_n')), V('k09_s')), setv('k09_buy', 1)),
+              shape(rnd(1, 4)), clone_self(), wait(0.2)))
+    cu.on(on_clone(), setv('k09_cl', 1), xy(sub(mul(V('k09_side'), 520), 260), -98), show(),
+          glide(0.8, add(40, rnd(-50, 50)), -98),
+          ifelse(eq(V('k09_buy'), 1), [cast('k09_coin'), mvy(4), wait(0.12), mvy(-4)], [wait(0.25)]),
+          glide(0.8, sub(260, mul(V('k09_side'), 520)), -98), del_clone())
+    res = m.T('결과', '', 40, 56, 10, C_WHITE, F_BODY, True, 0, w=210, h=44, visible=False, bg=C_BOX)
+    res.on(on_msg('k09_result'), write(join(V('k09_s'), '상자 팔고 이익 ', V('k09_pf'), ',000원\n이날 가장 좋은 가격: ',
+                                           cur('k09_bp'), ',000원 (이익 ', cur('k09_bv'), ',000원)')),
+           ifelse(ge(V('k09_pf'), mul(cur('k09_bv'), 0.85)), [text_color('#7CFFB0')], [text_color(C_WHITE)]), show())
+    res.on(on_msg('k09_day'), hide())
+    # 오른쪽: 하루 이익 그래프 (붓)
+    panel(P, m.sc, '그래프판', 178, 10, 110, 170, 'glass', header='royal')
+    m.T('그래프제목', '하루 이익', 178, 84, 10, C_WHITE, F_NUM, False, 0, w=100, h=14)
+    m.T('그래프축', '1    2    3    4    5', 178, -48, 9, C_DIM, F_NUM, False, 0, w=100, h=12)
+    tt = m.T('합계', '합계 0원', 178, -66, 10, C_ACC, F_NUM, False, 0, w=104, h=14)
+    tt.on(on_msg('k09_result'), write(join('합계 ', V('k09_tot'), ',000원')))
+    pen = m.S('그래프붓', A.plain_rect(2, 2, (0, 0, 0, 0), 'clear2'), 0, -300)
+    pen.on(on_scene(), pen_up(), pen_clear())
+    pen.on(on_msg('k09_result'), pen_up(), xy(add(142, mul(sub(V('k09_d'), 1), 18)), -38), pen_size(12),
+           ifelse(ge(V('k09_pf'), 0), [pen_color('#5E8BFF')], [pen_color('#FF5C70')]), pen_down(),
+           ly(add(-38, mul(V('k09_pf'), 0.48))), pen_up())
+    mgr = hidden(m, '감자담당')
+    mgr.on(on_msg('게임시작'), setv('k09_set', rnd(1, len(SETS))), setv('k09_d', 1),
+           until(or_(gt(V('k09_d'), ND), eq(V('게임중'), 0)),
+                 setv('k09_idx', add(mul(sub(V('k09_set'), 1), ND), V('k09_d'))),
+                 setv('미니표시', join(V('k09_d'), '일째 · ', V('k09_tot'), ',000원')),
+                 cast('k09_day'), cast('k09_price'), setv('입력가능', 1),
+                 wait_until(or_(eq(V('입력가능'), 0), eq(V('게임중'), 0))),
+                 if_(eq(V('게임중'), 1),
+                     setv('k09_s', LGET('k09_sold', add(mul(sub(V('k09_idx'), 1), 9), V('k09_p')))),
+                     setv('k09_pf', sub(mul(V('k09_p'), V('k09_s')), COST)), chg('k09_tot', V('k09_pf')),
+                     cast('k09_sell'), setv('k09_show', 0),
+                     until(ge(V('k09_show'), V('k09_s')), chg('k09_show', 1), cast('k09_tick'), wait(0.07)),
+                     wait(0.6), cast('k09_result'), wait(2.4)),
+                 chg('k09_d', 1)),
+           *m.end_blocks(mul(div(sub(div(V('k09_tot'), LGET('k09_ideal', V('k09_set'))), 0.5), 0.5), 100)))
+    mgr.on(on_msg('시간끝'), setv('입력가능', 0),
+           *m.end_blocks(mul(div(sub(div(V('k09_tot'), LGET('k09_ideal', V('k09_set'))), 0.5), 0.5), 100)))
+    m.on_start(setv('k09_p', 5), setv('k09_tot', 0), setv('입력가능', 0), setv('k09_idx', 1), setv('k09_d', 1), setv('k09_set', 1))
+    m.snd('k09_coin', play('coin'))
+    m.snd('k09_result', ifelse(ge(V('k09_pf'), 0), [play('cash')], [play('bad')]))
+    m.finish('평창 감자를 5일 동안 팔아요! 날씨·행사를 보고 가격을\n정하세요. 너무 싸면 손해, 너무 비싸면 손님이 떠나요.',
+             '조작: ◀ ▶ 로 가격 고르기 → "판매 시작!"')
+    return True
+
+
+# ================================================================== 10. 호수 수영
+@game(10)
+def g10(P, ctx):
+    X0, XF, CYC = -196, 190, 1.0
+    LY = [56, 6, -44]         # 1번 후보, 2번 후보, 나
+    m = mg(P, ctx, T, 10, time_limit=50, status='0m · 3위', dim=50)
+    vars_(P, 'k10_x', 'k10_v', 'k10_ph', 'k10_ang', 'k10_st', 'k10_o2', 'k10_br', 'k10_bend', 'k10_now', 'k10_prev', 'k10_dt',
+          'k10_r1', 'k10_r2', 'k10_f1', 'k10_f2', 'k10_fin', 'k10_time', 'k10_place', 'k10_res', 'k10_dd')
+    for k, yy in enumerate(LY):
+        m.S('물길%d' % k, R.k10_lane(), 0, yy - 4)
+        m.S('부표%d' % k, R.k10_buoy(), 222, yy + 2)
+    m.T('결승', 'FINISH', 214, 88, 10, '#FF5C70', F_NUM, False, 0, w=60, h=14)
+    for k, (key_, nm) in enumerate((('p1', '1번'), ('p2', '2번'), ('me', '나'))):
+        m.S('얼굴%d' % k, ctx['PORT'][key_], -226, LY[k] + 8)
+        m.T('이름%d' % k, nm, -226, LY[k] - 10, 8, C_WHITE, F_NUM, False, 0, w=30, h=12)
+    frames_me = [('f%d' % f, R.k10_swimmer(f, 'me')) for f in range(8)]
+    frames_r = [('f%d' % f, R.k10_swimmer(f, 'r')) for f in range(8)]
+    for k, (fr, xv, ph) in enumerate(((frames_r, 'k10_r1', mul(V('k10_now'), 1.1)), (frames_r, 'k10_r2', add(mul(V('k10_now'), 0.95), 0.4)),
+                                      (frames_me, 'k10_x', V('k10_ph')))):
+        o = m.S('수영%d' % k, fr, X0, LY[k], scale=1.15)
+        if k == 1:
+            o.on(on_scene(), fx('color', 40))
+        o.local('k10_lf', -1)
+        o.on(on_scene(), xy(X0, LY[k]), shape(1))
+        o.on(on_msg('게임시작'), setv('k10_lf', -1),
+             until(eq(V('게임중'), 0), lx(V(xv)),
+                   setv('_mi', add(floor(mul(sub(ph, floor(ph)), 8)), 1)) if k < 2 else setv('_mi', add(floor(mul(V('k10_ph'), 8)), 1)),
+                   if_(ne(V('_mi'), V('k10_lf')), setv('k10_lf', V('_mi')), shape(V('_mi')))))
+    sp = m.S('물보라', R.k10_splash(), 0, 0, visible=False)
+    sp.on(on_msg('k10_stroke'), if_(eq(V('k10_res'), 3), xy(add(V('k10_x'), 30), LY[2] + 6), show(), wait(0.35), hide()))
+    popper(m, '판정', [('a', K.big_text('좋아!', 14, 'green')), ('b', K.big_text('OK', 13, 'royal')),
+                     ('c', K.big_text('첨벙!', 14, 'red')), ('d', K.big_text('후~ 숨!', 13, 'white'))],
+           0, 0, 'k10_stroke', sel='k10_res', hold=0.2, at=(add(V('k10_x'), 10), LY[2] + 26))
+    # 아래: 스트로크 고리, 산소
+    panel(P, m.sc, '조작판', 0, -100, 470, 52, 'glass')
+    m.S('고리', R.k10_gauge(), -196, -100)
+    nd = m.S('바늘', R.k10_needle(), -196, -100)
+    nd.on(on_msg('게임시작'), until(eq(V('게임중'), 0), rot(V('k10_ang'))))
+    m.T('고리글', '바늘이 초록 칸(팔이 물에 들어가는 순간)에\n올 때 SPACE! 한 바퀴에 한 번만', -88, -100, 9, C_WHITE, F_BODY, True, 0, w=150, h=30)
+    m.T('산소글', '산소 (↑ 숨쉬기)', 92, -90, 9, C_WHITE, F_BODY, True, 0, w=110, h=12)
+    ob = m.S('산소막대', K.bar_set('k10_o2', 110, 9, 'royal'), 92, -106)
+    ob.local('k10_lo', -1)
+    ob.on(on_msg('게임시작'), setv('k10_lo', -1),
+          until(eq(V('게임중'), 0), setv('_mk', floor(div(V('k10_o2'), 2.5))),
+                if_(ne(V('_mk'), V('k10_lo')), setv('k10_lo', V('_mk')), pad_shape(V('_mk'))), wait(0.05)))
+    warn = m.T('숨경고', '숨이 차요! ↑', 196, -100, 10, C_RED, F_NUM, False, 0, w=70, h=14, visible=False)
+    warn.on(on_msg('게임시작'), until(eq(V('게임중'), 0), ifelse(lt(V('k10_o2'), 25), [show()], [hide()]), wait(0.15)))
+    mgr = hidden(m, '수영담당')
+    mgr.on(on_key(K_SPACE), if_(and_(and_(eq(V('게임중'), 1), eq(V('k10_fin'), 0)), eq(V('k10_br'), 0)),
+                                setv('k10_dd', abs_(sub(mod(add(sub(V('k10_ang'), 20), 180), 360), 180))),
+                                ifelse(eq(V('k10_st'), 1), [setv('k10_res', 3)],
+                                       [ifelse(le(V('k10_dd'), 30), [setv('k10_res', 1)],
+                                               [ifelse(le(V('k10_dd'), 55), [setv('k10_res', 2)], [setv('k10_res', 3)])])]),
+                                setv('k10_st', 1),
+                                ifelse(eq(V('k10_res'), 1), [chg('k10_v', 9)],
+                                       [ifelse(eq(V('k10_res'), 2), [chg('k10_v', 5)], [setv('k10_v', mul(V('k10_v'), 0.6))])]),
+                                if_(gt(V('k10_v'), 30), setv('k10_v', 30)), cast('k10_stroke')))
+    mgr.on(on_key(K_UP), if_(and_(and_(eq(V('게임중'), 1), eq(V('k10_fin'), 0)), eq(V('k10_br'), 0)),
+                             setv('k10_br', 1), setv('k10_bend', add(timer(), 0.7)), setv('k10_v', mul(V('k10_v'), 0.85)),
+                             setv('k10_res', 4), cast('k10_stroke')))
+    mgr.on(on_msg('게임시작'), setv('k10_prev', timer()),
+           until(or_(eq(V('k10_fin'), 1), eq(V('게임중'), 0)),
+                 setv('k10_now', timer()), setv('k10_dt', sub(V('k10_now'), V('k10_prev'))), setv('k10_prev', V('k10_now')),
+                 if_(gt(V('k10_dt'), 0.1), setv('k10_dt', 0.1)),
+                 if_(and_(eq(V('k10_br'), 1), ge(V('k10_now'), V('k10_bend'))), setv('k10_br', 0)),
+                 chg('k10_ph', div(V('k10_dt'), CYC)),
+                 if_(ge(V('k10_ph'), 1), chg('k10_ph', -1), setv('k10_st', 0)),
+                 setv('k10_ang', mul(V('k10_ph'), 360)),
+                 chg('k10_v', mul(mul(V('k10_v'), -0.35), V('k10_dt'))),
+                 ifelse(eq(V('k10_br'), 1), [chg('k10_o2', mul(75, V('k10_dt')))], [chg('k10_o2', mul(-7, V('k10_dt')))]),
+                 *clamp_('k10_o2', 0, 100),
+                 if_(and_(le(V('k10_o2'), 0), gt(V('k10_v'), 7)), setv('k10_v', 7)),
+                 chg('k10_x', mul(V('k10_v'), V('k10_dt'))),
+                 if_(lt(V('k10_r1'), XF), chg('k10_r1', mul(add(20, mul(4, sin_(mul(V('k10_now'), 40)))), V('k10_dt')))),
+                 if_(lt(V('k10_r2'), XF), chg('k10_r2', mul(add(16.5, mul(3, sin_(mul(V('k10_now'), 55)))), V('k10_dt')))),
+                 if_(and_(ge(V('k10_r1'), XF), eq(V('k10_f1'), 0)), setv('k10_f1', 1)),
+                 if_(and_(ge(V('k10_r2'), XF), eq(V('k10_f2'), 0)), setv('k10_f2', 1)),
+                 setv('k10_place', add(1, add(V('k10_f1'), V('k10_f2')))),
+                 if_(lt(V('k10_x'), V('k10_r1')), if_(eq(V('k10_f1'), 0), chg('k10_place', 1))),
+                 if_(lt(V('k10_x'), V('k10_r2')), if_(eq(V('k10_f2'), 0), chg('k10_place', 1))),
+                 setv('미니표시', join(floor(div(sub(V('k10_x'), X0), (XF - X0) / 100.0)), 'm · ', V('k10_place'), '위')),
+                 if_(ge(V('k10_x'), XF), setv('k10_fin', 1), setv('k10_time', V('k10_now')))),
+           if_(eq(V('k10_fin'), 1), setv('k10_place', add(1, add(V('k10_f1'), V('k10_f2')))),
+               setv('미니표시', join('기록 ', round1(V('k10_time')), '초 · ', V('k10_place'), '위')), cast('k10_goal'), wait(1.4),
+               *m.end_blocks(sub(100, mul(sub(V('k10_time'), 19), 4)))))
+    popper(m, '골인', [('1', K.big_text('1위 골인!', 30, 'green')), ('2', K.big_text('2위 골인', 28, 'royal')),
+                     ('3', K.big_text('3위 골인', 28, 'white'))], 0, 40, 'k10_goal', sel='k10_place', hold=1.0)
+    mgr.on(on_msg('시간끝'), *m.end_blocks(mul(div(sub(V('k10_x'), X0), XF - X0), 40)))
+    m.on_start(setv('k10_x', X0), setv('k10_r1', X0), setv('k10_r2', X0), setv('k10_v', 0), setv('k10_ph', 0.5), setv('k10_st', 0),
+               setv('k10_o2', 100), setv('k10_br', 0), setv('k10_fin', 0), setv('k10_f1', 0), setv('k10_f2', 0), setv('k10_ang', 180),
+               setv('k10_place', 3))
+    m.snd('k10_stroke', ifelse(eq(V('k10_res'), 3), [play('splash')], [ifelse(eq(V('k10_res'), 4), [play('pop')], [play('tick')])]))
+    m.snd('k10_goal', play('fanfare'))
+    m.finish('의암호 100m 수영 대결! 팔이 물에 들어가는 순간 SPACE로\n힘차게 저어요. 산소가 떨어지면 ↑ 로 숨을 쉬세요.',
+             '조작: SPACE = 스트로크 (바늘이 초록 칸일 때)  ·  ↑ = 숨쉬기')
     return True

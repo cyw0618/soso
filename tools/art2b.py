@@ -320,3 +320,387 @@ def s13_lamp(on):
         col = (255, 200, 80, 255) if on else (60, 66, 96, 255)
         d.polygon([(W / 2, 1 * s), (W - 1 * s, H - 1 * s), (1 * s, H - 1 * s)], fill=col, outline=(20, 20, 30, 255))
     return art('s13_lamp%d' % on, 10, 8, f)
+
+
+# ================================================================== 14. 오케스트라 지휘
+def s14_player(kind, frame):
+    """연주자 (kind: violin cello flute trumpet drum), frame 0/1."""
+    def f(d, im, s):
+        W, H = im.size
+        cx = W / 2
+        d.rounded_rectangle((cx - 9 * s, 22 * s, cx + 9 * s, 48 * s), 5 * s, fill=(20, 20, 30, 255), outline=(70, 80, 120, 255))
+        d.polygon([(cx - 3 * s, 22 * s), (cx + 3 * s, 22 * s), (cx, 28 * s)], fill=(240, 240, 250, 255))
+        d.ellipse((cx - 7 * s, 8 * s, cx + 7 * s, 23 * s), fill=(250, 214, 180, 255), outline=(90, 60, 50, 255), width=int(0.7 * s))
+        d.chord((cx - 7.3 * s, 7.5 * s, cx + 7.3 * s, 18 * s), 180, 360, fill=(50, 36, 30, 255))
+        d.ellipse((cx - 3.5 * s, 15 * s, cx - 1.8 * s, 16.8 * s), fill=(20, 20, 20, 255))
+        d.ellipse((cx + 1.8 * s, 15 * s, cx + 3.5 * s, 16.8 * s), fill=(20, 20, 20, 255))
+        wood, brass = (170, 90, 40, 255), (240, 200, 80, 255)
+        a = 1 if frame else -1
+        if kind == 'violin':
+            d.ellipse((cx + 2 * s, 20 * s, cx + 14 * s, 30 * s), fill=wood, outline=(90, 40, 10, 255))
+            d.line([(cx - 8 * s, 26 * s + a * 3 * s), (cx + 18 * s, 18 * s - a * 3 * s)], fill=(230, 220, 200, 255), width=int(1 * s))
+        elif kind == 'cello':
+            d.ellipse((cx - 8 * s, 28 * s, cx + 8 * s, 50 * s), fill=wood, outline=(90, 40, 10, 255))
+            d.line([(cx, 16 * s), (cx, 30 * s)], fill=(60, 30, 10, 255), width=int(2 * s))
+            d.line([(cx - 14 * s, 36 * s + a * 3 * s), (cx + 12 * s, 40 * s - a * 3 * s)], fill=(230, 220, 200, 255), width=int(1.2 * s))
+        elif kind == 'flute':
+            d.line([(cx - 2 * s, 20 * s), (cx + 18 * s, 22 * s + a * 2 * s)], fill=(220, 225, 235, 255), width=int(1.8 * s))
+        elif kind == 'trumpet':
+            d.line([(cx + 2 * s, 20 * s), (cx + 14 * s, 18 * s + a * 2 * s)], fill=brass, width=int(2.2 * s))
+            d.polygon([(cx + 14 * s, 14 * s + a * 2 * s), (cx + 19 * s, 12 * s + a * 2 * s), (cx + 19 * s, 25 * s + a * 2 * s),
+                       (cx + 14 * s, 22 * s + a * 2 * s)], fill=brass)
+        else:
+            d.ellipse((cx - 13 * s, 34 * s, cx + 13 * s, 44 * s), fill=(200, 60, 60, 255), outline=(255, 230, 200, 255))
+            d.rectangle((cx - 13 * s, 39 * s, cx + 13 * s, 48 * s), fill=(200, 60, 60, 255))
+            d.ellipse((cx - 13 * s, 34 * s, cx + 13 * s, 42 * s), fill=(240, 236, 220, 255), outline=(150, 140, 120, 255))
+            d.line([(cx - 10 * s, 26 * s), (cx - 4 * s, 36 * s - a * 4 * s)], fill=(230, 220, 200, 255), width=int(1.4 * s))
+            d.line([(cx + 10 * s, 26 * s), (cx + 4 * s, 36 * s + a * 4 * s)], fill=(230, 220, 200, 255), width=int(1.4 * s))
+    return art('s14_%s%d' % (kind, frame), 40, 50, f)
+
+
+def s14_card(tempo, dyn, w=150, h=44):
+    cols = {'빠르게': (200, 70, 90), '보통': (70, 110, 220), '느리게': (60, 160, 120)}
+
+    def f(d, im, s):
+        W, H = im.size
+        c = cols[tempo]
+        d.rounded_rectangle((s, s, W - s, H - s), 8 * s, fill=(250, 246, 232, 255), outline=c + (255,), width=int(2.4 * s))
+        for k in range(5):
+            y = (10 + k * 6) * s
+            d.line([(6 * s, y), (W - 6 * s, y)], fill=(200, 196, 180, 255), width=int(0.6 * s))
+        _txt(d, (W * 0.38, H / 2), tempo, 17 * s, c + (255,), stroke=1.2 * s, sfill=(255, 255, 255, 255))
+        _txt(d, (W * 0.83, H / 2 + 1 * s), dyn, 24 * s, (40, 30, 60, 255), fname='black')
+    return art('s14_card_%s_%s' % (tempo, dyn), w, h, f)
+
+
+def s14_baton():
+    def f(d, im, s):
+        W, H = im.size
+        d.line([(3 * s, H - 3 * s), (W - 3 * s, 3 * s)], fill=(255, 255, 255, 255), width=int(2 * s))
+        d.ellipse((1 * s, H - 8 * s, 8 * s, H - 1 * s), fill=(120, 70, 30, 255))
+    return art('s14_baton', 26, 26, f)
+
+
+def s14_band(label, up):
+    def f(d, im, s):
+        W, H = im.size
+        _txt(d, (W / 2, H / 2), label, 10 * s, (255, 220, 140, 255) if up else (160, 200, 255, 255), stroke=1.4 * s,
+             sfill=(0, 0, 20, 255))
+    return art('s14_band%d' % up, 60, 20, f)
+
+
+# ================================================================== 15. 금강 카누
+def s15_canoe(pose):
+    def f(d, im, s):
+        W, H = im.size
+        cx = W / 2
+        d.ellipse((cx - 8 * s, 2 * s, cx + 8 * s, H - 2 * s), fill=(210, 80, 50, 255), outline=(90, 30, 20, 255), width=int(1.2 * s))
+        d.ellipse((cx - 5 * s, 8 * s, cx + 5 * s, H - 8 * s), fill=(120, 60, 40, 255))
+        d.ellipse((cx - 6 * s, H / 2 - 6 * s, cx + 6 * s, H / 2 + 6 * s), fill=(250, 214, 180, 255), outline=(60, 40, 30, 255))
+        d.ellipse((cx - 4 * s, H / 2 - 4 * s, cx + 4 * s, H / 2 + 2 * s), fill=(40, 30, 30, 255))
+        if pose == 'c':
+            d.line([(cx - 16 * s, H / 2 + 2 * s), (cx + 16 * s, H / 2 + 2 * s)], fill=(240, 220, 150, 255), width=int(1.6 * s))
+        else:
+            sgn = -1 if pose == 'l' else 1
+            d.line([(cx, H / 2), (cx + sgn * 13 * s, H / 2 + 12 * s)], fill=(240, 220, 150, 255), width=int(1.6 * s))
+            d.ellipse((cx + sgn * 13 * s - 3 * s, H / 2 + 10 * s, cx + sgn * 13 * s + 3 * s, H / 2 + 18 * s), fill=(240, 220, 150, 255))
+            for k in range(5):
+                a = k * 72
+                x = cx + sgn * 14 * s + math.cos(math.radians(a)) * 5 * s
+                y = H / 2 + 16 * s + math.sin(math.radians(a)) * 4 * s
+                d.ellipse((x - 1.5 * s, y - 1.5 * s, x + 1.5 * s, y + 1.5 * s), fill=(230, 245, 255, 230))
+    return art('s15_canoe_%s' % pose, 40, 54, f)
+
+
+def s15_buoy(state):
+    col = {'red': (230, 60, 60), 'green': (60, 200, 110), 'gray': (110, 110, 130)}[state]
+
+    def f(d, im, s):
+        W = im.width
+        d.ellipse((1 * s, 1 * s, W - 1 * s, W - 1 * s), fill=(220, 240, 255, 90))
+        d.ellipse((3 * s, 3 * s, W - 3 * s, W - 3 * s), fill=col + (255,), outline=(255, 255, 255, 255), width=int(1.2 * s))
+        d.ellipse((W * 0.35, W * 0.35, W * 0.65, W * 0.65), fill=(255, 255, 255, 230))
+    return art('s15_buoy_%s' % state, 16, 16, f)
+
+
+def s15_bank():
+    def f(d, im, s):
+        W, H = im.size
+        rng = random.Random(15)
+        d.rectangle((0, 0, W * 0.62, H), fill=(54, 96, 60, 255))
+        for y0 in range(0, int(H / s), 80):
+            for k in range(7):
+                yy = (y0 + rng.uniform(0, 80)) * s
+                x = rng.uniform(4, 22) * s
+                d.ellipse((x, yy, x + rng.uniform(6, 12) * s, yy + rng.uniform(4, 8) * s), fill=(80, 140, 70, 255))
+            for k in range(3):
+                yy = (y0 + k * 26 + 6) * s
+                d.ellipse((W * 0.5, yy, W * 0.8, yy + 10 * s), fill=(120, 120, 130, 255), outline=(70, 70, 80, 255))
+        d.line([(W * 0.62, 0), (W * 0.62, H)], fill=(200, 230, 255, 160), width=int(1.5 * s))
+    return art('s15_bank', 40, 360, f)
+
+
+def s15_finish(w=340):
+    def f(d, im, s):
+        W, H = im.size
+        n = 34
+        for k in range(n):
+            for r in range(2):
+                col = (255, 255, 255, 230) if (k + r) % 2 else (20, 20, 30, 230)
+                d.rectangle((k * W / n, r * H / 2, (k + 1) * W / n, (r + 1) * H / 2), fill=col)
+    return art('s15_finish', w, 10, f)
+
+
+def s15_arrow():
+    def f(d, im, s):
+        W, H = im.size
+        d.polygon([(2 * s, H * 0.35), (W * 0.65, H * 0.35), (W * 0.65, 2 * s), (W - 2 * s, H / 2), (W * 0.65, H - 2 * s),
+                   (W * 0.65, H * 0.65), (2 * s, H * 0.65)], fill=(200, 230, 255, 110))
+    return art('s15_arrow', 40, 20, f)
+
+
+def s15_ripple():
+    def f(d, im, s):
+        W, H = im.size
+        d.arc((2 * s, 2 * s, W - 2 * s, H * 2), 200, 340, fill=(190, 225, 255, 150), width=int(1.2 * s))
+    return art('s15_ripple', 22, 8, f)
+
+
+# ================================================================== 16. 망원경 찾기
+def s16_scope(R=70):
+    def f(d, im, s):
+        W, H = im.size
+        cx, cy = W / 2, H / 2
+        d.rectangle((0, 0, W, H), fill=(4, 6, 16, 250))
+        d.ellipse((cx - R * s, cy - R * s, cx + R * s, cy + R * s), fill=(0, 0, 0, 0))
+        d.ellipse((cx - (R + 6) * s, cy - (R + 6) * s, cx + (R + 6) * s, cy + (R + 6) * s), outline=(40, 46, 70, 255), width=int(7 * s))
+        d.ellipse((cx - (R + 1) * s, cy - (R + 1) * s, cx + (R + 1) * s, cy + (R + 1) * s), outline=(140, 160, 220, 255), width=int(1.5 * s))
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            d.line([(cx + dx * 10 * s, cy + dy * 10 * s), (cx + dx * 30 * s, cy + dy * 30 * s)], fill=(255, 80, 80, 200), width=int(1 * s))
+        d.ellipse((cx - 2 * s, cy - 2 * s, cx + 2 * s, cy + 2 * s), outline=(255, 80, 80, 220), width=int(0.8 * s))
+    return art('s16_scope', 960, 540, f)
+
+
+def s16_thing(kind):
+    """kind: rb/bb/gb(풍선) flag/bflag bike walk bird kite ykite"""
+    sz = {'flag': (22, 26), 'bflag': (22, 26), 'bike': (30, 30), 'walk': (16, 30), 'bird': (26, 16), 'kite': (24, 36),
+          'ykite': (24, 36)}.get(kind, (18, 32))
+
+    def f(d, im, s):
+        W, H = im.size
+        cx = W / 2
+        if kind in ('rb', 'bb', 'gb'):
+            c = {'rb': (235, 50, 60), 'bb': (60, 110, 240), 'gb': (60, 190, 100)}[kind]
+            d.line([(cx, 18 * s), (cx + 2 * s, H - 1 * s)], fill=(230, 230, 230, 255), width=int(0.8 * s))
+            d.ellipse((cx - 8 * s, 1 * s, cx + 8 * s, 19 * s), fill=c + (255,), outline=(255, 255, 255, 200), width=int(0.8 * s))
+            d.ellipse((cx - 5 * s, 4 * s, cx - 1 * s, 9 * s), fill=(255, 255, 255, 150))
+        elif kind in ('flag', 'bflag'):
+            d.line([(3 * s, 2 * s), (3 * s, H - 1 * s)], fill=(220, 220, 230, 255), width=int(1.3 * s))
+            d.rectangle((4 * s, 2 * s, W - 1 * s, 15 * s), fill=(255, 255, 255, 255) if kind == 'flag' else (60, 90, 220, 255),
+                        outline=(80, 80, 90, 255))
+            if kind == 'flag':
+                c = (4 * s + W) / 2
+                d.pieslice((c - 4 * s, 4.5 * s, c + 4 * s, 12.5 * s), 180, 360, fill=(220, 40, 50, 255))
+                d.pieslice((c - 4 * s, 4.5 * s, c + 4 * s, 12.5 * s), 0, 180, fill=(30, 60, 160, 255))
+                for xx in (6.5, W / s - 3.5):
+                    for yy in (4.5, 11):
+                        d.line([(xx * s - 1.5 * s, yy * s), (xx * s + 1.5 * s, yy * s + 1.5 * s)], fill=(20, 20, 20, 255), width=int(0.8 * s))
+        elif kind == 'bike':
+            for x in (7, 23):
+                d.ellipse(((x - 6) * s, 17 * s, (x + 6) * s, 29 * s), outline=(30, 30, 40, 255), width=int(1.4 * s))
+            d.line([(7 * s, 23 * s), (14 * s, 15 * s), (23 * s, 23 * s), (15 * s, 23 * s), (7 * s, 23 * s)], fill=(220, 50, 50, 255),
+                   width=int(1.3 * s))
+            d.line([(14 * s, 15 * s), (16 * s, 9 * s)], fill=(60, 120, 220, 255), width=int(3 * s))
+            d.ellipse((14 * s, 2 * s, 20 * s, 8 * s), fill=(250, 214, 180, 255))
+            d.line([(17 * s, 11 * s), (22 * s, 14 * s)], fill=(60, 120, 220, 255), width=int(1.5 * s))
+        elif kind == 'walk':
+            d.ellipse((cx - 3.5 * s, 1 * s, cx + 3.5 * s, 8 * s), fill=(250, 214, 180, 255))
+            d.rounded_rectangle((cx - 4 * s, 8 * s, cx + 4 * s, 20 * s), 2 * s, fill=(240, 160, 60, 255))
+            d.line([(cx - 2 * s, 20 * s), (cx - 4 * s, 29 * s)], fill=(40, 40, 60, 255), width=int(1.5 * s))
+            d.line([(cx + 2 * s, 20 * s), (cx + 4 * s, 29 * s)], fill=(40, 40, 60, 255), width=int(1.5 * s))
+        elif kind == 'bird':
+            d.polygon([(2 * s, 4 * s), (cx, 9 * s), (W - 2 * s, 4 * s), (cx, 12 * s)], fill=(30, 30, 40, 255))
+            d.ellipse((cx - 3 * s, 7 * s, cx + 5 * s, 13 * s), fill=(240, 240, 250, 255), outline=(30, 30, 40, 255))
+        else:
+            c1 = (230, 50, 60) if kind == 'kite' else (240, 200, 60)
+            d.rectangle((3 * s, 2 * s, W - 3 * s, 24 * s), fill=c1 + (255,), outline=(60, 40, 30, 255), width=int(0.8 * s))
+            d.ellipse((cx - 4 * s, 9 * s, cx + 4 * s, 17 * s), fill=(255, 255, 255, 255))
+            if kind == 'kite':
+                d.rectangle((3 * s, 2 * s, W - 3 * s, 7 * s), fill=(40, 60, 170, 255))
+            d.line([(cx, 24 * s), (cx - 4 * s, 30 * s), (cx + 3 * s, H - 1 * s)], fill=(240, 240, 240, 255), width=int(0.8 * s))
+    return art('s16_%s' % kind, sz[0], sz[1], f)
+
+
+# ================================================================== 17. 다리 조명 기억
+def s17_cell(state):
+    def f(d, im, s):
+        W = im.width
+        d.rounded_rectangle((1 * s, 1 * s, W - 1 * s, W - 1 * s), 6 * s, fill=(16, 22, 48, 255), outline=(70, 90, 160, 255),
+                            width=int(1 * s))
+        if state == 'off':
+            d.ellipse((W * 0.3, W * 0.3, W * 0.7, W * 0.7), fill=(40, 48, 80, 255), outline=(90, 100, 150, 255))
+        else:
+            col = {'on': (255, 236, 150), 'ok': (110, 230, 255), 'bad': (255, 80, 90), 'miss': (255, 180, 80)}[state]
+            _blur_layer(im, lambda g: g.ellipse((W * 0.12, W * 0.12, W * 0.88, W * 0.88), fill=col + (200,)), 3 * s)
+            d.ellipse((W * 0.26, W * 0.26, W * 0.74, W * 0.74), fill=col + (255,), outline=(255, 255, 255, 255), width=int(1 * s))
+            if state == 'bad':
+                d.line([(W * 0.36, W * 0.36), (W * 0.64, W * 0.64)], fill=(80, 0, 10, 255), width=int(2 * s))
+                d.line([(W * 0.64, W * 0.36), (W * 0.36, W * 0.64)], fill=(80, 0, 10, 255), width=int(2 * s))
+    return art('s17_%s' % state, 34, 34, f)
+
+
+# ================================================================== 18. 윷놀이
+def s18_board(nodes, size=200):
+    """nodes: [(x, y, big)] 판 중심 기준 무대 좌표."""
+    def f(d, im, s):
+        W, H = im.size
+        c = W / 2
+        d.rounded_rectangle((2 * s, 2 * s, W - 2 * s, H - 2 * s), 12 * s, fill=(236, 214, 170, 255), outline=(120, 80, 40, 255),
+                            width=int(3 * s))
+        P_ = lambda x, y: (c + x * s, c - y * s)
+        h = size / 2 - 18
+        for a, b in (((h, -h), (h, h)), ((h, h), (-h, h)), ((-h, h), (-h, -h)), ((-h, -h), (h, -h)), ((h, h), (-h, -h)),
+                     ((-h, h), (h, -h))):
+            d.line([P_(*a), P_(*b)], fill=(140, 100, 60, 255), width=int(2 * s))
+        for x, y, big in nodes:
+            r = (9 if big else 6) * s
+            px, py = P_(x, y)
+            d.ellipse((px - r, py - r, px + r, py + r), fill=(250, 240, 220, 255), outline=(110, 70, 30, 255), width=int(1.5 * s))
+        px, py = P_(h, -h)
+        _txt(d, (px - 2 * s, py + 15 * s), '출발·도착', 7 * s, (120, 60, 20, 255), fname='nsr')
+    return art('s18_board', size, size, f)
+
+
+def s18_piece(who, n):
+    def f(d, im, s):
+        W = im.width
+        col = (50, 100, 230) if who == 'me' else (220, 60, 60)
+        d.ellipse((1 * s, 2 * s, W - 1 * s, W), fill=(0, 0, 0, 90))
+        d.ellipse((1 * s, 1 * s, W - 1 * s, W - 2 * s), fill=col + (255,), outline=(255, 255, 255, 255), width=int(1.4 * s))
+        _txt(d, (W / 2, W / 2 - 0.5 * s), ('나' if who == 'me' else '이') + str(n), 7 * s, (255, 255, 255, 255))
+    return art('s18_%s%d' % (who, n), 20, 20, f)
+
+
+def s18_stick(flat):
+    def f(d, im, s):
+        W, H = im.size
+        if flat:
+            d.rounded_rectangle((1 * s, 1 * s, W - 1 * s, H - 1 * s), 5 * s, fill=(250, 236, 200, 255), outline=(120, 80, 40, 255),
+                                width=int(1.2 * s))
+            for k in range(3):
+                y = H * (0.3 + k * 0.2)
+                d.line([(W * 0.3, y - 2 * s), (W * 0.7, y + 2 * s)], fill=(120, 80, 40, 255), width=int(1 * s))
+                d.line([(W * 0.7, y - 2 * s), (W * 0.3, y + 2 * s)], fill=(120, 80, 40, 255), width=int(1 * s))
+        else:
+            d.rounded_rectangle((1 * s, 1 * s, W - 1 * s, H - 1 * s), 5 * s, fill=(190, 130, 70, 255), outline=(100, 60, 20, 255),
+                                width=int(1.2 * s))
+            d.line([(W * 0.35, 4 * s), (W * 0.35, H - 4 * s)], fill=(220, 170, 110, 255), width=int(1.5 * s))
+    return art('s18_stick%d' % flat, 14, 56, f)
+
+
+def s18_elder():
+    def f(d, im, s):
+        W = im.width
+        c = W / 2
+        d.ellipse((2 * s, 2 * s, W - 2 * s, W - 2 * s), fill=(60, 40, 40, 255), outline=(220, 90, 90, 255), width=int(2 * s))
+        d.ellipse((c - 11 * s, c - 12 * s, c + 11 * s, c + 12 * s), fill=(245, 205, 170, 255))
+        d.chord((c - 11 * s, c - 12 * s, c + 11 * s, c + 2 * s), 200, 340, fill=(230, 230, 235, 255))
+        for sx in (-1, 1):
+            d.line([(c + sx * 7 * s, c - 2 * s), (c + sx * 3 * s, c - 2 * s)], fill=(240, 240, 240, 255), width=int(2 * s))
+            d.arc((c + sx * 5 * s - 2 * s, c, c + sx * 5 * s + 2 * s, c + 3 * s), 180, 360, fill=(40, 30, 30, 255), width=int(s))
+        d.chord((c - 7 * s, c + 3 * s, c + 7 * s, c + 13 * s), 0, 180, fill=(240, 240, 240, 255))
+        d.arc((c - 3 * s, c + 3 * s, c + 3 * s, c + 7 * s), 20, 160, fill=(120, 50, 40, 255), width=int(s))
+    return art('s18_elder', 40, 40, f)
+
+
+# ================================================================== 19. 굴렁쇠
+def s19_hoop():
+    def f(d, im, s):
+        W, H = im.size
+        d.ellipse((2 * s, 2 * s, W - 2 * s, H - 2 * s), outline=(150, 150, 165, 255), width=int(4 * s))
+        d.ellipse((3 * s, 3 * s, W - 3 * s, H - 3 * s), outline=(230, 230, 245, 255), width=int(1.5 * s))
+    return art('s19_hoop', 16, 70, f)
+
+
+def s19_kid(frame):
+    def f(d, im, s):
+        W, H = im.size
+        cx = W / 2
+        a = 3 if frame else -3
+        d.line([(cx - 5 * s, 44 * s), (cx - 6 * s + a * s, 58 * s)], fill=(40, 50, 90, 255), width=int(4 * s))
+        d.line([(cx + 5 * s, 44 * s), (cx + 6 * s - a * s, 58 * s)], fill=(40, 50, 90, 255), width=int(4 * s))
+        d.rounded_rectangle((cx - 10 * s, 22 * s, cx + 10 * s, 46 * s), 5 * s, fill=(230, 80, 80, 255), outline=(120, 30, 30, 255))
+        d.ellipse((cx - 8 * s, 6 * s, cx + 8 * s, 24 * s), fill=(40, 30, 30, 255))
+        d.line([(cx + 8 * s, 26 * s), (cx + 4 * s, 2 * s)], fill=(250, 214, 180, 255), width=int(3 * s))
+        d.line([(cx + 4 * s, 4 * s), (cx + 2 * s, -10 * s)], fill=(150, 100, 50, 255), width=int(2 * s))
+    return art('s19_kid%d' % frame, 30, 60, f)
+
+
+def s19_road(w=420, h=150):
+    def f(d, im, s):
+        W, H = im.size
+        top, bot = 30, 200
+        d.polygon([(W / 2 - top * s, 0), (W / 2 + top * s, 0), (W / 2 + bot * s, H), (W / 2 - bot * s, H)], fill=(196, 170, 130, 255))
+        d.line([(W / 2 - top * s, 0), (W / 2 - bot * s, H)], fill=(120, 90, 60, 255), width=int(3 * s))
+        d.line([(W / 2 + top * s, 0), (W / 2 + bot * s, H)], fill=(120, 90, 60, 255), width=int(3 * s))
+        rng = random.Random(19)
+        for k in range(160):
+            y = rng.uniform(0, 1) ** 0.7
+            x = W / 2 + rng.uniform(-1, 1) * (top + (bot - top) * y) * s * 0.95
+            r = (0.4 + 1.2 * y) * s
+            d.ellipse((x - r, y * H - r * 0.6, x + r, y * H + r * 0.6), fill=(160, 136, 100, 255))
+    return art('s19_road', w, h, f)
+
+
+def s19_stone():
+    def f(d, im, s):
+        W, H = im.size
+        d.ellipse((1 * s, 3 * s, W - 1 * s, H - 1 * s), fill=(120, 116, 120, 255), outline=(60, 56, 60, 255), width=int(1.2 * s))
+        d.ellipse((W * 0.25, 4 * s, W * 0.55, H * 0.5), fill=(180, 176, 180, 255))
+    return art('s19_stone', 26, 16, f)
+
+
+def s19_dash():
+    def f(d, im, s):
+        d.rounded_rectangle((0, 0, im.width - 1, im.height - 1), 2 * s, fill=(250, 246, 230, 230))
+    return art('s19_dash', 4, 14, f)
+
+
+def s19_gauge(w=200, h=24):
+    def f(d, im, s):
+        W, H = im.size
+        d.rounded_rectangle((s, 4 * s, W - s, H - 4 * s), 6 * s, fill=(20, 24, 50, 230), outline=(110, 130, 200, 255), width=int(s))
+        for frac, col in ((0.18, (220, 60, 60)), (0.32, (230, 180, 60))):
+            d.rounded_rectangle((s, 4 * s, W * frac, H - 4 * s), 6 * s, fill=col + (200,))
+            d.rounded_rectangle((W * (1 - frac), 4 * s, W - s, H - 4 * s), 6 * s, fill=col + (200,))
+        d.rectangle((W * 0.32, 4 * s, W * 0.68, H - 4 * s), fill=(60, 180, 110, 200))
+        d.line([(W / 2, 2 * s), (W / 2, H - 2 * s)], fill=(255, 255, 255, 255), width=int(1 * s))
+    return art('s19_gauge', w, h, f)
+
+
+def s19_needle():
+    def f(d, im, s):
+        W, H = im.size
+        d.polygon([(W / 2, H - 1 * s), (1 * s, 1 * s), (W - 1 * s, 1 * s)], fill=(255, 255, 255, 255), outline=(0, 0, 0, 255))
+    return art('s19_needle', 10, 12, f)
+
+
+# ================================================================== 20. 정원 노노그램
+def s20_cell(state, col=(240, 90, 120)):
+    def f(d, im, s):
+        W = im.width
+        d.rounded_rectangle((1 * s, 1 * s, W - 1 * s, W - 1 * s), 4 * s, fill=(110, 80, 50, 255), outline=(70, 50, 30, 255),
+                            width=int(1 * s))
+        d.rounded_rectangle((3 * s, 3 * s, W - 3 * s, W - 3 * s), 3 * s, fill=(140, 104, 70, 255))
+        if state == 'x':
+            d.line([(W * 0.3, W * 0.3), (W * 0.7, W * 0.7)], fill=(240, 230, 220, 255), width=int(2 * s))
+            d.line([(W * 0.7, W * 0.3), (W * 0.3, W * 0.7)], fill=(240, 230, 220, 255), width=int(2 * s))
+        elif state != 'e':
+            c = W / 2
+            d.line([(c, c), (c, W - 4 * s)], fill=(60, 150, 60, 255), width=int(1.6 * s))
+            for k in range(5):
+                a = math.radians(k * 72 - 90)
+                px, py = c + math.cos(a) * 5.5 * s, c - 1 * s + math.sin(a) * 5.5 * s
+                d.ellipse((px - 4.2 * s, py - 4.2 * s, px + 4.2 * s, py + 4.2 * s), fill=col + (255,), outline=(255, 255, 255, 180))
+            d.ellipse((c - 3 * s, c - 4 * s, c + 3 * s, c + 2 * s), fill=(255, 220, 80, 255))
+    return art('s20_%s' % state, 28, 28, f)

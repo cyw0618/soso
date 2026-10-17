@@ -524,7 +524,7 @@ def k19_guard(pose):
         d.line([(cx - 4 * s, 48 * s), (cx + 4 * s, 48 * s)], fill=(120, 40, 40, 255), width=int(1 * s))
         # 왼팔은 허리, 오른팔이 깃발
         sh = (cx + 16 * s, 60 * s)
-        tip = {'idle': (cx + 22 * s, 92 * s), 'up': (cx + 22 * s, 14 * s), 'down': (cx + 34 * s, 104 * s),
+        tip = {'idle': (cx + 22 * s, 92 * s), 'up': (cx + 22 * s, 32 * s), 'down': (cx + 34 * s, 104 * s),
                'left': (cx - 48 * s, 58 * s), 'right': (cx + 48 * s, 58 * s)}[pose]
         if pose == 'left':
             sh = (cx - 16 * s, 60 * s)

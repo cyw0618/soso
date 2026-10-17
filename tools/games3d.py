@@ -14,6 +14,14 @@ def clamp(var, lo, hi):
     return [if_(lt(V(var), lo), setv(var, lo)), if_(gt(V(var), hi), setv(var, hi))]
 
 
+def maxv(a, b):
+    return div(add(add(a, b), abs_(sub(a, b))), 2)
+
+
+def minv(a, b):
+    return div(sub(add(a, b), abs_(sub(a, b))), 2)
+
+
 def pfx(prefix):
     """접두어 붙은 변수 도우미: W(이름) 값, S(이름, 값) 정하기, C(이름, 값) 바꾸기."""
     return (lambda n: V(prefix + n), lambda n, v: setv(prefix + n, v), lambda n, v: chg(prefix + n, v))
@@ -163,4 +171,733 @@ def g31(P, ctx):
     m.snd('k31_느림', play('tick'))
     m.finish('마우스로 내 방패연을 몰아 상대 연줄을 빠르게 스치면 싹둑!\n상대 연이 내 줄(흰 줄)에 닿으면 내 연을 잃어요.',
              '조작: 마우스 이동 (연이 살짝 늦게 따라와요)  ·  40초  ·  상대 연 가까이는 위험!')
+    return True
+
+
+# ================================================================== 32. 근대 학교 방탈출
+@game(32)
+def g32(P, ctx):
+    import mg_art as A
+    TL = 170
+    m = mg(P, ctx, T, 32, time_limit=TL, status='힌트 0 · 실수 0', dim=0)
+    sc = m.sc
+    W, S_, C_ = pfx('k32_')
+    vars_(P, *['k32_' + v for v in ('a', 'b', 'c', 'ans', 'd1', 'd2', 'd3', 'box', 'has', 'sel', 'lit', 'lamp', 'ok', 'seen', 'day',
+                                     'per', 'subj', 't1', 't2', 'win', 'hint', 'miss', 'esc', 'spin')])
+    P.var('k32_글', '')
+    SUBJ = ['국어', '산수', '지리', '역사', '창가', '체조', '습자', '도화', '과학']
+    SYL = [ch for s_ in SUBJ for ch in s_]
+    DAYS = '월화수목금토'
+    P.list('k32_subj', SUBJ)
+    P.list('k32_syl', SYL)
+    P.list('k32_tt', [1] * 24)
+    LX = [-50, -15, 18]
+    P.list('k32_lx', LX)
+    can = and_(eq(V('게임중'), 1), eq(W('win'), 0))
+    say = lambda txt: [S_('글', txt), cast('k32_말')]
+    refresh = cast('k32_방갱신')
+
+    def room(o):
+        o.on(on_msg('k32_방갱신'), ifelse(eq(W('lit'), 1), [fx('brightness', 0)], [fx('brightness', -42)]))
+        return o
+    room(m.S('벽', AD.room_wall(), 0, 55))
+    room(m.S('바닥', AD.room_floor(), 0, -80))
+    tt = room(m.S('시간표', AD.timetable_small(), -208, 52))
+    board = room(m.S('칠판', AD.blackboard(), -100, 55))
+    chalk = m.T('칠판글', '', -100, 60, 15, '#F4F1E0', F_NUM, False, 0, w=150, h=24)
+    chalk.on(on_msg('k32_방갱신'), write(join(W('a'), ' × ', W('b'), ' + ', W('c'), ' = ?')))
+    m.T('칠판글2', '산수 숙제: 주판으로 셈하시오', -100, 36, 8, '#C9D8C8', F_BODY, True, 0, w=150, h=14)
+    mp = room(m.S('세계지도', AD.world_map(), 40, 76))
+    globe = room(m.S('지구본', AD.globe_cab(), 122, -12))
+    hangs = []
+    for k, (x, y) in enumerate(((30, 98), (50, 95)), 1):
+        h_ = m.S('나무조각%d' % k, AD.hanging(k), x, y)
+        h_.on(on_scene(), forever(rep(20, rot_by(0.3), wait(0.05)), rep(20, rot_by(-0.3), wait(0.05))))
+        hangs.append(h_)
+    sh1 = m.S('그림자1', [('d%d' % (k + 1), AD.shadow_glyph(DAYS[k], 'd%d' % k)) for k in range(6)], 22, 28, visible=False)
+    sh2 = m.S('그림자2', [('p%d' % (k + 1), AD.shadow_glyph(str(k + 1), 'p%d' % k)) for k in range(4)], 58, 28, visible=False)
+    dlt = sub(W('lamp'), W('ok'))
+    for o, x, a, sz, var in ((sh1, 22, 35, 125, 'day'), (sh2, 58, -50, 140, 'per')):
+        o.on(on_msg('k32_방갱신'), shape(join('d' if var == 'day' else 'p', W(var))),
+             ifelse(eq(W('lit'), 1),
+                    [show(), ifelse(eq(dlt, 0), [xy(x, 28), rot(0), o.pct(100), fx('transparency', 10)],
+                                    [xy(add(40, mul(dlt, 9 if var == 'day' else -7)), add(28, mul(dlt, 3))), rot(mul(dlt, a)),
+                                     o.pct(sz), fx('transparency', 35)])],
+                    [hide()]))
+    dr = room(m.S('문', [('c', AD.door(0)), ('o', AD.door(1))], 200, 2))
+    dr.on(on_msg('k32_방갱신'), ifelse(eq(W('esc'), 1), [shape('o')], [shape('c')]))
+    room(m.S('교탁', AD.desk(), -60, -46))
+    box = room(m.S('상자', [('c', AD.wood_box(0)), ('o', AD.wood_box(1))], -88, -12))
+    box.on(on_msg('k32_방갱신'), ifelse(eq(W('box'), 1), [shape('o')], [shape('c')]))
+    ab = room(m.S('주판', AD.abacus_small(), -118, -15))
+    lampo = m.S('등잔', [('off', AD.lamp(0)), ('on', AD.lamp(1))], LX[1], 2)
+    room(lampo)
+    lampo.on(on_msg('k32_방갱신'), lx(LGET('k32_lx', W('lamp'))), ifelse(eq(W('lit'), 1), [shape('on')], [shape('off')]))
+    # ---------------- 아래: 말 상자, 힌트, 가방
+    panel(P, sc, '말판', -82, -116, 296, 30, 'glass')
+    msg = m.T('말글', '', -82, -116, 9, C_WHITE, F_BODY, True, 0, w=284, h=26)
+    msg.on(on_msg('k32_말'), write(W('글')))
+    m.T('가방글', '가방', 160, -116, 9, C_DIM, F_BODY, True, 0, w=30, h=14)
+    bag = m.S('가방칸', [('e', AD.slot_empty()), ('m', AD.match_item(0)), ('s', AD.match_item(1))], 190, -116)
+    bag.on(on_msg('k32_방갱신'), ifelse(eq(W('has'), 0), [shape('e')], [ifelse(eq(W('sel'), 1), [shape('s')], [shape('m')])]))
+    bag.on(on_click(), if_(and_(can, eq(W('has'), 1)), S_('sel', sub(1, W('sel'))), refresh, cast('k32_딸깍'),
+                           if_(eq(W('sel'), 1), *say('성냥을 들었다. 불을 붙일 곳을 눌러 보자.'))))
+    chain = say('힌트: 그림자는 요일과 교시! 시간표에서 그 과목을 찾아 문의 활판에 찍어요.')
+    for c_, t_ in reversed([(eq(W('box'), 0), '힌트: 칠판 산수의 답을 교탁 위 주판에 놓아요. (윗알 5, 아랫알 1)'),
+                            (eq(W('lit'), 0), '힌트: 가방의 성냥을 고른 뒤 등잔을 눌러 불을 붙여요.'),
+                            (eq(W('seen'), 0), '힌트: 등잔을 누르면 자리가 바뀌어요. 벽 그림자가 똑바로 보일 때까지!')]):
+        chain = [ifelse(c_, say(t_), chain)]
+    button(P, sc, '힌트버튼', '힌트 -8', 102, -116, 60, 24, 'purple', actions=[if_(can, C_('hint', 1), *chain)])
+    # ---------------- 방 클릭
+    open_ab = [S_('win', 1), cast('k32_주판창'), *say('주판 자물쇠! 칠판 문제의 답을 놓고 "확인".')]
+    board.on(on_click(), if_(can, *say(join('칠판: "', W('a'), ' × ', W('b'), ' + ', W('c'), ' = ?" 주판으로 셈하라고 적혀 있다.'))))
+    chalk.on(on_click(), if_(can, *say(join('칠판: "', W('a'), ' × ', W('b'), ' + ', W('c'), ' = ?" 주판으로 셈하라고 적혀 있다.'))))
+    for o in (ab, box):
+        o.on(on_click(), if_(can, ifelse(eq(W('box'), 0), open_ab, say('열린 상자. 이제 비어 있다.'))))
+    tt.on(on_click(), if_(can, ifelse(eq(W('lit'), 0), say('너무 어두워서 시간표 글씨가 안 보인다...'),
+                                      [S_('win', 2), cast('k32_표창'), *say('1920년대 시간표. 요일과 교시마다 과목이 있다.')])))
+    mp.on(on_click(), if_(can, *say('세계지도. 경성에서 상하이, 런던까지 붉은 선이 이어져 있다.')))
+    globe.on(on_click(), if_(can, *say('지구본을 돌려 봤다. 빙글빙글~ 꿈이 커지는 느낌!'), cast('k32_딸깍')))
+    for h_ in hangs:
+        h_.on(on_click(), if_(can, *say('천장에 나무 조각 두 개가 매달려 있다. 빛을 비추면 무엇이 보일까?')))
+    dr.on(on_click(), if_(can, S_('t1', 0), S_('t2', 0), S_('win', 3), cast('k32_활판창'),
+                          *say('문 자물쇠는 활판이다. 활자 두 개를 끼워 찍어야 열린다.')))
+    lampo.on(on_click(), if_(can, ifelse(eq(W('lit'), 0),
+                                         [ifelse(eq(W('sel'), 1),
+                                                 [S_('lit', 1), S_('sel', 0), S_('has', 0), cast('k32_불'),
+                                                  if_(eq(W('lamp'), W('ok')), S_('seen', 1)), refresh,
+                                                  *say('등잔불이 켜졌다! 벽에 나무 조각 그림자가 비친다.')],
+                                                 say('등잔이다. 불을 붙일 것이 있으면 좋겠다.'))],
+                                         [S_('lamp', add(mod(W('lamp'), 3), 1)), if_(eq(W('lamp'), W('ok')), S_('seen', 1)), refresh,
+                                          cast('k32_딸깍'), *say('등잔을 옆으로 옮겼다. 그림자가 바뀐다!')])))
+    # ---------------- 창: 공통
+    def window(objs, open_msg, close_msg):
+        for o in objs:
+            o.on(on_scene(), hide())
+            o.on(on_msg(open_msg), show())
+            o.on(on_msg(close_msg), hide())
+    close = lambda w_, msg_: [if_(eq(W('win'), w_), S_('win', 0), cast(msg_))]
+    # ---------------- 주판 창
+    ow = [m.S('주판어둡게', A.plain_rect(480, 270, (2, 3, 12, 170), 'dim_kp'), 0, 0),
+          panel(P, sc, '주판판', 0, 8, 262, 176, 'glass', header='royal'),
+          m.T('주판제목', '교탁 상자의 주판 자물쇠', 0, 84, 11, C_WHITE, F_NUM, False, 0, w=220, h=16),
+          m.S('주판틀', AD.abacus_frame(), 0, 20)]
+    for i, x in enumerate((-60, 0, 60), 1):
+        rod = m.S('주판알%d' % i, [('b%d' % dg, AD.abacus_rod(dg)) for dg in range(10)], x, 20)
+        rod.on(on_msg('k32_주판'), shape(join('b', W('d%d' % i))))
+        dv = 'k32_d%d' % i
+        rod.on(on_click(), if_(eq(W('win'), 1),
+                               ifelse(gt(mouse_y(), add(obj_y(), 19)),
+                                      [ifelse(ge(V(dv), 5), [chg(dv, -5)], [chg(dv, 5)])],
+                                      [ifelse(eq(mod(V(dv), 5), 4), [chg(dv, -4)], [chg(dv, 1)])]),
+                               cast('k32_주판'), cast('k32_딸깍')))
+        lab = m.T('주판수%d' % i, '0', x, -44, 14, C_ACC, F_NUM, False, 0, w=30, h=18)
+        lab.on(on_msg('k32_주판'), write(W('d%d' % i)))
+        ow += [rod, lab]
+    ow.append(m.T('주판설명', '윗알 하나 = 5 · 아랫알 하나 = 1  (숫자키로도 놓을 수 있어요)', 0, -57, 8, C_DIM, F_BODY, True, 0, w=250, h=12))
+    chk = [if_(eq(W('win'), 1),
+               ifelse(eq(add(add(mul(W('d1'), 100), mul(W('d2'), 10)), W('d3')), W('ans')),
+                      [S_('box', 1), S_('has', 1), S_('win', 0), cast('k32_주판닫기'), refresh, cast('k32_찾음'),
+                       *say('딸깍! 상자가 열렸다. 성냥을 얻었다! (가방)')],
+                      [C_('miss', 1), cast('k32_삐빅'), *say('덜컥... 상자가 열리지 않는다. 다시 셈해 보자.')]))]
+    ow.append(button(P, sc, '주판확인', '확인', -44, -72, 70, 22, 'royal', actions=chk))
+    ow.append(button(P, sc, '주판닫기', '닫기', 44, -72, 70, 22, 'gray', actions=close(1, 'k32_주판닫기')))
+    window(ow, 'k32_주판창', 'k32_주판닫기')
+    kmgr = hidden(m, '주판키')
+    for d in range(10):
+        kmgr.on(on_key(48 + d), if_(eq(W('win'), 1), S_('d1', W('d2')), S_('d2', W('d3')), S_('d3', d), cast('k32_주판'), cast('k32_딸깍')))
+    kmgr.on(on_msg('k32_주판창'), cast('k32_주판'))
+    # ---------------- 시간표 창
+    tw = [m.S('표어둡게', A.plain_rect(480, 270, (2, 3, 12, 170), 'dim_kp'), 0, 0),
+          panel(P, sc, '표판', 0, 4, 340, 184, 'glass', header='royal'),
+          m.T('표제목', '시간표 (時間表)', 0, 84, 11, C_WHITE, F_NUM, False, 0, w=220, h=16)]
+    for c in range(6):
+        tw.append(m.T('표요일%d' % c, DAYS[c], -95 + c * 44, 58, 12, C_ACC, F_NUM, False, 0, w=36, h=16))
+    for r in range(4):
+        tw.append(m.T('표교시%d' % r, '%d교시' % (r + 1), -142, 32 - r * 26, 10, C_ACC, F_NUM, False, 0, w=44, h=14))
+        for c in range(6):
+            cell = m.T('표칸%d_%d' % (r, c), '', -95 + c * 44, 32 - r * 26, 11, C_WHITE, F_BODY, True, 0, w=42, h=16)
+            cell.on(on_msg('k32_표창'), write(LGET('k32_subj', LGET('k32_tt', r * 6 + c + 1))))
+            tw.append(cell)
+    tw.append(button(P, sc, '표닫기', '닫기', 0, -74, 70, 22, 'gray', actions=close(2, 'k32_표닫기')))
+    window(tw, 'k32_표창', 'k32_표닫기')
+    # ---------------- 활판 창 (문)
+    rng = random.Random(32)
+    order = list(range(18))
+    rng.shuffle(order)
+    pw = [m.S('활판어둡게', A.plain_rect(480, 270, (2, 3, 12, 170), 'dim_kp'), 0, 0),
+          panel(P, sc, '활판판', 0, 0, 362, 196, 'glass', header='purple'),
+          m.T('활판제목', '문 자물쇠 · 활판 인쇄', 0, 84, 11, C_WHITE, F_NUM, False, 0, w=220, h=16),
+          m.T('활판설명', '그림자가 가리키는 요일·교시의 과목 이름을 찍으세요.\n활자는 거울에 비친 것처럼 뒤집혀 있어요!', 0, 62, 9, C_DIM, F_BODY, True, 0,
+              w=330, h=28),
+          m.T('활판글', '활판', -62, 34, 10, C_ACC, F_NUM, False, 0, w=40, h=14)]
+    tpics = [('e', AD.slot_empty())] + [('t%d' % (j + 1), AD.type_block(SYL[j], 'm%d' % j)) for j in range(18)]
+    for k in (1, 2):
+        sl = m.S('활판칸%d' % k, tpics, -36 + 36 * k, 34)
+        tv = W('t%d' % k)
+        sl.on(on_msg('k32_활자'), ifelse(eq(tv, 0), [shape('e')], [shape(join('t', tv))]))
+        pw.append(sl)
+    for j in range(18):
+        g = order.index(j)
+        c, r = g % 6, g // 6
+        tb = m.S('활자%d' % (j + 1), AD.type_block(SYL[j], 'm%d' % j), -105 + 42 * c, 2 - 34 * r)
+        tb.on(on_click(), if_(eq(W('win'), 3),
+                              ifelse(eq(W('t1'), 0), [S_('t1', j + 1)], [if_(eq(W('t2'), 0), S_('t2', j + 1))]),
+                              cast('k32_활자'), cast('k32_딸깍'), tb.pct(88), wait(0.06), tb.pct(100)))
+        pw.append(tb)
+    res = m.T('찍힌글', '', 150, -66, 13, C_WHITE, F_NUM, False, 0, w=60, h=40, bg=C_BOX)
+    res.on(on_msg('k32_활판창'), write('찍은 글\n?'))
+    res.on(on_msg('k32_찍음'), write(join('찍은 글\n', LGET('k32_syl', W('t1')), LGET('k32_syl', W('t2')))))
+    pw.append(res)
+    good = and_(eq(W('t1'), sub(mul(W('subj'), 2), 1)), eq(W('t2'), mul(W('subj'), 2)))
+    stamp = [if_(and_(eq(W('win'), 3), gt(W('t2'), 0)), cast('k32_찍음'), cast('k32_철컥'), wait(0.5),
+                 ifelse(good,
+                        [S_('esc', 1), S_('win', 0), cast('k32_활판닫기'), refresh, cast('k32_탈출'), *say('철컥! 문이 열렸다. 탈출 성공!')],
+                        [C_('miss', 1), cast('k32_삐빅'), S_('t1', 0), S_('t2', 0), cast('k32_활자'),
+                         *say('문이 꿈쩍도 안 한다. 다른 과목인가?')]))]
+    pw.append(button(P, sc, '활판찍기', '찍기', 150, 34, 56, 24, 'royal', actions=stamp))
+    pw.append(button(P, sc, '활판지움', '지움', 150, 4, 56, 24, 'steel',
+                     actions=[if_(eq(W('win'), 3), S_('t1', 0), S_('t2', 0), cast('k32_활자'))]))
+    pw.append(button(P, sc, '활판닫기', '닫기', 150, -26, 56, 24, 'gray', actions=close(3, 'k32_활판닫기')))
+    window(pw, 'k32_활판창', 'k32_활판닫기')
+    hidden(m, '활판담당').on(on_msg('k32_활판창'), cast('k32_활자'))
+    # ---------------- 탈출·점수
+    flash = m.S('탈출빛', A.plain_rect(480, 270, (255, 246, 214, 255), 'k32_white'), 0, 0, visible=False)
+    flash.on(on_msg('k32_탈출'), wait(0.4), fx('transparency', 100), show(), rep(10, fx_add('transparency', -8), wait(0.03)))
+    G.big_pop(P, sc, '탈출글', K.big_text('탈출 성공!', 40, 'royal'), 0, 20, 'k32_탈출', hold=1.2)
+    mgr = hidden(m, '탈출담당')
+    mgr.on(on_msg('k32_탈출'), setv('_mk', sub(sub(TL, V('남은시간')), 75)), if_(lt(V('_mk'), 0), setv('_mk', 0)),
+           setv('합계', sub(sub(sub(100, mul(W('hint'), 8)), mul(W('miss'), 2)), mul(V('_mk'), 0.3))),
+           if_(lt(V('합계'), 40), setv('합계', 40)), wait(1.6), *m.end_blocks(V('합계')))
+    part = sub(add(add(mul(W('box'), 15), mul(W('lit'), 10)), mul(W('seen'), 10)), mul(W('hint'), 4))
+    mgr.on(on_msg('시간끝'), S_('win', 0), cast('k32_주판닫기'), cast('k32_표닫기'), cast('k32_활판닫기'),
+           *say('시간이 다 됐다... 교실에 갇혀 버렸다!'), wait(1.0), *m.end_blocks(part))
+    mgr.on(on_msg('게임시작'), until(eq(V('게임중'), 0), setv('미니표시', join('힌트 ', W('hint'), ' · 실수 ', W('miss'))), wait(0.3)))
+    m.on_start(S_('win', 0), S_('hint', 0), S_('miss', 0), S_('box', 0), S_('has', 0), S_('sel', 0), S_('lit', 0), S_('seen', 0),
+               S_('esc', 0), S_('t1', 0), S_('t2', 0), S_('d1', 0), S_('d2', 0), S_('d3', 0), S_('lamp', 2),
+               S_('a', rnd(12, 29)), S_('b', rnd(3, 9)), S_('c', rnd(11, 99)),
+               S_('ans', add(mul(W('a'), W('b')), W('c'))),
+               S_('ok', rnd(1, 3)), until(ne(W('ok'), 2), S_('ok', rnd(1, 3))),
+               *[lst_set('k32_tt', k, rnd(1, 9)) for k in range(1, 25)],
+               S_('day', rnd(1, 6)), S_('per', rnd(1, 4)),
+               S_('subj', LGET('k32_tt', add(mul(sub(W('per'), 1), 6), W('day')))),
+               S_('글', '1920년대 교실에 갇혔다! 칠판, 교탁, 등잔... 단서를 찾자.'), refresh, cast('k32_말'))
+    m.snd('k32_딸깍', play('tick'))
+    m.snd('k32_찾음', play('good'))
+    m.snd('k32_삐빅', play('bad'))
+    m.snd('k32_철컥', play('stamp'))
+    m.snd('k32_불', play('pop'))
+    m.snd('k32_탈출', play('fanfare'))
+    m.finish('100년 된 군산의 근대 학교 교실에 갇혔다!\n주판·등잔불·시간표·활자로 문을 여세요. 정답은 매번 달라요.',
+             '조작: 마우스 클릭 (주판은 숫자키도)  ·  가방 물건을 고른 뒤 쓸 곳 클릭  ·  힌트 -8점')
+    return True
+
+
+# ================================================================== 33. 강 건너기 퍼즐
+@game(33)
+def g33(P, ctx):
+    TL, N = 120, 6
+    m = mg(P, ctx, T, 33, time_limit=TL, status='퍼즐 1/2 · 0번', dim=40)
+    sc = m.sc
+    W, S_, C_ = pfx('k33_')
+    vars_(P, *['k33_' + v for v in ('pz', 'side', 'bx', 's1', 's2', 'mv', 'mv1', 'mv2', 'ok1', 'ok2', 'bad', 'busy', 'osd', 'n',
+                                     'sa', 'sb', 'oa', 'ob', 'why', 'np')])
+    P.list('k33_loc', [1] * N)
+    P.list('k33_old', [1] * N)
+    P.list('k33_seat', [0] * N)
+    BY, BX = -46, 64
+    LXs = [-205, -165, -125, -205, -165, -125]
+    LYs = [8, 8, 8, -46, -46, -46]
+    P.list('k33_lx', LXs)
+    P.list('k33_ly', LYs)
+    m.S('왼둑', AD.bank(0), -175, -28)
+    m.S('오른둑', AD.bank(1), 175, -28)
+    m.S('강', AD.river(), 0, -28)
+    rule = m.T('규칙글', '', 0, 74, 10, C_WHITE, F_BODY, True, 0, w=430, h=30, bg=C_BOX)
+    rule.on(on_msg('k33_퍼즐'), ifelse(eq(W('pz'), 1),
+                                     [write('퍼즐 1: 사공만 배를 저어요. 사공이 없으면 호랑이는 염소를,\n염소는 배추를 먹어요! 모두 오른쪽 둑으로 (최소 7번)')],
+                                     [write('퍼즐 2: 배에는 둘까지, 아무나 저어요. 어느 둑이든 반대파가\n지지자보다 많으면 싸움이 나요! 모두 오른쪽으로 (최소 11번)')]))
+    bt = m.S('배', AD.boat(), -BX, BY)
+    bt.on(on_msg('k33_갱신'), xy(W('bx'), BY))
+    # 사람·동물 6 칸: 퍼즐 1 은 1~4 (사공·호랑이·염소·배추), 퍼즐 2 는 1~3 지지자, 4~6 반대파
+    sup = AD.person((60, 110, 230), sign=((40, 90, 220), '♥'), tag='sup')
+    opp = AD.person((200, 50, 60), sign=((200, 40, 50), '✕'), tag='opp')
+    boatman = AD.person((90, 70, 50), hat=(200, 170, 90), tag='boatman')
+    p1 = [boatman, AD.tiger(), AD.goat(), AD.cabbage(), AD.blank(), AD.blank()]
+    loc = lambda i: LGET('k33_loc', i)
+    for i in range(1, N + 1):
+        o = m.S('인물%d' % i, [('a', p1[i - 1]), ('b', sup if i <= 3 else opp)], LXs[i - 1], LYs[i - 1])
+        o.on(on_msg('k33_갱신'),
+             ifelse(and_(eq(W('pz'), 1), gt(i, 4)), [hide()],
+                    [show(), shape(W('pz')),
+                     ifelse(eq(loc(i), 3), [xy(add(W('bx'), sub(mul(LGET('k33_seat', i), 26), 39)), BY + 18)],
+                            [ifelse(eq(loc(i), 1), [xy(LXs[i - 1], LYs[i - 1])], [xy(-LXs[i - 1], LYs[i - 1])])])]))
+        o.on(on_click(), if_(and_(eq(V('게임중'), 1), eq(W('busy'), 0)),
+                             ifelse(eq(loc(i), 3),
+                                    [lst_set('k33_loc', i, W('side')), if_(eq(W('s1'), i), S_('s1', 0)), if_(eq(W('s2'), i), S_('s2', 0)),
+                                     cast('k33_갱신'), cast('k33_딸깍')],
+                                    [ifelse(eq(loc(i), W('side')),
+                                            [ifelse(eq(W('s1'), 0), [S_('s1', i), lst_set('k33_seat', i, 1), lst_set('k33_loc', i, 3)],
+                                                    [ifelse(eq(W('s2'), 0), [S_('s2', i), lst_set('k33_seat', i, 2), lst_set('k33_loc', i, 3)],
+                                                            [S_('why', 1), cast('k33_안내')])]),
+                                             cast('k33_갱신'), cast('k33_딸깍')],
+                                            [S_('why', 2), cast('k33_안내')])])))
+    # 안내 말
+    note = m.T('안내글', '', 0, -112, 10, C_ACC, F_BODY, True, 0, w=300, h=16)
+    for k, txt in enumerate(['배에는 둘까지만 탈 수 있어요!', '배가 건너편에 있어요.', '배에 아무도 없어요.',
+                             '사공이 있어야 배를 저을 수 있어요.', '호랑이가 염소를 잡아먹었어요! 되돌려요.',
+                             '염소가 배추를 먹어 버렸어요! 되돌려요.', '반대파가 더 많아서 싸움이 났어요! 되돌려요.',
+                             '성공! 모두 무사히 건넜어요!'], 1):
+        note.on(on_msg('k33_안내'), if_(eq(W('why'), k), write(txt)))
+    note.on(on_msg('k33_퍼즐'), write('인물을 눌러 배에 태우고 내리기 · 배나 "건너기!"를 눌러 출발'))
+    # 건너기
+    def count(var, lo, hi, b):
+        return [S_(var, 0)] + [if_(eq(loc(j), b), C_(var, 1)) for j in range(lo, hi + 1)]
+    check1 = [S_('osd', sub(3, loc(1))),
+              if_(and_(eq(loc(2), W('osd')), eq(loc(3), W('osd'))), S_('bad', 5)),
+              if_(and_(eq(W('bad'), 0), and_(eq(loc(3), W('osd')), eq(loc(4), W('osd')))), S_('bad', 6))]
+    check2 = [*count('sa', 1, 3, 1), *count('oa', 4, 6, 1), *count('sb', 1, 3, 2), *count('ob', 4, 6, 2),
+              if_(or_(and_(gt(W('sa'), 0), gt(W('oa'), W('sa'))), and_(gt(W('sb'), 0), gt(W('ob'), W('sb')))), S_('bad', 7))]
+    move_boat = lambda tgt: [rep(16, C_('bx', div(sub(tgt, W('bx')), 4)), cast('k33_갱신'), wait(0.02)), S_('bx', tgt), cast('k33_갱신')]
+    go_ = [if_(and_(eq(V('게임중'), 1), eq(W('busy'), 0)),
+               ifelse(and_(eq(W('s1'), 0), eq(W('s2'), 0)), [S_('why', 3), cast('k33_안내')],
+                      [ifelse(and_(eq(W('pz'), 1), ne(loc(1), 3)), [S_('why', 4), cast('k33_안내')],
+                              [S_('busy', 1), cast('k33_출발')])]))]
+    bt.on(on_click(), *go_)
+    button(P, sc, '건너기', '건너기!', 0, -88, 90, 24, 'royal', actions=go_)
+    reset = [if_(and_(eq(V('게임중'), 1), eq(W('busy'), 0)), cast('k33_처음'))]
+    button(P, sc, '처음부터', '처음부터', 190, -112, 76, 20, 'steel', actions=reset)
+    mgr = hidden(m, '강담당')
+    sync = lambda: [setv('미니표시', join('퍼즐 ', W('pz'), '/2 · ', W('mv'), '번'))]
+    restart = [S_('side', 1), S_('bx', -BX), S_('s1', 0), S_('s2', 0), S_('mv', 0),
+               *[lst_set('k33_loc', j, 1) for j in range(1, N + 1)], *[lst_set('k33_seat', j, 0) for j in range(1, N + 1)],
+               cast('k33_갱신'), *sync()]
+    mgr.on(on_msg('k33_처음'), *restart, cast('k33_퍼즐'))
+    mgr.on(on_msg('k33_출발'),
+           *[lst_set('k33_old', j, loc(j)) for j in range(1, N + 1)],
+           cast('k33_노'), *move_boat(mul(W('side'), -BX)), S_('side', sub(3, W('side'))), S_('bx', mul(sub(mul(W('side'), 2), 3), BX)),
+           *[if_(eq(loc(j), 3), lst_set('k33_loc', j, W('side'))) for j in range(1, N + 1)],
+           S_('s1', 0), S_('s2', 0), C_('mv', 1), cast('k33_갱신'), *sync(),
+           S_('bad', 0), ifelse(eq(W('pz'), 1), check1, check2),
+           ifelse(gt(W('bad'), 0),
+                  [S_('why', W('bad')), cast('k33_안내'), cast('k33_싸움'), C_('n', 1), wait(1.3),
+                   *[lst_set('k33_loc', j, LGET('k33_old', j)) for j in range(1, N + 1)],
+                   *move_boat(mul(W('side'), -BX)), S_('side', sub(3, W('side'))), S_('bx', mul(sub(mul(W('side'), 2), 3), BX)),
+                   C_('mv', -1),
+                   *[if_(eq(loc(j), 3), lst_set('k33_loc', j, W('side'))) for j in range(1, N + 1)],
+                   cast('k33_갱신'), *sync()],
+                  []),
+           *count('np', 1, N, 2),
+           ifelse(and_(eq(W('pz'), 1), ge(W('np'), 4)),
+                  [S_('ok1', 1), S_('mv1', W('mv')), S_('why', 8), cast('k33_안내'), cast('k33_성공'), wait(1.6), S_('pz', 2), *restart,
+                   cast('k33_퍼즐')],
+                  [if_(and_(eq(W('pz'), 2), ge(W('np'), 6)),
+                       S_('ok2', 1), S_('mv2', W('mv')), S_('why', 8), cast('k33_안내'), cast('k33_성공'), wait(1.6),
+                       *m.end_blocks(score33(W)))]),
+           S_('busy', 0))
+    mgr.on(on_msg('시간끝'), *count('np', 1, N, 2), *m.end_blocks(score33(W, True)))
+    pop(m, '싸움', [('a', K.big_text('앗!', 34, 'red'))], 0, 20, 'k33_싸움', 0.6)
+    pop(m, '성공', [('a', K.big_text('모두 건넜다!', 30, 'royal'))], 0, 20, 'k33_성공', 0.8)
+    m.on_start(S_('pz', 1), S_('ok1', 0), S_('ok2', 0), S_('n', 0), S_('busy', 0), S_('mv1', 0), S_('mv2', 0), *restart, cast('k33_퍼즐'))
+    m.snd('k33_딸깍', play('tick'))
+    m.snd('k33_노', play('splash'))
+    m.snd('k33_싸움', play('bad'))
+    m.snd('k33_성공', play('good'))
+    m.finish('청계천 나룻배로 모두 오른쪽 둑에 건너 주세요! 배엔 둘까지.\n퍼즐 1 사공·호랑이·염소·배추, 퍼즐 2 지지자·반대파 (2문제)',
+             '조작: 인물 클릭 = 타기/내리기  ·  배 또는 "건너기!" 클릭 = 출발  ·  적게 건널수록 높은 점수')
+    return True
+
+
+def score33(W, timeout=False):
+    """퍼즐 1: 45점 (7번보다 한 번 더 건널 때마다 -3, 최소 25), 퍼즐 2: 55점 (11번 기준, 최소 30), 싸움 한 번 -3.
+    시간이 끝나면 못 푼 퍼즐은 오른쪽에 건넌 수 x 4."""
+    p1 = mul(W('ok1'), maxv(25, sub(45, mul(sub(W('mv1'), 7), 3))))
+    p2 = mul(W('ok2'), maxv(30, sub(55, mul(sub(W('mv2'), 11), 3))))
+    base = add(p1, p2)
+    if timeout:
+        base = add(base, mul(W('np'), 4))
+    return sub(base, mul(W('n'), 3))
+
+
+# ================================================================== 34. 얼음 컬링
+@game(34)
+def g34(P, ctx):
+    NS, NA, R = 4, 3, 8
+    NT = NS + NA
+    CY, HX, HR, SX = -12, 150, 40, -200
+    m = mg(P, ctx, T, 34, time_limit=100, status='스톤 1/%d' % NS, dim=50)
+    sc = m.sc
+    W, S_, C_ = pfx('k34_')
+    vars_(P, *['k34_' + v for v in ('shot', 'ang', 'pw', 'pdir', 'phase', 'curl', 'sw', 'swt', 'mov', 'pts', 'best', 'ai', 'out',
+                                     'k', 'd')])
+    for nm in ('x', 'y', 'vx', 'vy', 'in'):
+        P.list('k34_' + nm, [0] * NT)
+    m.S('얼음판', AD.curling_sheet(470, 128, HX, HR), 0, CY)
+    curl_t = m.T('얼음결', '', -150, 70, 10, C_WHITE, F_BODY, True, 0, w=200, h=16, bg=C_BOX)
+    curl_t.on(on_msg('k34_새스톤'), ifelse(gt(W('curl'), 0), [write(join('얼음결: 위로 휘어요 ↑ (세기 ', abs_(W('curl')), ')'))],
+                                         [write(join('얼음결: 아래로 휘어요 ↓ (세기 ', abs_(W('curl')), ')'))]))
+    arrow = m.S('조준', AD.aim_arrow(), SX + 50, CY)
+    arrow.on(on_msg('k34_조준'), xy(add(SX, mul(cos_(W('ang')), 52)), add(CY, mul(sin_(W('ang')), 52))), rot(mul(W('ang'), -1)))
+    arrow.on(on_msg('k34_던짐'), hide())
+    arrow.on(on_msg('k34_새스톤'), show())
+    pwb = m.S('힘막대', K.bar_set('k34_pw', 120, 9, 'royal'), -150, -100)
+    m.T('힘글', '힘', -222, -100, 9, C_WHITE, F_NUM, False, 0, w=24, h=12)
+    pwb.on(on_msg('k34_힘'), shape(add(floor(mul(div(W('pw'), 100), 40)), 1)))
+    # 스톤 (복제본 7개): 위치·속도는 리스트에
+    st = m.S('스톤', [('me', AD.stone((60, 110, 240), 'blue')), ('ai', AD.stone((230, 60, 70), 'red'))], 0, -300, visible=False)
+    st.local('si', 0)
+    st.local('복제', 0)
+    for v in ('v', 'nv', 'dx', 'dy', 'dd', 'p', 'nx', 'ny', 'f', 'c'):
+        st.local('q' + v, 0)
+    L = lambda nm, i: LGET('k34_' + nm, i)
+    me = V('si')
+    phys = [S_('mov', 1),
+            setv('qv', fn('root', add(mul(L('vx', me), L('vx', me)), mul(L('vy', me), L('vy', me))))),
+            setv('qf', 0.09), setv('qc', mul(W('curl'), 0.004)),
+            if_(eq(W('sw'), 1), setv('qf', 0.055), setv('qc', mul(W('curl'), 0.002))),
+            setv('qnv', sub(V('qv'), V('qf'))),
+            ifelse(le(V('qnv'), 0), [lst_set('k34_vx', me, 0), lst_set('k34_vy', me, 0)],
+                   [lst_set('k34_vx', me, mul(L('vx', me), div(V('qnv'), V('qv')))),
+                    lst_set('k34_vy', me, add(mul(L('vy', me), div(V('qnv'), V('qv'))), V('qc')))]),
+            lst_set('k34_x', me, add(L('x', me), L('vx', me))), lst_set('k34_y', me, add(L('y', me), L('vy', me)))]
+    for j in range(1, NT + 1):
+        phys.append(if_(and_(ne(me, j), eq(L('in', j), 1)),
+                        setv('qdx', sub(L('x', j), L('x', me))), setv('qdy', sub(L('y', j), L('y', me))),
+                        setv('qdd', add(mul(V('qdx'), V('qdx')), mul(V('qdy'), V('qdy')))),
+                        if_(and_(lt(V('qdd'), 4 * R * R), gt(V('qdd'), 0.01)),
+                            setv('qdd', fn('root', V('qdd'))), setv('qnx', div(V('qdx'), V('qdd'))), setv('qny', div(V('qdy'), V('qdd'))),
+                            setv('qp', add(mul(sub(L('vx', me), L('vx', j)), V('qnx')), mul(sub(L('vy', me), L('vy', j)), V('qny')))),
+                            if_(gt(V('qp'), 0),
+                                lst_set('k34_vx', me, sub(L('vx', me), mul(V('qp'), V('qnx')))),
+                                lst_set('k34_vy', me, sub(L('vy', me), mul(V('qp'), V('qny')))),
+                                lst_set('k34_vx', j, add(L('vx', j), mul(V('qp'), V('qnx')))),
+                                lst_set('k34_vy', j, add(L('vy', j), mul(V('qp'), V('qny')))),
+                                cast('k34_딱')),
+                            lst_set('k34_x', j, add(L('x', me), mul(V('qnx'), 2 * R + 0.3))),
+                            lst_set('k34_y', j, add(L('y', me), mul(V('qny'), 2 * R + 0.3))))))
+    phys += [if_(or_(gt(L('x', me), 232), gt(abs_(sub(L('y', me), CY)), 60)),
+                 lst_set('k34_in', me, 0), lst_set('k34_vx', me, 0), lst_set('k34_vy', me, 0), cast('k34_아웃'))]
+    st.on(on_msg('k34_배치'), if_(eq(V('복제'), 0), setv('si', 0), rep(NT, chg('si', 1), clone_self())))
+    st.on(on_clone(), setv('복제', 1), ifelse(gt(V('si'), NS), [shape('ai')], [shape('me')]),
+          until(eq(V('게임중'), -1),
+                ifelse(eq(L('in', me), 1),
+                       [if_(or_(ne(L('vx', me), 0), ne(L('vy', me), 0)), *phys),
+                        xy(L('x', me), L('y', me)), show()],
+                       [hide()])))
+    brm = m.S('빗자루', AD.broom(), 0, -300, visible=False)
+    brm.on(on_msg('k34_던짐'), until(eq(W('phase'), 0),
+                                   ifelse(eq(W('sw'), 1),
+                                          [xy(add(L('x', W('shot')), 16), add(L('y', W('shot')), rnd(-6, 6))), show(), rot(rnd(-20, 20))],
+                                          [hide()])), hide())
+    # 진행
+    stopped = and_(*[and_(eq(L('vx', i), 0), eq(L('vy', i), 0)) for i in range(1, NT + 1)])
+    mgr = hidden(m, '컬링담당')
+    held = key(K_SPACE)
+    dist = lambda i: fn('root', add(mul(sub(L('x', i), HX), sub(L('x', i), HX)), mul(sub(L('y', i), CY), sub(L('y', i), CY))))
+    calc = [S_('pts', 0), S_('best', 999), S_('ai', 999), S_('out', 0)]
+    for i in range(1, NT + 1):
+        if i <= NS:
+            calc.append(if_(eq(L('in', i), 1), S_('d', dist(i)),
+                            if_(le(W('d'), HR + 2), C_('pts', sub(25, mul(W('d'), 0.4)))),
+                            if_(lt(W('d'), W('best')), S_('best', W('d')))))
+        else:
+            calc.append(ifelse(eq(L('in', i), 1), [S_('d', dist(i)), if_(lt(W('d'), W('ai')), S_('ai', W('d')))], [C_('out', 1)]))
+    calc += [if_(lt(W('best'), W('ai')), C_('pts', 10)), C_('pts', mul(W('out'), 6))]
+    mgr.on(on_msg('게임시작'), S_('shot', 0),
+           until(or_(ge(W('shot'), NS), eq(V('게임중'), 0)),
+                 C_('shot', 1), S_('k', W('shot')),
+                 lst_set('k34_x', W('k'), SX), lst_set('k34_y', W('k'), CY), lst_set('k34_vx', W('k'), 0), lst_set('k34_vy', W('k'), 0),
+                 lst_set('k34_in', W('k'), 1),
+                 S_('ang', 0), S_('pw', 0), S_('pdir', 1), S_('curl', mul(div(rnd(5, 12), 10), sub(mul(rnd(0, 1), 2), 1))),
+                 setv('미니표시', join('스톤 ', W('shot'), '/', NS)), cast('k34_새스톤'), cast('k34_조준'), cast('k34_힘'),
+                 S_('phase', 1),
+                 until(or_(held, eq(V('게임중'), 0)),
+                       if_(key(K_UP), C_('ang', 0.35)), if_(key(K_DOWN), C_('ang', -0.35)), *clamp('k34_ang', -12, 12),
+                       cast('k34_조준')),
+                 until(or_(not_(held), eq(V('게임중'), 0)),
+                       C_('pw', mul(W('pdir'), 2.2)),
+                       if_(gt(W('pw'), 100), S_('pw', 100), S_('pdir', -1)), if_(lt(W('pw'), 0), S_('pw', 0), S_('pdir', 1)),
+                       cast('k34_힘')),
+                 S_('d', add(3, mul(W('pw'), 0.065))),
+                 lst_set('k34_vx', W('k'), mul(W('d'), cos_(W('ang')))), lst_set('k34_vy', W('k'), mul(W('d'), sin_(W('ang')))),
+                 S_('phase', 2), cast('k34_던짐'),
+                 wait(0.2), until(or_(stopped, eq(V('게임중'), 0)),
+                                  ifelse(or_(mouse_down(), gt(W('swt'), 0)), [S_('sw', 1)], [S_('sw', 0)]),
+                                  if_(gt(W('swt'), 0), C_('swt', -1))),
+                 S_('phase', 0), S_('sw', 0), *calc, cast('k34_점수'), wait(0.8)),
+           *calc, wait(0.5), *m.end_blocks(W('pts')))
+    mgr.on(on_key(K_S), if_(eq(W('phase'), 2), S_('swt', 8)))
+    mgr.on(on_msg('시간끝'), *calc, *m.end_blocks(W('pts')))
+    score_t = m.T('점수글', '', 150, 70, 10, C_WHITE, F_NUM, False, 0, w=170, h=16, bg=C_BOX)
+    score_t.on(on_msg('k34_점수'), write(join('지금 점수 ', rounded(W('pts')), '점')))
+    score_t.on(on_scene(), write('과녁 가운데일수록 높은 점수'))
+    sw_t = m.T('쓸기글', '쓸기!', -20, -100, 12, C_ACC, F_NUM, False, 0, w=80, h=16, visible=False)
+    sw_t.on(on_msg('k34_던짐'), until(eq(W('phase'), 0), ifelse(eq(W('sw'), 1), [show()], [hide()])), hide())
+    m.T('조작글', '↑↓ 방향 · SPACE 꾹 → 놓으면 발사 · 미끄러질 때 마우스 꾹(또는 S 연타) = 쓸기', 40, -118, 8, C_DIM, F_BODY, True, 0, w=330, h=12)
+    pop(m, '딱', [('a', K.big_text('딱!', 18, 'white'))], 0, 0, 'k34_딱', 0.2, follow=(L('x', W('shot')), add(L('y', W('shot')), 18)))
+    m.on_start(*[lst_set('k34_in', i, 0) for i in range(1, NS + 1)],
+               *[lst_set('k34_vx', i, 0) for i in range(1, NT + 1)], *[lst_set('k34_vy', i, 0) for i in range(1, NT + 1)],
+               lst_set('k34_x', NS + 1, rnd(40, 90)), lst_set('k34_y', NS + 1, add(CY, rnd(-18, 18))),
+               lst_set('k34_x', NS + 2, add(HX, rnd(-30, 10))), lst_set('k34_y', NS + 2, add(CY, rnd(-26, 26))),
+               lst_set('k34_x', NS + 3, add(HX, rnd(8, 34))), lst_set('k34_y', NS + 3, add(CY, rnd(-30, 30))),
+               *[lst_set('k34_in', i, 1) for i in range(NS + 1, NT + 1)],
+               S_('phase', 0), S_('sw', 0), S_('swt', 0), S_('pts', 0), S_('shot', 0), S_('ang', 0), S_('curl', 0.6),
+               cast('k34_배치'), cast('k34_새스톤'), cast('k34_조준'))
+    m.snd('k34_딱', play('hit'))
+    m.snd('k34_던짐', play('whistle'))
+    m.snd('k34_아웃', play('pop'))
+    m.finish('충주호 얼음판 컬링! 파란 스톤 4개를 과녁 가운데로.\n빨간 스톤을 쳐 낼 수도 있어요. 얼음결 따라 살짝 휘어요.',
+             '조작: ↑↓ 방향 · SPACE 를 누르고 있다가 떼면 발사 · 마우스 꾹(S 연타) = 쓸기(덜 느려짐)')
+    return True
+
+
+# ================================================================== 35. 활주로 관제
+@game(35)
+def g35(P, ctx):
+    TL, NP = 40, 8
+    RY, RX0, RX1 = -6, -165, 165          # 활주로 y, 왼끝, 오른끝
+    m = mg(P, ctx, T, 35, time_limit=TL, status='착륙 0 · 이륙 0', dim=60)
+    sc = m.sc
+    W, S_, C_ = pfx('k35_')
+    vars_(P, *['k35_' + v for v in ('rw', 'land', 'dep', 'near', 'delay', 'slot', 'kind', 'qn', 'fx', 'fy')])
+    for nm in ('kind', 'st', 'x', 'y', 'cl'):
+        P.list('k35_' + nm, [0] * NP)
+    m.S('공항', AD.airfield(), 0, -8)
+    lamp = m.T('활주로등', '활주로 비었음', -150, 76, 10, '#7CFFA0', F_NUM, False, 0, w=130, h=16, bg=C_BOX)
+    lamp.on(on_msg('k35_활주로'), ifelse(gt(W('rw'), 0), [write('활주로 사용 중'), text_color('#FF6B7A')],
+                                       [write('활주로 비었음'), text_color('#7CFFA0')]))
+    m.T('도움말', '착륙기(흰색)는 기본 "착륙 허가", 이륙기(주황)는 기본 "대기" · 클릭하면 바뀌어요', 40, -122, 8, C_DIM, F_BODY, True, 0,
+        w=360, h=12)
+    pl = m.S('비행기', [('a1', AD.plane('arr', 1)), ('a0', AD.plane('arr', 0)), ('d1', AD.plane('dep', 1)), ('d0', AD.plane('dep', 0))],
+             0, -300, visible=False)
+    for v in ('i', 'k', 's', 'px', 'py', 'c', 'w', 'sp', 'ang', '복제', 'on', 'hz'):
+        pl.local('q' + v, 0)
+    Q = lambda n: V('q' + n)
+    SQ = lambda n, v: setv('q' + n, v)
+    look = [ifelse(eq(Q('k'), 1), [ifelse(eq(Q('c'), 1), [shape('a1')], [shape('a0')])],
+                   [ifelse(eq(Q('c'), 1), [shape('d1')], [shape('d0')])])]
+    sync = [lst_set('k35_st', Q('i'), Q('s')), lst_set('k35_x', Q('i'), Q('px')), lst_set('k35_y', Q('i'), Q('py')),
+            lst_set('k35_cl', Q('i'), Q('c'))]
+    head = lambda tx, ty, spd: [SQ('ang', fn('atan_radian', div(sub(ty, Q('py')), add(abs_(sub(tx, Q('px'))), 0.001)))),
+                                if_(lt(sub(tx, Q('px')), 0), SQ('ang', sub(180, Q('ang')))),
+                                chg('qpx', mul(cos_(Q('ang')), spd)), chg('qpy', mul(sin_(Q('ang')), spd)),
+                                rot(sub(90, Q('ang')))]
+    enter_rw = [if_(gt(W('rw'), 0), C_('near', 1), S_('fx', Q('px')), S_('fy', Q('py')), cast('k35_근접')), C_('rw', 1), SQ('on', 1),
+                cast('k35_활주로')]
+    leave_rw = [if_(eq(Q('on'), 1), SQ('on', 0), C_('rw', -1), cast('k35_활주로'))]
+    gate_x, thr_x = 205, RX1 - 8
+    # 착륙기 상태: 1 접근, 2 대기 선회, 3 착륙 활주, 4 유도로로 빠짐 / 이륙기: 5 대기, 6 진입·이륙 활주, 7 상승
+    arrive = [
+        ifelse(eq(Q('s'), 1),
+               [*head(gate_x, RY + 34, 0.9),
+                if_(lt(abs_(sub(Q('px'), gate_x)), 4),
+                    ifelse(eq(Q('c'), 1), [SQ('s', 8)], [SQ('s', 2), SQ('ang', 0)]))], []),
+        ifelse(eq(Q('s'), 8),
+               [*head(thr_x, RY, 1.5),
+                if_(lt(abs_(sub(Q('px'), thr_x)), 3), SQ('px', thr_x), SQ('py', RY), SQ('s', 3), SQ('sp', 2.4), *enter_rw,
+                    cast('k35_착지'))], []),
+        ifelse(eq(Q('s'), 2),
+               [chg('qang', 2), SQ('px', add(gate_x, mul(cos_(Q('ang')), 24))), SQ('py', add(RY + 62, mul(sin_(Q('ang')), 18))),
+                rot(sub(0, Q('ang'))), chg('qw', 1),
+                if_(gt(Q('w'), 600), SQ('c', 1), *look, cast('k35_연료')),
+                if_(eq(Q('c'), 1), SQ('s', 1))], []),
+        ifelse(eq(Q('s'), 3),
+               [chg('qpx', mul(Q('sp'), -1)), SQ('sp', maxv(1.2, mul(Q('sp'), 0.993))), rot(-90),
+                if_(lt(Q('px'), -95), *leave_rw, SQ('s', 4))], []),
+        ifelse(eq(Q('s'), 4),
+               [*head(-95, -60, 0.8), fx_add('transparency', 1.2),
+                if_(lt(Q('py'), -55), C_('land', 1), cast('k35_점수'), SQ('s', 9))], [])]
+    depart = [
+        ifelse(eq(Q('s'), 5),
+               [chg('qw', 1), if_(eq(Q('c'), 1), SQ('s', 6), SQ('sp', 0.5), *enter_rw, cast('k35_이륙'))], []),
+        ifelse(eq(Q('s'), 6),
+               [ifelse(lt(Q('py'), RY - 1), [*head(thr_x, RY, 1.2)],
+                       [SQ('py', RY), chg('qpx', mul(Q('sp'), -1)), SQ('sp', minv(4.2, add(Q('sp'), 0.045))), rot(-90),
+                        if_(lt(Q('px'), -60), SQ('s', 7), *leave_rw)])], []),
+        ifelse(eq(Q('s'), 7),
+               [chg('qpx', mul(Q('sp'), -1)), chg('qpy', 1.1), rot(-75), fx_add('transparency', 1.5),
+                if_(lt(Q('px'), -240), C_('dep', 1), cast('k35_점수'), SQ('s', 9))], [])]
+    pl.on(on_msg('게임시작'), S_('slot', 0),
+          until(eq(V('게임중'), 0),
+                C_('slot', 1), if_(gt(W('slot'), NP), S_('slot', 1)),
+                if_(eq(LGET('k35_st', W('slot')), 0),
+                    S_('kind', rnd(1, 2)),
+                    if_(ge(W('qn'), 2), S_('kind', 1)),
+                    clone_self()),
+                wait(div(rnd(26, 42), 10))))
+    pl.on(on_clone(), SQ('복제', 1), SQ('i', W('slot')), SQ('k', W('kind')), SQ('w', 0), SQ('on', 0), fx('transparency', 0),
+          ifelse(eq(Q('k'), 1), [SQ('s', 1), SQ('c', 1), SQ('px', -250), SQ('py', rnd(66, 96))],
+                 [SQ('s', 5), SQ('c', 0), C_('qn', 1), SQ('px', ifelse_q(W)), SQ('py', -56)]),
+          lst_set('k35_kind', Q('i'), Q('k')), *look, xy(Q('px'), Q('py')), show(), *sync,
+          until(or_(eq(V('게임중'), 0), eq(Q('s'), 9)),
+                ifelse(eq(Q('k'), 1), arrive, depart), xy(Q('px'), Q('py')), *sync),
+          if_(eq(Q('k'), 2), C_('qn', -1)), *leave_rw, lst_set('k35_st', Q('i'), 0), del_clone())
+    pl.on(on_click(), if_(and_(eq(Q('복제'), 1), eq(V('게임중'), 1)),
+                          if_(or_(eq(Q('s'), 1), or_(eq(Q('s'), 2), eq(Q('s'), 5))),
+                              SQ('c', sub(1, Q('c'))), *look, lst_set('k35_cl', Q('i'), Q('c')), cast('k35_딸깍'))))
+    # 지연 벌점: 대기 중인 비행기 수만큼
+    mgr = hidden(m, '관제담당')
+    mgr.on(on_msg('게임시작'), until(eq(V('게임중'), 0),
+                                   *[if_(or_(eq(LGET('k35_st', i), 2), and_(eq(LGET('k35_st', i), 5), gt(V('남은시간'), 0))),
+                                         C_('delay', 0.1)) for i in range(1, NP + 1)],
+                                   wait(0.1)))
+    hud = setv('미니표시', join('착륙 ', W('land'), ' · 이륙 ', W('dep')))
+    mgr.on(on_msg('k35_점수'), hud)
+    score = sub(sub(mul(add(W('land'), W('dep')), 8), mul(W('near'), 15)), mul(W('delay'), 0.5))
+    mgr.on(on_msg('시간끝'), *m.end_blocks(score))
+    delay_t = m.T('지연글', '', 150, 76, 10, C_WHITE, F_NUM, False, 0, w=140, h=16, bg=C_BOX)
+    delay_t.on(on_msg('게임시작'), until(eq(V('게임중'), 0), write(join('지연 ', rounded(W('delay')), '초 · 근접 ', W('near'))), wait(0.3)))
+    pop(m, '근접', [('a', K.big_text('충돌 위험!', 24, 'red'))], 0, 30, 'k35_근접', 0.6)
+    pop(m, '연료', [('a', K.big_text('연료 부족! 비상 착륙', 16, 'red'))], 0, 50, 'k35_연료', 0.6)
+    m.on_start(S_('rw', 0), S_('land', 0), S_('dep', 0), S_('near', 0), S_('delay', 0), S_('qn', 0), S_('slot', 0),
+               *[lst_set('k35_st', i, 0) for i in range(1, NP + 1)], cast('k35_활주로'))
+    m.snd('k35_딸깍', play('tick'))
+    m.snd('k35_근접', play('alarm'))
+    m.snd('k35_착지', play('hit'))
+    m.snd('k35_이륙', play('whistle'))
+    m.snd('k35_점수', play('coin'))
+    m.snd('k35_연료', play('bad'))
+    m.finish('인천공항 관제탑! 활주로엔 한 번에 비행기 한 대만.\n비행기를 눌러 허가(초록)/대기(빨강)를 바꾸세요. 오래 기다리면 감점!',
+             '조작: 비행기 클릭  ·  착륙·이륙 한 대 +8 · 충돌 위험 -15 · 지연 1초 -0.5  ·  40초')
+    return True
+
+
+def ifelse_q(W):
+    """이륙 대기 자리 x (첫째 대기 175, 둘째 205)."""
+    return add(145, mul(W('qn'), 30))
+
+
+# ================================================================== 36. 국회 연설
+LINES36 = [
+    ('청년 월세를 나라가 돕겠습니다!', (12, 0, 0, -4, 4)),
+    ('기초연금을 올려 드리겠습니다!', (-4, 14, 4, -4, 0)),
+    ('쌀값을 제값 받게 지키겠습니다!', (0, 4, 15, -4, 0)),
+    ('세금을 줄여 기업을 살리겠습니다!', (2, -2, -2, 15, -6)),
+    ('최저임금을 올리겠습니다!', (6, 0, -2, -10, 14)),
+    ('일자리를 확 늘리겠습니다!', (8, 0, 0, 4, 6)),
+    ('주 4일 근무를 시작하겠습니다!', (10, -4, -4, -10, 12)),
+    ('농촌에 큰 병원을 짓겠습니다!', (-2, 10, 10, -2, 0)),
+    ('규제를 확 풀겠습니다!', (4, -4, -6, 14, -8)),
+    ('대학 등록금을 반으로!', (14, -2, 0, -4, 2)),
+    ('노인 일자리를 늘리겠습니다!', (-4, 12, 2, 0, -2)),
+    ('스마트팜에 투자하겠습니다!', (6, 0, 10, 6, -2)),
+    ('대기업 세금을 올리겠습니다!', (4, 2, 2, -14, 10)),
+    ('버스·지하철 요금을 내리겠습니다!', (8, 8, 0, -4, 6)),
+    ('수입 농산물을 막겠습니다!', (-4, 2, 14, -8, 0)),
+    ('창업 지원금을 늘리겠습니다!', (12, -4, 0, 8, -2)),
+    ('연금 개혁, 미루지 않겠습니다!', (8, -10, 0, 4, -2)),
+    ('공장을 지방으로 옮기겠습니다!', (2, 4, 8, -6, 6)),
+    ('일하는 시간을 유연하게!', (2, 0, 0, 12, -10)),
+    ('효도 수당을 드리겠습니다!', (-6, 14, 6, -4, -2)),
+    ('청년 농부를 키우겠습니다!', (8, 2, 10, 0, -2)),
+    ('안전한 일터를 만들겠습니다!', (2, 0, 0, -4, 14)),
+    ('수출 기업을 밀어 주겠습니다!', (0, 0, -4, 14, 4)),
+    ('모두가 함께 잘사는 나라!', (3, 3, 3, 3, 3)),
+]
+
+
+@game(36)
+def g36(P, ctx):
+    NT, TT, NG = 6, 12, 5
+    NL = len(LINES36)
+    m = mg(P, ctx, T, 36, time_limit=None, status='연설 1/%d' % NT, dim=80)
+    sc = m.sc
+    W, S_, C_ = pfx('k36_')
+    vars_(P, *['k36_' + v for v in ('turn', 'pick', 'wish', 'tleft', 'avg', 'low', 'k', 'e')] +
+          ['k36_m%d' % g for g in range(1, NG + 1)] + ['k36_c%d' % c for c in range(1, 4)])
+    P.list('k36_txt', [l[0] for l in LINES36])
+    for g in range(NG):
+        P.list('k36_e%d' % (g + 1), [l[1][g] for l in LINES36])
+    P.list('k36_used', [0] * NL)
+    GX = [-176, -88, 0, 88, 176]
+    for g in range(NG):
+        gn = g + 1
+        mv = W('m%d' % gn)
+        cr = m.S('청중%d' % gn, [('a', AD.crowd(g, 0)), ('b', AD.crowd(g, 1)), ('c', AD.crowd(g, 2))], GX[g], 64)
+        cr.on(on_msg('k36_반응'), ifelse(lt(mv, 35), [shape('a')], [ifelse(lt(mv, 65), [shape('b')], [shape('c')])]),
+              if_(ne(LGET('k36_e%d' % gn, W('pick')), 0),
+                  ifelse(gt(LGET('k36_e%d' % gn, W('pick')), 0), [rep(3, mvy(5), wait(0.06), mvy(-5), wait(0.06))],
+                         [rep(3, mvx(3), wait(0.04), mvx(-3), wait(0.04))])))
+        cr.on(on_scene(), shape('b'))
+        m.S('이름%d' % gn, K.badge(AD.GROUPS36[g][0], 54, 16, 'navy'), GX[g], 34)
+        bar = m.S('기분%d' % gn, K.bar_set('k36_mood', 64, 7, 'royal'), GX[g], 22)
+        bar.on(on_msg('k36_반응'), shape(add(floor(mul(div(mv, 100), 40)), 1)))
+        bar.on(on_scene(), shape(21))
+        num = m.T('기분수%d' % gn, '50', GX[g] + 40, 22, 8, C_WHITE, F_NUM, False, 0, w=24, h=12)
+        num.on(on_msg('k36_반응'), write(rounded(mv)))
+        num.on(on_scene(), write('50'))
+        dlt = m.T('변화%d' % gn, '', GX[g], 92, 12, C_ACC, F_NUM, False, 0, w=50, h=16)
+        dlt.on(on_msg('k36_반응'), S_('e', LGET('k36_e%d' % gn, W('pick'))), if_(eq(W('wish'), gn), if_(gt(W('e'), 0), S_('e', mul(W('e'), 2)))),
+               ifelse(gt(W('e'), 0), [write(join('+', W('e'))), text_color('#7CFFA0')],
+                      [ifelse(lt(W('e'), 0), [write(W('e')), text_color('#FF6B7A')], [write('')])]),
+               wait(1.2), write(''))
+    wish = m.T('바람글', '', 0, 92, 9, '#FFE08A', F_BODY, True, 0, w=110, h=14, bg=C_BOX, visible=False)
+    wish.on(on_msg('k36_새판'), xy(LGET('k36_gx', W('wish')), 92), write('우리 얘기 해 주세요!'), show())
+    wish.on(on_msg('k36_고름'), hide())
+    P.list('k36_gx', GX)
+    # 연설 카드 3장
+    CX = [-152, 0, 152]
+    for c in range(1, 4):
+        lv = W('c%d' % c)
+        card = m.S('카드%d' % c, K.panel(144, 84, 'card'), CX[c - 1], -62)
+        G.hover_scripts(card, 104)
+        m.S('카드번호%d' % c, K.badge(str(c), 20, 18, 'royal'), CX[c - 1] - 62, -24)
+        t = m.T('카드글%d' % c, '', CX[c - 1], -52, 11, C_WHITE, F_BODY, True, 0, w=128, h=40)
+        t.on(on_msg('k36_새판'), write(join('"', LGET('k36_txt', lv), '"')))
+        pick = [if_(and_(eq(V('게임중'), 1), eq(V('대기'), 1)), S_('pick', lv), setv('대기', 0), setv('선택', c))]
+        card.on(on_click(), *pick)
+        t.on(on_click(), *pick)
+        hidden(m, '카드키%d' % c).on(on_key(48 + c), *pick)
+        for g in range(NG):
+            ic = m.S('효과%d_%d' % (c, g + 1), [('n', AD.blank()), ('u', AD.effect_icon(g, 1)), ('d', AD.effect_icon(g, 0))],
+                     CX[c - 1] - 48 + g * 24, -90)
+            e = LGET('k36_e%d' % (g + 1), lv)
+            ic.on(on_msg('k36_새판'), ifelse(ge(e, 4), [shape('u')], [ifelse(le(e, -4), [shape('d')], [shape('n')])]))
+            ic.on(on_scene(), shape('n'))
+        card.on(on_msg('k36_고름'), ifelse(eq(V('선택'), c), [card.pct(110)], [fx('brightness', -40)]))
+        card.on(on_msg('k36_새판'), card.pct(100), fx('brightness', 0))
+    tb = m.S('시간막대', K.bar_set('k36_time', 220, 7, 'royal'), 20, 4)
+    tb.on(on_msg('k36_시계'), shape(add(floor(mul(div(W('tleft'), TT), 40)), 1)))
+    turn_t = m.T('차례글', '', -150, 4, 11, C_WHITE, F_NUM, False, 0, w=110, h=16)
+    turn_t.on(on_msg('k36_새판'), write(join('연설 ', W('turn'), ' / ', NT)))
+    m.S('나', ctx['PORT']['me'], -210, 4, scale=0.8)
+    res = m.S('반응글', [('a', K.big_text('와아아!', 26, 'royal')), ('b', K.big_text('웅성웅성...', 22, 'white')),
+                        ('c', K.big_text('우우~', 26, 'red'))], 0, -20, visible=False)
+    res.on(on_msg('k36_반응'), shape(V('_mv')), res.pct(120), show(), rep(5, res.grow_pct(-4), wait(0.02)), wait(0.8), hide())
+    apply = []
+    for g in range(1, NG + 1):
+        mv = 'k36_m%d' % g
+        apply += [S_('e', LGET('k36_e%d' % g, W('pick'))), if_(and_(eq(W('wish'), g), gt(W('e'), 0)), S_('e', mul(W('e'), 2))),
+                  chg(mv, W('e')), *clamp(mv, 0, 100), C_('k', W('e'))]
+    timeout = [*[chg('k36_m%d' % g, -6) for g in range(1, NG + 1)], *[x for g in range(1, NG + 1) for x in clamp('k36_m%d' % g, 0, 100)]]
+    stats = [S_('avg', div(add(*[W('m%d' % g) for g in range(1, NG + 1)]), NG)), S_('low', 0),
+             *[if_(lt(W('m%d' % g), 30), C_('low', 1)) for g in range(1, NG + 1)]]
+    mgr = hidden(m, '연설담당')
+    deal = [*[lst_set('k36_used', i, 0) for i in range(1, NL + 1)]]
+    pick3 = []
+    for c in range(1, 4):
+        pick3 += [S_('c%d' % c, rnd(1, NL)), until(eq(LGET('k36_used', W('c%d' % c)), 0), S_('c%d' % c, rnd(1, NL))),
+                  lst_set('k36_used', W('c%d' % c), 1)]
+    mgr.on(on_msg('게임시작'), *deal, S_('turn', 0),
+           until(or_(ge(W('turn'), NT), eq(V('게임중'), 0)),
+                 C_('turn', 1), *pick3, S_('wish', rnd(1, NG)), setv('선택', 0), S_('pick', 0),
+                 setv('미니표시', join('연설 ', W('turn'), '/', NT)), cast('k36_새판'),
+                 S_('tleft', TT), setv('대기', 1), reset_timer(), start_timer(),
+                 until(or_(eq(V('대기'), 0), le(W('tleft'), 0)), S_('tleft', sub(TT, timer())), cast('k36_시계'), wait(0.05)),
+                 setv('대기', 0),
+                 ifelse(gt(W('pick'), 0),
+                        [cast('k36_고름'), S_('k', 0), *apply,
+                         ifelse(ge(W('k'), 12), [setv('_mv', 1)], [ifelse(ge(W('k'), 0), [setv('_mv', 2)], [setv('_mv', 3)])])],
+                        [S_('pick', NL), *timeout, setv('_mv', 3), cast('k36_머뭇')]),
+                 cast('k36_반응'), wait(1.6)),
+           *stats, *m.end_blocks(sub(mul(sub(W('avg'), 38), 2.2), mul(W('low'), 8))))
+    pop(m, '머뭇', [('a', K.big_text('머뭇머뭇... 모두 실망!', 18, 'red'))], 0, 40, 'k36_머뭇', 0.6)
+    m.T('안내', '카드 아래 아이콘: ▲ 좋아함 · ▼ 싫어함 (얼마나인지는 몰라요) · "우리 얘기" 무리는 기쁨 두 배!', 0, -122, 8, C_DIM, F_BODY, True,
+        0, w=440, h=12)
+    m.on_start(*[S_('m%d' % g, 50) for g in range(1, NG + 1)], S_('pick', 0), S_('turn', 0), S_('wish', 0), setv('대기', 0),
+               setv('선택', 0), S_('tleft', TT))
+    m.snd('k36_고름', play('stamp'))
+    m.snd('k36_반응', ifelse(eq(V('_mv'), 1), [play('cash')], [ifelse(eq(V('_mv'), 3), [play('bad')], [play('pop')])]))
+    m.finish('국회 연설 6번! 문장 카드 3장 중 하나를 골라 외치세요.\n모든 청중 기분을 30 넘게 지키며 평균을 높이면 고득점!',
+             '조작: 카드 클릭 또는 숫자키 1·2·3  ·  한 번에 12초 (안 고르면 모두 실망)')
     return True

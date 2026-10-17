@@ -571,3 +571,440 @@ def g05(P, ctx):
     m.finish('마우스를 누른 채 초록 점을 따라 점선을 그려요!\n하트·튤립·별 3잔, 한 잔에 %d초. 정확할수록 점수 UP' % SEC,
              '조작: 마우스 누른 채 끌기 (초록 점 → 다음 초록 점)')
     return True
+
+
+# ================================================================== 6. 모닥불 지키기 (게이지 관리)
+@game(6)
+def g06(P, ctx):
+    TL = 45
+    LO, HI, DANGER = 45, 75, 85
+    m = mg(P, ctx, T, 6, time_limit=TL, status='알맞음 0%', dim=50)
+    vars_(P, 's06_불', 's06_바람', 's06_비', 's06_가지', 's06_좋은', 's06_위험', 's06_장작수', 's06_t0', 's06_dt', 's06_상태', 's06_충전')
+    FX, FY = 0, -84
+    fire = V('s06_불')
+    m.S('화덕', AA.s06_pit(), FX, FY)
+    # 장작 (복제본: 불붙는 중 → 타는 중 → 재)
+    lg = m.S('장작', [('cold', AA.s06_log(0)), ('burn', AA.s06_log(1))], 0, -300, visible=False)
+    for v in ('복제', 't0', 'dt', '남은'):
+        lg.local(v, 0)
+    lg.on(on_clone(), setv('복제', 1), shape('cold'), xy(add(FX, rnd(-26, 26)), add(FY + 6, rnd(-3, 5))), rot(rnd(-25, 25)), fx_clear(), show(),
+          ifelse(eq(V('s06_비'), 1), [wait(4)], [wait(2.6)]),
+          shape('burn'), setv('t0', timer()), setv('남은', 9), cast('s06_붙음'),
+          until(or_(le(V('남은'), 0), eq(V('게임중'), 0)),
+                setv('dt', sub(timer(), V('t0'))), setv('t0', timer()), if_(lt(V('dt'), 0), setv('dt', 0)),
+                chg('남은', mul(-1, V('dt'))), chg('s06_불', mul(2.9, V('dt'))), if_(gt(fire, 100), setv('s06_불', 100)),
+                wait(0.05)),
+          rep(8, fx_add('brightness', -8), fx_add('transparency', 12), wait(0.03)), chg('s06_장작수', -1), del_clone())
+    # 불꽃
+    fl = m.S('불꽃', [('%d' % (k + 1), AA.s06_flame(k)) for k in range(3)], FX, FY + 4)
+    fl.local('ls', 0)
+    fl.on(on_scene(), setv('ls', 0), fl.pct(60), ly(FY + 4 + 30), rot(0))
+    fl.on(on_msg('게임시작'),
+          until(eq(V('게임중'), 0),
+                next_shape(),
+                if_(gt(abs_(sub(fire, V('ls'))), 1.5), setv('ls', fire),
+                    fl.pct(add(14, mul(V('ls'), 1.25))), ly(add(FY - 6, mul(V('ls'), 0.62))),
+                    ifelse(lt(V('ls'), 1), [hide()], [show()])),
+                ifelse(eq(V('s06_바람'), 1), [rot(-18)], [rot(0)]),
+                wait(0.09)))
+    # 불티
+    sp = m.S('불티', AA.s06_spark(), 0, -300, visible=False)
+    sp.local('복제', 0)
+    sp.on(on_msg('게임시작'), until(eq(V('게임중'), 0), if_(gt(fire, 80), clone_self()), wait(div(1.5, add(sub(fire, 78), 1)))))
+    sp.on(on_clone(), setv('복제', 1), xy(add(FX, rnd(-24, 24)), add(FY + 20, mul(fire, 0.5))), show(),
+          glide(0.6, add(obj_x(), rnd(-50, 50)), add(obj_y(), rnd(40, 80))), del_clone())
+    # 빗방울
+    dr = m.S('빗방울', AA.s06_drop(), 0, -300, visible=False)
+    dr.local('복제', 0)
+    dr.on(on_msg('s06_비옴'), until(or_(eq(V('s06_비'), 0), eq(V('게임중'), 0)), clone_self(), wait(0.05)))
+    dr.on(on_clone(), setv('복제', 1), xy(rnd(-230, 230), 104), rot(15), show(), glide(0.45, sub(obj_x(), 50), -120), del_clone())
+    # 바람
+    wd = m.S('바람', AA.s06_wind(), 300, 30, visible=False)
+    wd.on(on_msg('s06_바람옴'), until(or_(eq(V('s06_바람'), 0), eq(V('게임중'), 0)), xy(260, rnd(-40, 60)), show(), glide(0.7, -260, rnd(-40, 60))),
+          hide())
+    # 잔가지 떨어뜨리기
+    tw = m.S('잔가지', AA.s06_twig(), 0, -300, visible=False)
+    tw.on(on_msg('s06_가지넣음'), xy(add(FX, rnd(-20, 20)), FY + 60), rot(rnd(-30, 30)), show(), glide(0.15, obj_x(), FY + 8), hide())
+    # 게이지
+    GX, GY, GH = 196, -10, 144
+    m.S('불게이지', AA.s06_gauge(), GX, GY)
+    m.T('게이지글', '불 세기', GX, GY + 84, 9, C_WHITE, F_NUM, False, 0, w=60, h=14)
+    mk = m.S('불눈금', AA.s02_marker(), GX - 9, GY)
+    mk.on(on_msg('게임시작'), until(eq(V('게임중'), 0), ly(add(GY - GH / 2, mul(fire, GH / 100.0))), wait(0.03)))
+    mk.on(on_scene(), ly(GY - GH / 2 + 60 * GH / 100.0))
+    stt = m.T('불상태', '', GX - 66, GY + 6, 10, C_WHITE, F_BODY, True, 0, w=90, h=34)
+    stt.on(on_msg('s06_상태'), ifelse(eq(V('s06_상태'), 1), [text_color('#FF6070'), write('너무 세요!\n불티 조심')],
+                                     [ifelse(eq(V('s06_상태'), 2), [text_color('#6CF0A0'), write('딱 좋아요')],
+                                             [ifelse(eq(V('s06_상태'), 4), [text_color('#FFB060'), write('조금 세요')],
+                                                     [text_color('#9FB4FF'), write('불이 약해요')])])]))
+    # 버튼 · 키
+    add_twig = [if_(and_(eq(V('게임중'), 1), gt(V('s06_가지'), 0)), chg('s06_가지', -1), chg('s06_불', 8),
+                    if_(gt(fire, 100), setv('s06_불', 100)), cast('s06_가지넣음'), cast('s06_갱신'))]
+    add_log = [if_(eq(V('게임중'), 1), ifelse(lt(V('s06_장작수'), 4), [chg('s06_장작수', 1), clone_of(lg.name), cast('s06_갱신'), cast('s06_장작넣음')],
+                                            [cast('s06_꽉참')]))]
+    BX = -172
+    button(P, m.sc, '가지버튼', '잔가지 [1]', BX, -36, 110, 26, 'royal', actions=add_twig)
+    button(P, m.sc, '장작버튼', '장작 [2]', BX, -72, 110, 26, 'red', actions=add_log)
+    keys = hidden(m, '불키')
+    keys.on(on_key(K_1), *add_twig)
+    keys.on(on_key(K_2), *add_log)
+    m.T('가지설명', '바로 확! (조금)', BX, -52, 8, C_DIM, F_BODY, True, 0, w=110, h=12)
+    m.T('장작설명', '늦게 붙지만 오래 타요', BX, -88, 8, C_DIM, F_BODY, True, 0, w=120, h=12)
+    inv = m.T('연료글', '', BX, -110, 9, C_WHITE, F_BODY, True, 0, w=130, h=28)
+    inv.on(on_msg('s06_갱신'), write(join('남은 잔가지 ', V('s06_가지'), '개\n화덕 속 장작 ', V('s06_장작수'), '/4')))
+    full = m.T('꽉참글', '화덕이 꽉 찼어요!', BX, 2, 9, '#FF8090', F_BODY, True, 0, w=120, h=14, visible=False)
+    full.on(on_msg('s06_꽉참'), show(), wait(0.8), hide())
+    ev = m.S('사건띠', [('wind', K.badge('바람이 불어요! 불이 빨리 약해져요', 210, 20, 'royal')),
+                       ('rain', K.badge('이슬비! 장작이 늦게 붙어요', 190, 20, 'purple'))], 0, 82, visible=False)
+    ev.on(on_msg('s06_바람옴'), shape('wind'), show(), wait_until(eq(V('s06_바람'), 0)), hide())
+    ev.on(on_msg('s06_비옴'), shape('rain'), show(), wait(2.5), hide())
+    # 관리: 불 줄기 · 점수
+    state = [ifelse(gt(fire, DANGER), [setv('_mk', 1)], [ifelse(ge(fire, LO), [ifelse(le(fire, HI), [setv('_mk', 2)], [setv('_mk', 4)])],
+                                                                  [setv('_mk', 3)])]),
+             if_(ne(V('_mk'), V('s06_상태')), setv('s06_상태', V('_mk')), cast('s06_상태'))]
+    mgr = hidden(m, '불담당')
+    mgr.on(on_msg('게임시작'), wait(0.1), setv('s06_t0', timer()),
+           until(eq(V('게임중'), 0),
+                 setv('s06_dt', sub(timer(), V('s06_t0'))), setv('s06_t0', timer()),
+                 if_(lt(V('s06_dt'), 0), setv('s06_dt', 0)), if_(gt(V('s06_dt'), 0.3), setv('s06_dt', 0.3)),
+                 chg('s06_불', mul(-1, mul(add(2.4, add(mul(V('s06_바람'), 4.5), mul(V('s06_비'), 1.4))), V('s06_dt')))),
+                 if_(lt(fire, 0), setv('s06_불', 0)),
+                 if_(and_(ge(fire, LO), le(fire, HI)), chg('s06_좋은', V('s06_dt'))),
+                 if_(gt(fire, DANGER), chg('s06_위험', V('s06_dt'))),
+                 chg('s06_충전', V('s06_dt')),
+                 if_(ge(V('s06_충전'), 4), setv('s06_충전', 0), if_(lt(V('s06_가지'), 8), chg('s06_가지', 1), cast('s06_갱신'))),
+                 *state,
+                 setv('미니표시', join('알맞음 ', rounded(mul(div(V('s06_좋은'), add(sub(TL, V('남은시간')), 0.01)), 100)), '%')),
+                 wait(0.05)))
+    events = [(8, 'wind', 3.5), (7, 'rain', 8), (4, 'wind', 3.5), (6, 'wind', 3)]
+    seq = []
+    for gap, kind, dur in events:
+        if kind == 'wind':
+            seq += [wait(gap), if_(eq(V('게임중'), 1), setv('s06_바람', 1), cast('s06_바람옴')), wait(dur), setv('s06_바람', 0)]
+        else:
+            seq += [wait(gap), if_(eq(V('게임중'), 1), setv('s06_비', 1), cast('s06_비옴')), wait(dur), setv('s06_비', 0)]
+    mgr.on(on_msg('게임시작'), *seq)
+    score = sub(mul(div(V('s06_좋은'), TL), 112), mul(div(V('s06_위험'), TL), 60))
+    mgr.on(on_msg('시간끝'), *m.end_blocks(score))
+    m.on_start(setv('s06_불', 60), setv('s06_바람', 0), setv('s06_비', 0), setv('s06_가지', 6), setv('s06_좋은', 0), setv('s06_위험', 0),
+               setv('s06_장작수', 0), setv('s06_충전', 0), setv('s06_상태', 2), cast('s06_갱신'), cast('s06_상태'))
+    m.snd('s06_가지넣음', play('pop'))
+    m.snd('s06_장작넣음', play('hit'))
+    m.snd('s06_붙음', play('tone2'))
+    m.snd('s06_바람옴', play('whistle'))
+    m.snd('s06_비옴', play('splash'))
+    m.snd('s06_꽉참', play('bad'))
+    m.finish('불 세기를 초록 칸에 지켜요! 잔가지는 바로 조금,\n장작은 몇 초 뒤에 붙어 오래 타요. 바람·비를 조심!',
+             '조작: 1 = 잔가지 · 2 = 장작 (버튼 클릭도 OK)  ·  빨간 칸은 불티 위험')
+    return True
+
+
+# ================================================================== 8. 기록물 복원 (조각 맞추기)
+@game(8)
+def g08(P, ctx):
+    TL = 110
+    m = mg(P, ctx, T, 8, time_limit=TL, status='문서 1/2', dim=90)
+    docs = [(3, 3, 60), (4, 3, 50)]
+    GX, GY = -112, -14
+    # 흩어 둘 자리 (오른쪽)
+    rng = random.Random(808)
+    spots = []
+    for (cols, rows, cell) in docs:
+        n = cols * rows
+        if cols == 3:
+            pos = [(58 + 64 * (i % 3), 52 - 64 * (i // 3)) for i in range(9)]
+        else:
+            pos = [(52 + 54 * (i % 4), 50 - 62 * (i // 4)) for i in range(12)]
+        rng.shuffle(pos)
+        spots += [(x + rng.randint(-5, 5), y + rng.randint(-5, 5)) for x, y in pos]
+    P.list('s08_sx', [p[0] for p in spots])
+    P.list('s08_sy', [p[1] for p in spots])
+    P.list('s08_칸', [0] * 12)
+    vars_(P, 's08_판', 's08_열', 's08_행', 's08_크기', 's08_x0', 's08_y0', 's08_수', 's08_맞음', 's08_총맞음', 's08_잡은', 's08_기준')
+    bd = m.S('복원판', [('1', AA.s08_board(0)), ('2', AA.s08_board(1))], GX, GY)
+    bd.on(on_msg('s08_새판'), shape(V('s08_판')))
+    wm = m.S('밑그림', [('1', AA.s08_full(0)), ('2', AA.s08_full(1))], GX, GY)
+    wm.on(on_scene(), fx('transparency', 82))
+    wm.on(on_msg('s08_새판'), shape(V('s08_판')), fx('transparency', 82))
+    wm.on(on_msg('s08_완성'), rep(10, fx_add('transparency', -8.2), wait(0.03)))
+    m.T('판글', '여기에 맞추세요', GX, 86, 9, C_DIM, F_BODY, True, 0, w=140, h=14)
+    m.T('조각글', '흩어진 조각 (끌기 · 클릭 = 돌리기)', 134, 92, 8, C_DIM, F_BODY, True, 0, w=200, h=12)
+    pics = [('%d' % (i + 1), AA.s08_piece(0, i)) for i in range(9)] + [('%d' % (i + 10), AA.s08_piece(1, i)) for i in range(12)]
+    pc = m.S('조각', pics, 0, -300, visible=False)
+    for v in ('복제', '칸', '각', '고정', 'sx', 'sy', 'ox', 'oy', 'c', 'r'):
+        pc.local(v, 0)
+    pc.local('번호', 0)
+    k = V('번호')
+    pc.on(on_msg('s08_새판'), if_(eq(V('복제'), 0), setv('번호', 0), rep(V('s08_수'), chg('번호', 1), clone_self())))
+    off = ifelse(eq(V('s08_판'), 1), [setv('_mk', 0)], [setv('_mk', 9)])
+    pc.on(on_clone(), setv('복제', 1), setv('칸', 0), setv('고정', 0), off, shape(add(V('_mk'), k)),
+          setv('각', rnd(0, 3)), if_(eq(k, 1), setv('각', rnd(1, 3))), rot(mul(V('각'), 90)),
+          xy(LGET('s08_sx', add(V('_mk'), k)), LGET('s08_sy', add(V('_mk'), k))), fx_clear(), show())
+    pc.on(on_msg('s08_다음'), if_(eq(V('복제'), 1), del_clone()))
+    slot = add(mul(V('r'), V('s08_열')), add(V('c'), 1))
+    check = [if_(and_(eq(V('칸'), k), eq(V('각'), 0)), setv('고정', 1), chg('s08_맞음', 1), chg('s08_총맞음', 1),
+                 setv('_mx', obj_x()), setv('_my', obj_y()), cast('s08_맞춤'),
+                 rep(2, fx('brightness', 40), wait(0.06), fx('brightness', 0), wait(0.06)))]
+    drop = [setv('c', rounded(div(sub(obj_x(), V('s08_x0')), V('s08_크기')))),
+            setv('r', rounded(div(sub(V('s08_y0'), obj_y()), V('s08_크기')))),
+            if_(and_(and_(ge(V('c'), 0), lt(V('c'), V('s08_열'))), and_(ge(V('r'), 0), lt(V('r'), V('s08_행')))),
+                if_(eq(LGET('s08_칸', slot), 0),
+                    setv('칸', slot), lst_set('s08_칸', slot, k),
+                    xy(add(V('s08_x0'), mul(V('c'), V('s08_크기'))), sub(V('s08_y0'), mul(V('r'), V('s08_크기')))), cast('s08_딸깍')))]
+    grab = [setv('s08_잡은', k), to_front(),
+            if_(gt(V('칸'), 0), lst_set('s08_칸', V('칸'), 0), setv('칸', 0)),
+            setv('sx', mouse_x()), setv('sy', mouse_y()), setv('ox', obj_x()), setv('oy', obj_y()),
+            pc.pct(108),
+            until(not_(mouse_down()), xy(add(V('ox'), sub(mouse_x(), V('sx'))), add(V('oy'), sub(mouse_y(), V('sy'))))),
+            pc.pct(100),
+            ifelse(lt(add(abs_(sub(obj_x(), V('ox'))), abs_(sub(obj_y(), V('oy')))), 5),
+                   [xy(V('ox'), V('oy')), setv('각', mod(add(V('각'), 1), 4)), rot(mul(V('각'), 90)), cast('s08_돌림'),
+                    setv('c', rounded(div(sub(obj_x(), V('s08_x0')), V('s08_크기')))),
+                    setv('r', rounded(div(sub(V('s08_y0'), obj_y()), V('s08_크기')))), *drop[2:]],
+                   [*drop]),
+            *check, setv('s08_잡은', 0)]
+    pc.on(on_mouse_down(), if_(and_(and_(eq(V('복제'), 1), eq(V('게임중'), 1)), and_(eq(V('고정'), 0), touch('mouse'))),
+                               if_(eq(V('s08_잡은'), 0), *grab)))
+    _pop(m, '맞춤반짝', K.icon_img('star', 26), 's08_맞춤', hold=0.15)
+    done = m.S('복원도장', K.big_text('복원 완료!', 34, 'red'), GX, GY, visible=False)
+    done.on(on_msg('s08_완성'), done.pct(160), rot(-12), show(), rep(6, done.grow_pct(-10), wait(0.02)), wait(1.2), hide())
+    mgr = hidden(m, '복원담당')
+    setup = lambda i: [setv('s08_열', docs[i][0]), setv('s08_행', docs[i][1]), setv('s08_크기', docs[i][2]),
+                       setv('s08_수', docs[i][0] * docs[i][1]),
+                       setv('s08_x0', GX - (docs[i][0] - 1) * docs[i][2] / 2.0), setv('s08_y0', GY + (docs[i][1] - 1) * docs[i][2] / 2.0)]
+    mgr.on(on_msg('게임시작'), setv('s08_판', 1),
+           until(or_(gt(V('s08_판'), 2), eq(V('게임중'), 0)),
+                 ifelse(eq(V('s08_판'), 1), setup(0), setup(1)),
+                 *[lst_set('s08_칸', j, 0) for j in range(1, 13)], setv('s08_맞음', 0), setv('s08_잡은', 0),
+                 if_(eq(V('s08_판'), 2), cast('s08_새판')),
+                 until(or_(ge(V('s08_맞음'), V('s08_수')), eq(V('게임중'), 0)),
+                       setv('미니표시', join('문서 ', V('s08_판'), '/2 · 조각 ', V('s08_맞음'), '/', V('s08_수'))), wait(0.15)),
+                 if_(eq(V('게임중'), 1), setv('미니표시', join('문서 ', V('s08_판'), '/2 · 완성!')), cast('s08_완성'), wait(2.0),
+                     cast('s08_다음'), wait(0.1)),
+                 chg('s08_판', 1)),
+           *m.end_blocks(add(mul(V('s08_총맞음'), 80.0 / 21), mul(V('남은시간'), 0.4))))
+    mgr.on(on_msg('시간끝'), *m.end_blocks(mul(V('s08_총맞음'), 80.0 / 21)))
+    m.on_start(setv('s08_판', 1), setv('s08_총맞음', 0), setv('s08_맞음', 0), setv('s08_잡은', 0), *setup(0), cast('s08_새판'))
+    m.snd('s08_딸깍', play('tick'))
+    m.snd('s08_돌림', play('click'))
+    m.snd('s08_맞춤', play('coin'))
+    m.snd('s08_완성', play('stamp'), wait(0.3), play('fanfare'))
+    m.finish('찢어진 대통령 기록물을 복원해요! 조각을 왼쪽 판에\n끌어다 놓고, 클릭해서 똑바로 돌리세요. (문서 2장)',
+             '조작: 조각 끌기 = 옮기기 · 조각 클릭 = 90° 돌리기 · 맞으면 고정돼요')
+    return True
+
+
+# ================================================================== 9. 고구마 캐기 (힘 조절)
+@game(9)
+def g09(P, ctx):
+    TL = 45
+    sizes = [1.0, 1.3, 0.9, 1.7, 1.2, 1.5]
+    NP = len(sizes)
+    m = mg(P, ctx, T, 9, time_limit=TL, status='고구마 1/%d' % NP, dim=60)
+    P.list('s09_크기표', sizes)
+    vars_(P, 's09_번째', 's09_진행', 's09_필요', 's09_한계', 's09_긴장', 's09_잡음', 's09_gx', 's09_gy', 's09_ny', 's09_dy', 's09_t0',
+          's09_dt', 's09_크기', 's09_수확', 's09_무게', 's09_상태', 's09_속도', 's09_k')
+    FX, G0, TOP = -40, -20, 92
+    PY0 = -112
+    m.S('땅속', AA.s09_soil(), FX, -80)
+    py = add(PY0, mul(V('s09_진행'), 0.8))
+    pt = m.S('고구마', AA.s09_potato(), FX, PY0)
+    pt.on(on_msg('s09_새고구마'), pt.pct(mul(V('s09_크기'), 100)), xy(FX, PY0), rot(rnd(-10, 10)), fx_clear(), show())
+    pt.on(on_msg('게임시작'), until(eq(V('게임중'), 0), if_(eq(V('s09_상태'), 0), ly(py)), wait(0.02)))
+    pt.on(on_msg('s09_성공'), glide(0.25, FX + 10, 40), glide(0.35, 196, -70), hide())
+    pt.on(on_msg('s09_끊김'), rep(6, fx_add('brightness', -8), wait(0.03)), wait(0.6), hide())
+    # 줄기 (붓으로 매 프레임 다시 그림)
+    vine = m.S('줄기붓', K.icon_img('star', 2), 0, -300)
+    vine.on(on_scene(), pen_up(), pen_clear())
+    vine.on(on_msg('게임시작'), pen_color('#3E9A48'), pen_size(4),
+            until(eq(V('게임중'), 0),
+                  pen_clear(), xy(FX + 8, add(obj_y(pt.name), 8)), pen_down(),
+                  ifelse(eq(V('s09_상태'), 2), [xy(FX + 6, -26)], [xy(V('s09_gx'), sub(V('s09_gy'), 4))]), pen_up(), xy(0, -300)),
+            pen_clear())
+    # 잎 손잡이
+    gp = m.S('잎손잡이', AA.s09_grip(), FX, G0)
+    near = and_(lt(abs_(sub(mouse_x(), V('s09_gx'))), 32), lt(abs_(sub(mouse_y(), V('s09_gy'))), 32))
+    gp.on(on_mouse_down(), if_(and_(and_(eq(V('게임중'), 1), eq(V('s09_상태'), 0)), near),
+                               setv('s09_gy', mouse_y()), if_(lt(V('s09_gy'), G0), setv('s09_gy', G0)), if_(gt(V('s09_gy'), TOP), setv('s09_gy', TOP)),
+                               setv('s09_잡음', 1), cast('s09_잡기')))
+    tick = [setv('s09_dt', sub(timer(), V('s09_t0'))), setv('s09_t0', timer()), if_(lt(V('s09_dt'), 0.001), setv('s09_dt', 0.001)),
+            setv('s09_속도', 0), setv('s09_dy', 0),
+            ifelse(eq(V('s09_잡음'), 1),
+                   [ifelse(mouse_down(),
+                           [setv('s09_ny', mouse_y()), if_(lt(V('s09_ny'), G0), setv('s09_ny', G0)), if_(gt(V('s09_ny'), TOP), setv('s09_ny', TOP)),
+                            setv('s09_dy', sub(V('s09_ny'), V('s09_gy'))), setv('s09_gy', V('s09_ny')),
+                            setv('s09_gx', add(FX, mul(sub(mouse_x(), FX), 0.3))),
+                            if_(gt(V('s09_dy'), 0), setv('s09_속도', div(V('s09_dy'), V('s09_dt'))))],
+                           [setv('s09_잡음', 0), cast('s09_놓음')])],
+                   [chg('s09_gy', mul(sub(G0, V('s09_gy')), 0.25)), chg('s09_gx', mul(sub(FX, V('s09_gx')), 0.25))]),
+            setv('s09_k', mul(V('s09_dt'), 7)), if_(gt(V('s09_k'), 1), setv('s09_k', 1)),
+            chg('s09_긴장', mul(sub(V('s09_속도'), V('s09_긴장')), V('s09_k'))),
+            if_(eq(V('s09_상태'), 0),
+                if_(gt(V('s09_dy'), 0), chg('s09_진행', div(mul(V('s09_dy'), 100), V('s09_필요')))),
+                if_(gt(V('s09_긴장'), V('s09_한계')), setv('s09_상태', 2), setv('s09_잡음', 0)),
+                if_(ge(V('s09_진행'), 100), setv('s09_진행', 100), setv('s09_상태', 1), setv('s09_잡음', 0))),
+            if_(ne(V('s09_상태'), 2), xy(V('s09_gx'), V('s09_gy')), show())]
+    gp.on(on_msg('게임시작'), wait(0.05), setv('s09_t0', timer()), until(eq(V('게임중'), 0), *tick))
+    gp.on(on_msg('s09_끊김'), show(), rep(10, mvy(6), fx_add('transparency', 10), wait(0.02)), hide(), fx_clear())
+    # 힘 게이지
+    MX, MY, MH = 118, -14, 140
+    m.S('힘게이지', AA.s09_meter(), MX, MY)
+    m.T('힘글', '당기는 힘', MX, MY + 80, 9, C_WHITE, F_NUM, False, 0, w=70, h=14)
+    mk = m.S('힘눈금', AA.s02_marker(), MX - 9, MY - MH / 2)
+    mk.on(on_msg('게임시작'), until(eq(V('게임중'), 0),
+                                  setv('_mk', div(V('s09_긴장'), V('s09_한계'))), if_(gt(V('_mk'), 1.05), setv('_mk', 1.05)),
+                                  ly(add(MY - MH / 2 + 3, mul(V('_mk'), 0.8 * (MH - 6)))), wait(0.02)))
+    # 바구니 · 안내
+    m.S('바구니', AA.s09_basket(), 196, -80)
+    got = m.T('수확글', '수확 0개', 196, -108, 10, C_WHITE, F_NUM, False, 0, w=90, h=16)
+    got.on(on_msg('s09_갱신'), write(join('수확 ', V('s09_수확'), '개')))
+    hint = m.T('이번글', '', 196, 40, 10, C_WHITE, F_BODY, True, 0, w=96, h=60)
+    hint.on(on_msg('s09_새고구마'),
+            ifelse(ge(V('s09_크기'), 1.5), [write(join(V('s09_번째'), '번째: 왕고구마!\n아주 살살~'))],
+                   [ifelse(ge(V('s09_크기'), 1.2), [write(join(V('s09_번째'), '번째: 큰 고구마\n천천히 당겨요'))],
+                           [write(join(V('s09_번째'), '번째: 작은 고구마\n조금 빨라도 OK'))])]))
+    pr = m.T('진행글', '', 196, -2, 12, '#FFB4D2', F_NUM, False, 0, w=90, h=18)
+    pr.on(on_msg('게임시작'), until(eq(V('게임중'), 0), write(join(floor(V('s09_진행')), '%')), wait(0.1)))
+    _pop(m, '성공팝', [('a', K.big_text('쑥~ 뽑았다!', 24, 'green')), ('b', K.big_text('뚝! 끊어졌어요', 22, 'red'))], 's09_결과',
+         FX, 30, hold=0.6)
+    tip = m.T('놓음글', '끝까지 올렸으면 놓고 다시 잡아요', FX, 74, 9, '#FFE0A0', F_BODY, True, 0, w=200, h=14, visible=False)
+    tip.on(on_msg('게임시작'), until(eq(V('게임중'), 0),
+                                    ifelse(and_(eq(V('s09_잡음'), 1), ge(V('s09_gy'), TOP - 2)), [show()], [hide()]), wait(0.1)))
+    mgr = hidden(m, '고구마담당')
+    mgr.on(on_msg('게임시작'), setv('s09_번째', 1),
+           until(or_(gt(V('s09_번째'), NP), eq(V('게임중'), 0)),
+                 setv('s09_크기', LGET('s09_크기표', V('s09_번째'))),
+                 setv('s09_필요', mul(170, V('s09_크기'))), setv('s09_한계', div(250, V('s09_크기'))),
+                 setv('s09_진행', 0), setv('s09_긴장', 0), setv('s09_잡음', 0), setv('s09_상태', 0),
+                 setv('미니표시', join('고구마 ', V('s09_번째'), '/', NP)),
+                 cast('s09_새고구마'),
+                 wait_until(or_(ne(V('s09_상태'), 0), eq(V('게임중'), 0))),
+                 if_(eq(V('게임중'), 1),
+                     ifelse(eq(V('s09_상태'), 1),
+                            [chg('s09_수확', 1), chg('s09_무게', V('s09_크기')), setv('_mv', 1), cast('s09_성공')],
+                            [setv('_mv', 2), cast('s09_끊김')]),
+                     cast('s09_결과'), cast('s09_갱신'), wait(1.3)),
+                 chg('s09_번째', 1)),
+           *m.end_blocks(add(mul(div(V('s09_무게'), sum(sizes)), 100), div(V('남은시간'), 4))))
+    mgr.on(on_msg('시간끝'), *m.end_blocks(add(mul(div(V('s09_무게'), sum(sizes)), 100), mul(V('s09_진행'), 0.05))))
+    m.on_start(setv('s09_번째', 1), setv('s09_수확', 0), setv('s09_무게', 0), setv('s09_진행', 0), setv('s09_긴장', 0), setv('s09_잡음', 0),
+               setv('s09_상태', 0), setv('s09_gx', FX), setv('s09_gy', G0), setv('s09_크기', sizes[0]), setv('s09_한계', 250),
+               cast('s09_새고구마'), cast('s09_갱신'))
+    m.snd('s09_잡기', play('tick'))
+    m.snd('s09_결과', ifelse(eq(V('_mv'), 1), [play('good')], [play('fail_big')]))
+    m.finish('잎을 잡고 위로 천천히 끌어올려 고구마를 캐요!\n힘 게이지가 빨간 칸에 닿으면 줄기가 뚝 끊어져요.',
+             '조작: 잎을 누른 채 위로 끌기 · 끝까지 올렸으면 놓고 다시 잡기 · 큰 고구마일수록 살살!')
+    return True
+
+
+# ================================================================== 10. 마라톤 페이스 (체력 관리)
+@game(10)
+def g10(P, ctx):
+    TL, GOAL = 50, 3000
+    JOG, RUN = 40, 110
+    m = mg(P, ctx, T, 10, time_limit=TL, status='0m / 3km', dim=40)
+    vars_(P, 's10_거리', 's10_속도', 's10_체력', 's10_쓰러짐', 's10_r1', 's10_r2', 's10_t0', 's10_dt', 's10_완주', 's10_기록', 's10_등수',
+          's10_경과', 's10_달림')
+    ME_X = -70
+    me_col, r1_col, r2_col = (40, 170, 90), (50, 90, 220), (210, 40, 60)
+    lanes = [(r1_col, -58, 0.88, 's10_r1', '1번 후보', 'royal'), (me_col, -82, 1.0, 's10_거리', '나', 'green'),
+             (r2_col, -106, 1.1, 's10_r2', '2번 후보', 'red')]
+    # 거리 표지 (지나가는 기둥 3개)
+    for j in range(3):
+        po = m.S('표지%d' % j, AA.s10_post(), 0, -44)
+        po.on(on_msg('게임시작'), until(eq(V('게임중'), 0), lx(sub(250, mod(add(mul(V('s10_거리'), 0.9), j * 170), 510))), wait(0.02)))
+        po.on(on_scene(), lx(250 - j * 170))
+    fin = m.S('결승선', AA.s10_finish(), 300, -70, visible=False)
+    fin.on(on_msg('게임시작'), until(eq(V('게임중'), 0),
+                                   setv('_mk', add(ME_X + 12, mul(sub(GOAL, V('s10_거리')), 0.5))),
+                                   ifelse(lt(V('_mk'), 280), [lx(V('_mk')), show()], [hide()]), wait(0.02)))
+    runners = []
+    for col, y, sc, var, label, bcol in lanes:
+        o = m.S('달리기_' + label, [('a', AA.s10_runner(col, 'a')), ('b', AA.s10_runner(col, 'b')), ('fall', AA.s10_runner(col, 'fall'))],
+                ME_X, y, scale=sc)
+        bd = m.S('이름_' + label, K.badge(label, 50 if len(label) > 1 else 26, 14, bcol), ME_X, y + 36 * sc)
+        runners.append((o, bd, var))
+    me, me_b, _ = runners[1]
+    me.on(on_msg('게임시작'), until(eq(V('게임중'), 0),
+                                  ifelse(eq(V('s10_쓰러짐'), 1), [shape('fall'), wait(0.1)],
+                                         [setv('fr', sub(3, V('fr'))), shape(V('fr')),
+                                          wait(div(14, add(V('s10_속도'), 20)))])))
+    me.local('fr', 1)
+    me.on(on_scene(), shape('a'))
+    for o, bd, var in (runners[0], runners[2]):
+        rel = add(ME_X, mul(sub(V(var), V('s10_거리')), 0.5))
+        o.local('ab', 0)
+        o.local('fr', 1)
+        o.on(on_msg('게임시작'), until(eq(V('게임중'), 0),
+                                     lx(rel), ifelse(or_(lt(obj_x(), -260), gt(obj_x(), 260)), [hide()], [show()]),
+                                     chg('ab', 1), if_(gt(V('ab'), 6), setv('ab', 0), setv('fr', sub(3, V('fr'))), shape(V('fr'))),
+                                     wait(0.02)))
+        bd.on(on_msg('게임시작'), until(eq(V('게임중'), 0),
+                                      lx(rel), ifelse(or_(lt(obj_x(), -260), gt(obj_x(), 260)), [hide()], [show()]), wait(0.02)))
+    # 위쪽: 진행 막대 · 체력 · 속도
+    m.S('진행막대', AA.s10_track_bar(), 0, 88)
+    m.T('출발글', '출발', -164, 88, 8, C_DIM, F_BODY, True, 0, w=30, h=12)
+    m.T('결승글', '결승', 168, 88, 8, C_DIM, F_BODY, True, 0, w=30, h=12)
+    for (col, y, sc, var, label, bcol), off in zip(lanes, (2, 0, -2)):
+        dot = m.S('점_' + label, A3.disc('s10_dot_%d' % sum(col), 5, col), -144, 88 + off)
+        dot.on(on_msg('게임시작'), until(eq(V('게임중'), 0), lx(add(-144, mul(div(V(var), GOAL), 288))),
+                                       if_(gt(obj_x(), 144), lx(144)), wait(0.1)))
+        dot.on(on_scene(), lx(-144))
+    m.T('체력이름', '체력', -206, 64, 9, C_WHITE, F_NUM, False, 0, w=36, h=14)
+    st = m.S('체력막대', K.bar_set('s10_stam', 120, 10, 'green'), -122, 64)
+    st.local('ls', 0)
+    st.on(on_msg('게임시작'), until(eq(V('게임중'), 0), setv('_mv', add(1, floor(mul(V('s10_체력'), 0.4)))),
+                                  if_(ne(V('_mv'), V('ls')), setv('ls', V('_mv')), shape(V('ls'))), wait(0.06)))
+    st.on(on_scene(), shape(41))
+    m.T('속도이름', '속도', -24, 64, 9, C_WHITE, F_NUM, False, 0, w=36, h=14)
+    sp = m.S('속도막대', K.bar_set('s10_speed', 100, 10, 'royal'), 50, 64)
+    sp.local('ls', 0)
+    sp.on(on_msg('게임시작'), until(eq(V('게임중'), 0), setv('_mv', add(1, floor(mul(div(sub(V('s10_속도'), 0), RUN), 40)))),
+                                  if_(ne(V('_mv'), V('ls')), setv('ls', V('_mv')), shape(V('ls'))), wait(0.06)))
+    rk = m.T('등수글', '', 170, 64, 12, '#FFE38A', F_NUM, False, 0, w=110, h=18)
+    rk.on(on_msg('게임시작'), until(eq(V('게임중'), 0),
+                                  setv('s10_등수', 1), if_(gt(V('s10_r1'), V('s10_거리')), chg('s10_등수', 1)),
+                                  if_(gt(V('s10_r2'), V('s10_거리')), chg('s10_등수', 1)),
+                                  write(join('지금 ', V('s10_등수'), '등')), wait(0.25)))
+    tired = m.T('헉헉', '헉헉… 잠깐 쉬어요!', ME_X, -18, 11, '#FF9AAA', F_BODY, True, 0, w=150, h=18, visible=False)
+    tired.on(on_msg('s10_쓰러짐'), show(), wait_until(eq(V('s10_쓰러짐'), 0)), hide())
+    low = m.T('체력경고', '체력이 바닥나요! 스페이스를 떼요', -60, 40, 10, '#FFB060', F_BODY, True, 0, w=220, h=16, visible=False)
+    low.on(on_msg('게임시작'), until(eq(V('게임중'), 0),
+                                   ifelse(and_(lt(V('s10_체력'), 22), and_(eq(V('s10_달림'), 1), eq(V('s10_쓰러짐'), 0))), [show()], [hide()]),
+                                   wait(0.1)))
+    # 달리기 계산
+    dt = V('s10_dt')
+    sim = [setv('s10_dt', sub(timer(), V('s10_t0'))), setv('s10_t0', timer()),
+           if_(lt(dt, 0), setv('s10_dt', 0)), if_(gt(dt, 0.3), setv('s10_dt', 0.3)),
+           chg('s10_경과', dt),
+           ifelse(eq(V('s10_쓰러짐'), 1), [setv('s10_속도', 0), setv('s10_달림', 0)],
+                  [ifelse(key(K_SPACE),
+                          [setv('s10_달림', 1), chg('s10_속도', mul(70, dt)), if_(gt(V('s10_속도'), RUN), setv('s10_속도', RUN)),
+                           chg('s10_체력', mul(-12, dt))],
+                          [setv('s10_달림', 0), chg('s10_속도', mul(-60, dt)), if_(lt(V('s10_속도'), JOG), setv('s10_속도', JOG)),
+                           chg('s10_체력', mul(8, dt)), if_(gt(V('s10_체력'), 100), setv('s10_체력', 100))]),
+                   if_(le(V('s10_체력'), 0), setv('s10_체력', 0), setv('s10_쓰러짐', 1), setv('s10_속도', 0), cast('s10_쓰러짐'))]),
+           chg('s10_거리', mul(V('s10_속도'), dt)),
+           ifelse(lt(V('s10_경과'), 12), [chg('s10_r2', mul(95, dt))], [chg('s10_r2', mul(62, dt))]),
+           chg('s10_r1', mul(72, dt)),
+           setv('미니표시', join(floor(V('s10_거리')), 'm / 3km'))]
+    mgr = hidden(m, '마라톤담당')
+    mgr.on(on_msg('게임시작'), wait(0.05), setv('s10_t0', timer()),
+           until(or_(ge(V('s10_거리'), GOAL), eq(V('게임중'), 0)), *sim, wait(0.02)),
+           if_(eq(V('게임중'), 1),
+               setv('s10_완주', 1), setv('s10_기록', V('s10_경과')),
+               setv('s10_등수', 1), if_(ge(V('s10_r1'), GOAL), chg('s10_등수', 1)), if_(ge(V('s10_r2'), GOAL), chg('s10_등수', 1)),
+               setv('s10_속도', 0), cast('s10_완주'), wait(1.6),
+               setv('_mk', sub(V('s10_기록'), 38)), if_(lt(V('_mk'), 0), setv('_mk', 0)),
+               *m.end_blocks(sub(sub(100, mul(4, V('_mk'))), mul(5, sub(V('s10_등수'), 1))))))
+    mgr.on(on_msg('s10_쓰러짐'), wait(2.5), setv('s10_체력', 25), setv('s10_속도', JOG), setv('s10_쓰러짐', 0))
+    mgr.on(on_msg('시간끝'), *m.end_blocks(mul(div(V('s10_거리'), GOAL), 30)))
+    done = m.T('완주글', '', 0, 20, 16, C_WHITE, F_NUM, False, 0, w=300, h=50, visible=False, bg=C_BOX)
+    done.on(on_msg('s10_완주'), write(join('완주! ', V('s10_등수'), '등 · ', div(rounded(mul(V('s10_기록'), 10)), 10), '초')), show())
+    m.on_start(setv('s10_거리', 0), setv('s10_속도', JOG), setv('s10_체력', 100), setv('s10_쓰러짐', 0), setv('s10_r1', 0), setv('s10_r2', 0),
+               setv('s10_완주', 0), setv('s10_경과', 0), setv('s10_달림', 0), setv('s10_등수', 1))
+    m.snd('s10_쓰러짐', play('fail_big'))
+    m.snd('s10_완주', play('fanfare'))
+    m.finish('스페이스를 누르면 힘껏 달리고, 떼면 숨을 골라요.\n체력이 0이 되면 쓰러져요! 3km를 1·2번 후보보다 먼저!',
+             '조작: 스페이스 누르기 = 전력 질주 (체력 ↓)  ·  떼기 = 천천히 (체력 ↑)')
+    return True
