@@ -450,3 +450,80 @@ def s24_arrow(ch, up):
             pts = [(cx, cy + 5 * s), (cx + 7 * s, cy - 4 * s), (cx - 7 * s, cy - 4 * s)]
         d.polygon(pts, fill=(255, 255, 255, 255))
     return art('s24_arrow_%d_%d' % (ch, up), 34, 20, f)
+
+
+# ================================================================== 25. 널뛰기
+def s25_plank():
+    def f(d, im, s):
+        W, H = im.size
+        d.rounded_rectangle((0.5 * s, 2 * s, W - 0.5 * s, H - 1 * s), 3 * s, fill=(176, 120, 66, 255), outline=(70, 40, 16, 255),
+                            width=int(1 * s))
+        d.rectangle((3 * s, 3.5 * s, W - 3 * s, 5 * s), fill=(214, 164, 104, 255))
+        for k in range(9):
+            x = (12 + k * 24) * s
+            d.arc((x - 8 * s, 4 * s, x + 8 * s, H + 4 * s), 200, 340, fill=(120, 78, 40, 180), width=max(1, int(0.6 * s)))
+        d.rectangle((W / 2 - 9 * s, 2 * s, W / 2 + 9 * s, H - 1 * s), fill=(200, 40, 60, 255), outline=(80, 10, 20, 255))
+    return art('s25_plank', 224, 11, f)
+
+
+def s25_straw():
+    def f(d, im, s):
+        W, H = im.size
+        d.ellipse((1 * s, 2 * s, W - 1 * s, H - 1 * s), fill=(214, 180, 100, 255), outline=(110, 80, 30, 255), width=int(1 * s))
+        for k in range(10):
+            x = (5 + k * 3.4) * s
+            d.line([(x, 4 * s), (x + 1 * s, H - 3 * s)], fill=(160, 120, 50, 200), width=max(1, int(0.6 * s)))
+        for y in (0.4, 0.7):
+            d.line([(4 * s, H * y), (W - 4 * s, H * y)], fill=(120, 40, 40, 255), width=int(1.4 * s))
+    return art('s25_straw', 40, 26, f)
+
+
+def s25_body(col, pose):
+    """한복 몸 (머리 없음). 30x48, 발 = 아래, 목 = 위 가운데."""
+    top = (246, 242, 232)
+    sk = col
+    skin = (240, 206, 174, 255)
+
+    def f(d, im, s):
+        P = lambda x, y: (x * s, y * s)
+        if pose == 'jump':
+            d.line([P(9, 8), P(2, 1)], fill=_c(top), width=int(3.4 * s))
+            d.line([P(21, 8), P(28, 1)], fill=_c(top), width=int(3.4 * s))
+            d.ellipse((*P(0, -1), *P(4, 3)), fill=skin)
+            d.ellipse((*P(26, -1), *P(30, 3)), fill=skin)
+            d.polygon([P(9, 18), P(21, 18), P(30, 42), P(0, 42)], fill=_c(sk), outline=_c(_shade(sk, 0.45)))
+            d.line([P(11, 42), P(9, 47)], fill=(250, 250, 255, 255), width=int(3 * s))
+            d.line([P(19, 42), P(21, 47)], fill=(250, 250, 255, 255), width=int(3 * s))
+        else:
+            d.polygon([P(9, 18), P(21, 18), P(26, 45), P(4, 45)], fill=_c(sk), outline=_c(_shade(sk, 0.45)))
+            d.line([P(9, 9), P(6, 22)], fill=_c(top), width=int(3.4 * s))
+            d.line([P(21, 9), P(24, 22)], fill=_c(top), width=int(3.4 * s))
+            d.ellipse((*P(4, 21), *P(8, 25)), fill=skin)
+            d.ellipse((*P(22, 21), *P(26, 25)), fill=skin)
+            d.ellipse((*P(8, 44), *P(14, 48)), fill=(250, 250, 255, 255))
+            d.ellipse((*P(16, 44), *P(22, 48)), fill=(250, 250, 255, 255))
+        # 저고리 + 고름
+        d.rounded_rectangle((*P(8, 4), *P(22, 19)), 3 * s, fill=_c(top), outline=(90, 80, 70, 255), width=max(1, int(0.5 * s)))
+        d.polygon([P(12, 4), P(15, 9), P(18, 4)], fill=_c(_shade(sk, 0.8)))
+        d.line([P(15, 10), P(13, 17)], fill=_c(sk), width=int(1.4 * s))
+        d.line([P(15, 10), P(17, 16)], fill=_c(sk), width=int(1.4 * s))
+        d.rectangle((*P(13, 1), *P(17, 5)), fill=skin)
+    return art('s25_body_%d_%d_%d_%s' % (col + (pose,)), 30, 48, f)
+
+
+def s25_ruler():
+    def f(d, im, s):
+        W, H = im.size
+        d.rounded_rectangle((4 * s, 0, W - 4 * s, H), 4 * s, fill=(10, 14, 32, 200), outline=(110, 140, 240, 200), width=int(1 * s))
+        for k in range(0, 9):
+            y = H - 4 * s - k * (H - 8 * s) / 8
+            long_ = k % 2 == 0
+            d.line([(4 * s, y), ((14 if long_ else 10) * s, y)], fill=(200, 214, 255, 255), width=max(1, int(0.8 * s)))
+    return art('s25_ruler', 22, 132, f)
+
+
+def s25_marker(col):
+    def f(d, im, s):
+        W, H = im.size
+        d.polygon([(W, 0), (W, H), (0, H / 2)], fill=_c(col), outline=(10, 10, 20, 255))
+    return art('s25_marker_%d_%d_%d' % col, 9, 9, f)

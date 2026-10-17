@@ -420,3 +420,135 @@ def g13(P, ctx):
     m.finish('스페이스를 누르는 동안 엔진 분사! 속도계 바늘이 빨간 칸에\n가면 기체가 망가져요. 단 연료가 다 떨어지면 S로 분리!',
              '조작: SPACE 누르기 = 분사 · S = 단 분리  ·  예상 최고 고도(◀)가 100km면 떼도 OK, 남은 연료가 많을수록 점수 UP')
     return True
+
+
+# ================================================================== 14. 땅따먹기 선긋기 (점과 상자)
+@game(14)
+def g14(P, ctx):
+    TL, N, PI = 150, 5, 46
+    CX, CY = -18, -14
+    m = mg(P, ctx, T, 14, time_limit=TL, status='나 0 : 0 응원단장', dim=70)
+    NB = (N - 1) * (N - 1)
+    edges = []      # (세로?, x, y, 상자1, 상자2)
+    for r in range(N):
+        for c in range(N - 1):
+            b1 = (r - 1) * (N - 1) + c + 1 if r > 0 else 0
+            b2 = r * (N - 1) + c + 1 if r < N - 1 else 0
+            edges.append((0, CX + (c - 1.5) * PI, CY + (2 - r) * PI, b1, b2))
+    for r in range(N - 1):
+        for c in range(N):
+            b1 = r * (N - 1) + c if c > 0 else 0
+            b2 = r * (N - 1) + c + 1 if c < N - 1 else 0
+            edges.append((1, CX + (c - 2) * PI, CY + (1.5 - r) * PI, b1, b2))
+    NE = len(edges)
+    P.list('k14_ev', [e[0] for e in edges])
+    P.list('k14_ex', [e[1] for e in edges])
+    P.list('k14_ey', [e[2] for e in edges])
+    P.list('k14_b1', [e[3] for e in edges])
+    P.list('k14_b2', [e[4] for e in edges])
+    P.list('k14_선', [0] * NE)
+    P.list('k14_변', [0] * NB)
+    P.list('k14_주인', [0] * NB)
+    P.list('k14_bx', [CX + (c - 1.5) * PI for r in range(N - 1) for c in range(N - 1)])
+    P.list('k14_by', [CY + (1.5 - r) * PI for r in range(N - 1) for c in range(N - 1)])
+    vars_(P, 'k14_차례', 'k14_수', 'k14_내땅', 'k14_상대땅', 'k14_얻음', 'k14_최고', 'k14_최고수', 'k14_끝')
+    panel(P, m.sc, '땅판', CX, CY, PI * (N - 1) + 40, PI * (N - 1) + 40, 'glass')
+    # 상자 (주인 표시)
+    box = m.S('땅', [('n', B3.k14_box(0)), ('me', B3.k14_box(1)), ('ai', B3.k14_box(2))], 0, -300, visible=False)
+    for v_ in ('내번호', '복제'):
+        box.local(v_, 0)
+    box.on(on_scene(), setv('내번호', 0), rep(NB, chg('내번호', 1), clone_self()))
+    box.on(on_clone(), setv('복제', 1), xy(LGET('k14_bx', V('내번호')), LGET('k14_by', V('내번호'))), shape('n'), show())
+    box.on(on_msg('k14_땅'), if_(and_(eq(V('복제'), 1), gt(LGET('k14_주인', V('내번호')), 0)),
+                                if_(ne(V('_ls'), LGET('k14_주인', V('내번호'))), setv('_ls', LGET('k14_주인', V('내번호'))),
+                                    shape(add(1, V('_ls'))), box.pct(40), rep(6, box.grow_pct(10), wait(0.016)))))
+    box.local('_ls', 0)
+    box.on(on_clone(), setv('_ls', 0))
+    m.S('점들', B3.k14_dots(N, PI), CX, CY)
+    # 선 (40개 복제본)
+    pics = [('h0', B3.k14_edge(0, 0)), ('h1', B3.k14_edge(0, 1)), ('h2', B3.k14_edge(0, 2)),
+            ('v0', B3.k14_edge(1, 0)), ('v1', B3.k14_edge(1, 1)), ('v2', B3.k14_edge(1, 2))]
+    ed = m.S('선', pics, 0, -300, visible=False)
+    for v_ in ('내번호', '복제', '_a', '_b', '_s'):
+        ed.local(v_, 0)
+    me = V('내번호')
+    mine = LGET('k14_선', me)
+    ed.on(on_scene(), setv('내번호', 0), rep(NE, chg('내번호', 1), clone_self()))
+    ed.on(on_clone(), setv('복제', 1), xy(LGET('k14_ex', me), LGET('k14_ey', me)), shape(add(1, mul(3, LGET('k14_ev', me)))), show())
+    ed.on(on_click(), if_(and_(and_(eq(V('복제'), 1), eq(V('입력가능'), 1)), eq(mine, 0)),
+                          setv('k14_수', me), setv('입력가능', 0)))
+    ed.on(on_msg('k14_그음'), if_(and_(eq(V('복제'), 1), eq(me, V('k14_수'))),
+                                 shape(add(add(1, mul(3, LGET('k14_ev', me))), mine)), to_front(),
+                                 ed.pct(150), rep(5, ed.grow_pct(-10), wait(0.016))))
+    # 응원단장 평가: 상자를 완성하는 선 > 안전한 선 > 상자를 내주는 선
+    ed.on(on_msg('k14_평가'), if_(and_(eq(V('복제'), 1), eq(mine, 0)),
+          setv('_a', 0), setv('_b', 0),
+          if_(gt(LGET('k14_b1', me), 0), setv('_a', LGET('k14_변', LGET('k14_b1', me)))),
+          if_(gt(LGET('k14_b2', me), 0), setv('_b', LGET('k14_변', LGET('k14_b2', me)))),
+          ifelse(or_(eq(V('_a'), 3), eq(V('_b'), 3)), [setv('_s', 300)],
+                 [ifelse(or_(eq(V('_a'), 2), eq(V('_b'), 2)), [setv('_s', 0)], [setv('_s', 100)])]),
+          chg('_s', rnd(0, 99)),
+          if_(gt(V('_s'), V('k14_최고')), setv('k14_최고', V('_s')), setv('k14_최고수', me))))
+    # 양쪽 표시
+    m.S('나얼굴', ctx['PORT']['me'], -200, 52, scale=1.3)
+    m.T('나이름', '나', -200, 22, 10, C_ACC, F_NUM, False, 0, w=60, h=14)
+    mys = m.T('나점수', '0', -200, 0, 22, C_WHITE, F_NUM, False, 0, w=60, h=26)
+    mys.on(on_msg('k14_땅'), write(V('k14_내땅')))
+    mys.on(on_scene(), write('0'))
+    m.S('응원단장', B3.k14_cheer(), 196, 50)
+    m.T('응원단장이름', '응원단장', 196, 4, 10, C_RED, F_NUM, False, 0, w=70, h=14)
+    ais = m.T('응원단장점수', '0', 196, -18, 22, C_WHITE, F_NUM, False, 0, w=60, h=26)
+    ais.on(on_msg('k14_땅'), write(V('k14_상대땅')))
+    ais.on(on_scene(), write('0'))
+    turn = m.T('차례글', '', CX, 96, 11, C_WHITE, F_BODY, True, 0, w=260, h=16)
+    turn.on(on_msg('k14_차례'), ifelse(eq(V('k14_차례'), 1), [write('내 차례! 점 사이 선을 클릭하세요')], [write('응원단장이 고르는 중...')]))
+    m.T('규칙글', '네모를 완성하면\n내 땅 + 한 번 더!', -200, -70, 9, C_DIM, F_BODY, True, 0, w=80, h=30)
+    _pop(m, '한번더', K.big_text('한 번 더!', 26, 'royal'), CX, CY, 'k14_한번더', hold=0.3)
+    res = m.S('결과', [('w', K.big_text('땅따먹기 승리!', 30, 'royal')), ('l', K.big_text('아쉽게 졌어요', 28, 'red')),
+                     ('d', K.big_text('무승부!', 30, 'white'))], CX, CY, visible=False)
+    res.on(on_scene(), hide())
+    res.on(on_msg('k14_결과'), ifelse(gt(V('k14_내땅'), V('k14_상대땅')), [shape('w')],
+                                      [ifelse(lt(V('k14_내땅'), V('k14_상대땅')), [shape('l')], [shape('d')])]),
+           to_front(), res.pct(40), show(), rep(6, res.grow_pct(10), wait(0.016)))
+    # 진행
+    mgr = hidden(m, '땅담당')
+    sv = V('k14_수')
+    def claim(bexpr):
+        return [lst_set('k14_변', bexpr, add(LGET('k14_변', bexpr), 1)),
+                if_(eq(LGET('k14_변', bexpr), 4), lst_set('k14_주인', bexpr, V('k14_차례')), chg('k14_얻음', 1),
+                    ifelse(eq(V('k14_차례'), 1), [chg('k14_내땅', 1)], [chg('k14_상대땅', 1)]))]
+    score = add(mul(V('k14_내땅'), 6), mul(10, gt_num(V('k14_내땅'), V('k14_상대땅'))))
+    mgr.on(on_msg('게임시작'), setv('k14_차례', 1),
+           until(or_(eq(V('게임중'), 0), eq(V('k14_끝'), 1)),
+                 cast('k14_차례'),
+                 ifelse(eq(V('k14_차례'), 1),
+                        [setv('입력가능', 1), wait_until(or_(eq(V('입력가능'), 0), eq(V('게임중'), 0)))],
+                        [wait(0.6), setv('k14_최고', -1), setv('k14_최고수', 0), cast_wait('k14_평가')]),
+                 setv('입력가능', 0),
+                 if_(and_(eq(V('게임중'), 1), gt(sv, 0)),
+                     lst_set('k14_선', sv, V('k14_차례')), setv('k14_얻음', 0),
+                     if_(gt(LGET('k14_b1', sv), 0), *claim(LGET('k14_b1', sv))),
+                     if_(gt(LGET('k14_b2', sv), 0), *claim(LGET('k14_b2', sv))),
+                     cast('k14_그음'), cast('k14_땅'),
+                     setv('미니표시', join('나 ', V('k14_내땅'), ' : ', V('k14_상대땅'), ' 응원단장')),
+                     ifelse(gt(V('k14_얻음'), 0), [if_(eq(V('k14_차례'), 1), cast('k14_한번더'), wait(0.3))],
+                            [setv('k14_차례', sub(3, V('k14_차례')))]),
+                     if_(ge(add(V('k14_내땅'), V('k14_상대땅')), NB), setv('k14_끝', 1)))),
+           if_(eq(V('게임중'), 1), wait(0.5), cast('k14_결과'), wait(1.6), *m.end_blocks(score)))
+    mgr.on(on_msg('시간끝'), setv('입력가능', 0), setv('k14_끝', 1), *m.end_blocks(score))
+    m.on_start(setv('k14_내땅', 0), setv('k14_상대땅', 0), setv('k14_차례', 0), setv('입력가능', 0), setv('k14_끝', 0),
+               setv('k14_수', 0),
+               *[lst_set('k14_선', i, 0) for i in range(1, NE + 1)], *[lst_set('k14_변', i, 0) for i in range(1, NB + 1)],
+               *[lst_set('k14_주인', i, 0) for i in range(1, NB + 1)])
+    m.snd('k14_그음', play('tick'))
+    m.snd('k14_땅', if_(gt(V('k14_얻음'), 0), ifelse(eq(V('k14_차례'), 1), [play('coin')], [play('bad')])))
+    m.snd('k14_결과', ifelse(gt(V('k14_내땅'), V('k14_상대땅')), [play('fanfare')], [play('fail_big')]))
+    m.finish('응원단장과 번갈아 점 사이에 선을 그어요. 네모의 마지막\n변을 그으면 내 땅 + 한 번 더! 땅 16칸 중 많이 차지하세요.',
+             '조작: 점 사이 선 클릭  ·  세 변이 그어진 네모를 상대에게 넘겨주지 않게 조심!')
+    return True
+
+
+def gt_num(a, b):
+    """a > b 이면 1, 아니면 0 (숫자 계산으로: 정수 a, b)."""
+    d = sub(a, b)
+    return div(add(abs_(d), d), add(mul(abs_(d), 2), 0.000001)) if False else floor(div(add(abs_(d), d), add(mul(abs_(d), 2), 0.5)))

@@ -377,3 +377,73 @@ def g35(P, ctx):
     m.finish('BRT 버스 앞문을 빨간 ▼ 정차선에 딱 맞춰 세우세요!\n세게 오래 밟으면 승객이 휘청해요. 정류장 5곳.',
              '조작: 스페이스를 누르는 동안 브레이크 (오래 누를수록 세짐)\n떼면 천천히 굴러가요 · 멈춘 뒤 잠깐 더 누르고 있으면 정차 완료')
     return True
+
+
+# ================================================================== 37. 떡메치기 (박자)
+@game(37)
+def g37(P, ctx):
+    TL = 25
+    CX, CY = 10, -56
+    m = mg(P, ctx, T, 37, time_limit=TL, status='콤보 0', dim=70)
+    vars_(P, 's37_손', 's37_쿨', 's37_콤보', 's37_최고', 's37_뒤집기')
+    m.S('s37_떡판', AD.s37_board(), CX, CY - 20)
+    cake = m.S('s37_떡', [('round', AD.s37_cake('round')), ('flat', AD.s37_cake('flat')), ('tall', AD.s37_cake('tall'))], CX, CY)
+    cake.on(on_msg('s37_쿵'), shape('flat'), wait(0.08), shape('round'))
+    cake.on(on_msg('s37_손안'), wait(0.15), shape('tall'), flip_x(), wait(0.2), shape('round'))
+    m.S('s37_나', ctx['BUST']['me'], -150, -44, scale=0.42)
+    mal = m.S('s37_떡메', [('up', AD.s37_mallet('up')), ('down', AD.s37_mallet('down'))], CX - 36, 0)
+    OUT, RISE, IN = (204, -36), (156, 16), (CX + 50, CY + 2)
+    hand = m.S('s37_손', [('flat', AD.s37_hand('flat')), ('ouch', AD.s37_hand('ouch'))], OUT[0], OUT[1])
+
+    def glide_to(o, x, y, n=5):
+        return [setv('_ma', obj_x()), setv('_mb', obj_y()), *[xy(add(V('_ma'), mul(sub(x, V('_ma')), (k + 1) / float(n))),
+                                                               add(V('_mb'), mul(sub(y, V('_mb')), (k + 1) / float(n))))
+                                                             for k in range(n)]]
+    hand.local('_ma', 0)
+    hand.local('_mb', 0)
+    hand.on(on_msg('s37_손위'), *flat([[b, wait(0.016)] for b in glide_to(hand, *RISE, n=6)]))
+    hand.on(on_msg('s37_손안'), *flat([[b, wait(0.016)] for b in glide_to(hand, *IN, n=5)]))
+    hand.on(on_msg('s37_손밖'), *flat([[b, wait(0.016)] for b in glide_to(hand, *OUT, n=6)]))
+    hand.on(on_msg('s37_아야'), shape('ouch'), rep(3, mvx(4), wait(0.03), mvx(-4), wait(0.03)), wait(0.3), shape('flat'))
+    hand.on(on_scene(), xy(*OUT), shape('flat'))
+    warn = m.S('s37_조심', AD.s37_warn(), RISE[0] - 30, RISE[1] + 30, visible=False)
+    warn.on(on_msg('s37_손위'), show(), warn.pct(70), rep(4, warn.grow_pct(8), wait(0.02)))
+    warn.on(on_msg('s37_손안'), hide())
+    warn.on(on_msg('s37_손밖'), hide())
+    combo = m.T('s37_콤보글', '', CX, 60, 16, C_WHITE, F_NUM, False, 0, w=200, h=24)
+    combo.on(on_msg('s37_갱신'), ifelse(ge(V('s37_콤보'), 3), [write(join(V('s37_콤보'), ' COMBO'))], [write('')]),
+             setv('미니표시', join('떡메 ', V('합계'), ' · 콤보 ', V('s37_콤보'))))
+    G.big_pop(P, m.sc, 's37_아야글', K.big_text('아야!', 34, 'red'), 120, 40, 's37_아야', hold=0.4)
+    thud = m.S('s37_쿵글', K.big_text('쿵!', 18, 'white'), CX - 50, CY + 30, visible=False)
+    thud.on(on_msg('s37_쿵'), xy(add(CX - 60, rnd(-10, 10)), add(CY + 30, rnd(-4, 8))), thud.pct(70), fx('transparency', 0), show(),
+            rep(6, thud.grow_pct(8), fx_add('transparency', 12), wait(0.02)), hide())
+    # 손 움직임 (불규칙한 박자 + 손이 먼저 들리는 신호)
+    mgr = hidden(m, 's37_담당')
+    mgr.on(on_msg('게임시작'),
+           until(eq(V('게임중'), 0),
+                 setv('s37_손', 0),
+                 wait(add(div(rnd(55, 150), 100), mul(V('남은시간'), 0.012))),
+                 if_(eq(V('게임중'), 1),
+                     setv('s37_손', 1), cast('s37_손위'), wait(0.42),
+                     ifelse(and_(lt(V('남은시간'), 17), le(rnd(1, 100), 25)),
+                            [setv('s37_손', 3), cast('s37_손밖'), wait(0.15)],
+                            [setv('s37_손', 2), cast('s37_손안'), wait(0.5), setv('s37_손', 3), cast('s37_손밖'), wait(0.15)]))))
+    # 내리치기
+    strike = [if_(and_(eq(V('게임중'), 1), eq(V('s37_쿨'), 0)),
+                  setv('s37_쿨', 1), wait(0.05), shape('down'),
+                  ifelse(or_(eq(V('s37_손'), 1), eq(V('s37_손'), 2)),
+                         [chg('실패', 1), setv('s37_콤보', 0), cast('s37_아야'), cast('s37_갱신')],
+                         [chg('합계', 1), chg('s37_콤보', 1), if_(gt(V('s37_콤보'), V('s37_최고')), setv('s37_최고', V('s37_콤보'))),
+                          cast('s37_쿵'), cast('s37_갱신')]),
+                  wait(0.1), shape('up'), wait(0.02), setv('s37_쿨', 0))]
+    mal.on(on_key(K_SPACE), *strike)
+    mal.on(on_scene(), shape('up'))
+    score = sub(add(mul(V('합계'), 1.6), mul(V('s37_최고'), 0.3)), mul(V('실패'), 7))
+    mgr.on(on_msg('시간끝'), *m.end_blocks(score))
+    m.on_start(setv('합계', 0), setv('실패', 0), setv('s37_콤보', 0), setv('s37_최고', 0), setv('s37_쿨', 0), setv('s37_손', 0))
+    m.snd('s37_쿵', play('hit'))
+    m.snd('s37_아야', play('bad'))
+    m.snd('s37_손안', play('pop'))
+    m.finish('스페이스로 떡메를 내리쳐 떡을 쳐요! 손이 들리면(!) 곧 떡을\n뒤집으러 들어와요. 손이 빠졌을 때만 치세요. 손을 치면 -7점!',
+             '조작: 스페이스 = 떡메 치기  ·  손이 들어오는 동안은 멈추기')
+    return True

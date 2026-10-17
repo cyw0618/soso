@@ -264,3 +264,171 @@ def g02(P, ctx):
     m.finish('무게 제한 안에서 귤값 합계가 가장 비싸게! 상자를\n골라 트럭에 싣고 출발하세요. (3라운드, 최고 조합과 비교)',
              '조작: 상자 클릭 = 싣기/내리기  ·  "출발!" 버튼')
     return True
+
+
+# ================================================================== 3. 생선 경매 (영국식 경매)
+FISH_BASE = [8, 16, 24, 20]                  # 고등어 갈치 참돔 광어 (★3·중 기준, 만원)
+STAR_F = [0.5, 0.75, 1.0, 1.25, 1.5]
+SIZE_F = [0.8, 1.0, 1.25, 1.5]
+
+
+def _auction_days(seed, n_days=4, n_fish=5):
+    rng = random.Random(seed)
+    days = []
+    for _ in range(n_days):
+        kinds = ['bargain', 'normal', 'normal', 'trap', 'close']
+        rng.shuffle(kinds)
+        fish = []
+        for kd in kinds:
+            sp = rng.randint(0, 3)
+            stars = rng.randint(1, 5)
+            sz = rng.randint(0, 3)
+            val = max(4, int(round(FISH_BASE[sp] * STAR_F[stars - 1] * SIZE_F[sz])))
+            hi = {'bargain': (0.55, 0.72), 'normal': (0.78, 0.9), 'trap': (1.12, 1.3), 'close': (0.92, 1.0)}[kd]
+            a1 = rng.uniform(*hi)
+            a2 = rng.uniform(0.5, a1)
+            if rng.random() < 0.5:
+                a1, a2 = a2, a1
+            inc = max(1, int(round(val * 0.08)))
+            start = max(1, int(round(val * 0.4)))
+            v1, v2 = int(val * a1), int(val * a2)
+            # 상인이 부를 수 있는 가장 높은 값 → 그다음 값으로 사면 이긴다
+            lv = start
+            top = None
+            while lv <= max(v1, v2):
+                top = lv
+                lv += inc
+            win = start if top is None else top + inc
+            fish.append((sp + 1, stars, sz + 1, val, v1, v2, inc, start, max(0, val - win)))
+        days.append(fish)
+    return days
+
+
+@game(3)
+def g03(P, ctx):
+    NF = 5
+    days = _auction_days(3303)
+    m = mg(P, ctx, T, 3, status='이익 0만원', dim=90)
+    flat_ = [f for d in days for f in d]
+    for k, nm in enumerate(('k03_sp', 'k03_st', 'k03_sz', 'k03_val', 'k03_v1', 'k03_v2', 'k03_inc', 'k03_start')):
+        P.list(nm, [f[k] for f in flat_])
+    P.list('k03_ideal', [sum(f[8] for f in d) for d in days])
+    P.list('k03_fname', R.FISH)
+    P.list('k03_szname', ['소', '중', '대', '특대'])
+    vars_(P, 'k03_day', 'k03_i', 'k03_idx', 'k03_price', 'k03_lead', 'k03_last', 'k03_ainext', 'k03_open', 'k03_out',
+          'k03_money', 'k03_profit', 'k03_cd', 'k03_sold', 'k03_bidder', 'k03_gain', 'k03_can1', 'k03_can2')
+    cur = lambda nm: LGET(nm, V('k03_idx'))
+    # 왼쪽: 시세표
+    panel(P, m.sc, '시세판', -170, 4, 128, 188, 'glass', header='royal')
+    m.T('시세제목', '오늘의 시세표', -170, 88, 11, C_WHITE, F_NUM, False, 0, w=120, h=16)
+    m.T('시세본문', '★★★ · 크기 중 기준\n고등어  8만원\n갈치  16만원\n참돔  24만원\n광어  20만원\n\n별 1개마다 ±25%\n크기  소 ×0.8\n대 ×1.25  특대 ×1.5',
+        -170, 4, 10, C_WHITE, F_BODY, True, 0, w=122, h=150)
+    # 가운데: 생선
+    m.T('생선이름', '', 22, 86, 12, C_WHITE, F_NUM, False, 0, w=210, h=18).on(
+        on_msg('k03_new'), write(join(V('k03_i'), '/', NF, '  ', LGET('k03_fname', cur('k03_sp')), ' · 크기 ',
+                                      LGET('k03_szname', cur('k03_sz')))))
+    m.S('얼음판', R.k03_tray(), 22, 30)
+    fish = m.S('생선', [('f%d' % k, R.k03_fish(k)) for k in range(4)], 22, 48)
+    fish.on(on_msg('k03_new'), shape(cur('k03_sp')), fish.pct(mul(LGET('k03_szf', cur('k03_sz')), 100)), xy(300, 48),
+            glide(0.35, 22, 48))
+    fish.on(on_msg('k03_sold'), wait(1.6), glide(0.3, -400, 48))
+    P.list('k03_szf', [0.72, 0.86, 1.0, 1.14])
+    stars = m.S('별', [('s%d' % k, R.k03_stars(k)) for k in range(1, 6)], 22, 8)
+    stars.on(on_msg('k03_new'), shape(cur('k03_st')))
+    # 가격판
+    panel(P, m.sc, '가격판', 22, -44, 214, 60, 'glass')
+    pt = m.T('현재가', '', 2, -34, 17, C_WHITE, F_NUM, False, 0, w=170, h=24)
+    lt_ = m.T('최고입찰', '', 2, -58, 10, C_ACC, F_BODY, True, 0, w=170, h=16)
+    for o in (pt, lt_):
+        o.on(on_msg('k03_new'), write(''))
+    pt.on(on_msg('k03_open'), write(join('시작가 ', V('k03_start_'), '만원')))
+    lt_.on(on_msg('k03_open'), write('경매 시작! 입찰하세요'), text_color(C_ACC))
+    pt.on(on_msg('k03_bid'), write(join('현재가 ', V('k03_price'), '만원')))
+    lt_.on(on_msg('k03_bid'), ifelse(eq(V('k03_lead'), 1), [write('최고 입찰: 나'), text_color('#7CFFB0')],
+                                     [write(join('최고 입찰: ', V('k03_lead') if False else sub(V('k03_lead'), 1), '번 후보')),
+                                      text_color(C_RED)]))
+    cd = m.S('카운트', [('a', K.big_text('하나!', 16, 'white')), ('b', K.big_text('둘!', 16, 'white')),
+                       ('c', K.big_text('낙찰!', 18, 'red'))], 98, -44, visible=False)
+    cd.on(on_msg('k03_cd'), shape(V('k03_cd')), cd.pct(130), show(), rep(5, cd.grow_pct(-6), wait(0.016)))
+    cd.on(on_msg('k03_bid'), hide())
+    cd.on(on_msg('k03_new'), hide())
+    # 오른쪽: 경쟁 상인 (상대 후보)
+    for n, yy in (('1', 50), ('2', -30)):
+        m.rival('상인%s' % n, n, 196, yy, scale=0.36)
+        m.rival_badge('상인표%s' % n, '%s번 후보' % n, 196, yy - 34, 64, 'royal' if n == '1' else 'red')
+        bub = m.T('상인말%s' % n, '', 196, yy + 34, 11, C_WHITE, F_NUM, False, 0, w=60, h=16, visible=False, bg='#B02238')
+        bub.on(on_msg('k03_bid'), ifelse(eq(V('k03_lead'), int(n) + 1),
+                                         [write(join(V('k03_price'), '만!')), show()], [hide()]))
+        bub.on(on_msg('k03_new'), hide())
+    # 버튼
+    bid = [if_(and_(and_(eq(V('게임중'), 1), eq(V('k03_open'), 1)), and_(eq(V('k03_out'), 0), ne(V('k03_lead'), 1))),
+               ifelse(gt(add(V('k03_price'), cur('k03_inc')), V('k03_money')), [cast('k03_poor')],
+                      [chg('k03_price', cur('k03_inc')), setv('k03_lead', 1), setv('k03_last', timer()), setv('k03_cd', 0),
+                       setv('k03_ainext', add(timer(), div(rnd(50, 120), 100))), cast('k03_bid')]))]
+    bb = button(P, m.sc, '입찰버튼', '입찰!', -26, -100, 108, 28, 'royal', actions=bid)
+    bt = m.T('입찰액', '', -26, -118, 8, C_DIM, F_BODY, True, 0, w=110, h=12)
+    bt.on(on_msg('k03_new'), write(join('한 번에 +', cur('k03_inc'), '만원')))
+    fold = [if_(and_(eq(V('k03_open'), 1), ne(V('k03_lead'), 1)), setv('k03_out', 1), cast('k03_fold'))]
+    button(P, m.sc, '포기버튼', '포기', 80, -100, 76, 28, 'red', actions=fold)
+    poor = m.T('돈부족', '돈이 모자라요!', -26, -76, 10, C_RED, F_NUM, False, 0, w=110, h=14, visible=False)
+    poor.on(on_msg('k03_poor'), show(), wait(0.8), hide())
+    # 결과 공개
+    rv = m.T('공개', '', 22, 48, 12, C_WHITE, F_NUM, False, 0, w=230, h=40, visible=False, bg=C_BOX)
+    rv.on(on_msg('k03_sold'), wait(0.3),
+          ifelse(eq(V('k03_lead'), 1),
+                 [ifelse(ge(V('k03_gain'), 0), [text_color('#7CFFB0')], [text_color(C_RED)]),
+                  write(join('진짜 시세 ', cur('k03_val'), '만원!\n', V('k03_price'), '만원에 샀으니 ',
+                             V('k03_gain'), '만원 ', ('이득')))],
+                 [text_color(C_WHITE), write(join(sub(V('k03_lead'), 1), '번 후보가 ', V('k03_price'), '만원에 낙찰\n진짜 시세는 ',
+                                                  cur('k03_val'), '만원'))]),
+          to_front(), show(), wait(1.6), hide())
+    # 담당
+    ai_bid = [setv('k03_can1', 0), setv('k03_can2', 0),
+              if_(and_(ne(V('k03_lead'), 2), le(add(V('k03_price'), cur('k03_inc')), cur('k03_v1'))), setv('k03_can1', 1)),
+              if_(and_(ne(V('k03_lead'), 3), le(add(V('k03_price'), cur('k03_inc')), cur('k03_v2'))), setv('k03_can2', 1)),
+              setv('k03_bidder', 0),
+              ifelse(and_(eq(V('k03_can1'), 1), eq(V('k03_can2'), 1)), [setv('k03_bidder', add(1, rnd(1, 2)))],
+                     [if_(eq(V('k03_can1'), 1), setv('k03_bidder', 2)), if_(eq(V('k03_can2'), 1), setv('k03_bidder', 3))]),
+              ifelse(gt(V('k03_bidder'), 0),
+                     [chg('k03_price', cur('k03_inc')), setv('k03_lead', V('k03_bidder')), setv('k03_last', timer()),
+                      setv('k03_cd', 0), cast('k03_bid'),
+                      ifelse(eq(V('k03_out'), 1), [setv('k03_ainext', add(timer(), 0.3))],
+                             [setv('k03_ainext', add(timer(), div(rnd(60, 140), 100)))])],
+                     [setv('k03_ainext', add(timer(), 0.3))])]
+    mgr = hidden(m, '경매담당')
+    mgr.on(on_msg('게임시작'), reset_timer(), start_timer(), setv('k03_day', rnd(1, len(days))), setv('k03_i', 1),
+           until(or_(gt(V('k03_i'), NF), eq(V('게임중'), 0)),
+                 setv('k03_idx', add(mul(sub(V('k03_day'), 1), NF), V('k03_i'))),
+                 setv('k03_out', 0), setv('k03_open', 0), setv('k03_lead', 0), setv('k03_cd', 0),
+                 setv('k03_price', sub(cur('k03_start'), cur('k03_inc'))), setv('k03_start_', cur('k03_start')),
+                 cast('k03_new'), wait(1.6),
+                 setv('k03_open', 1), setv('k03_last', timer()), setv('k03_ainext', add(timer(), 1.2)), cast('k03_open'),
+                 until(or_(eq(V('k03_open'), 0), eq(V('게임중'), 0)),
+                       if_(ge(timer(), V('k03_ainext')), *ai_bid),
+                       setv('_mk', sub(timer(), V('k03_last'))),
+                       if_(eq(V('k03_out'), 1), if_(eq(V('k03_lead'), 0), setv('k03_open', 0))),
+                       if_(gt(V('k03_lead'), 0),
+                           ifelse(ge(V('_mk'), 3.0), [setv('k03_open', 0)],
+                                  [if_(and_(ge(V('_mk'), 2.0), lt(V('k03_cd'), 2)), setv('k03_cd', 2), cast('k03_cd')),
+                                   if_(and_(ge(V('_mk'), 1.0), lt(V('k03_cd'), 1)), setv('k03_cd', 1), cast('k03_cd'))]))),
+                 if_(eq(V('게임중'), 1),
+                     setv('k03_cd', 3), cast('k03_cd'),
+                     if_(eq(V('k03_lead'), 1), chg('k03_money', mul(V('k03_price'), -1)),
+                         setv('k03_gain', sub(cur('k03_val'), V('k03_price'))), chg('k03_profit', V('k03_gain'))),
+                     setv('미니표시', join('이익 ', V('k03_profit'), '만원')),
+                     cast('k03_sold'), wait(2.1)),
+                 chg('k03_i', 1)),
+           *m.end_blocks(mul(div(V('k03_profit'), LGET('k03_ideal', V('k03_day'))), 100)))
+    money = m.T('내돈', '', -170, -104, 11, C_WHITE, F_NUM, False, 0, w=128, h=16, bg=C_BOX)
+    money.on(on_scene(), *G.live_write(money, [setv('_mt', join('내 돈 ', V('k03_money'), '만원'))], '_mt', 0.2))
+    vars_(P, 'k03_start_')
+    m.on_start(setv('k03_money', 100), setv('k03_profit', 0), setv('k03_open', 0), setv('k03_lead', 0), setv('k03_idx', 1),
+               setv('k03_i', 1))
+    m.snd('k03_bid', ifelse(eq(V('k03_lead'), 1), [play('stamp')], [play('tick')]))
+    m.snd('k03_cd', ifelse(eq(V('k03_cd'), 3), [play('hit')], [play('beep')]))
+    m.snd('k03_sold', wait(0.3), ifelse(eq(V('k03_lead'), 1), [ifelse(ge(V('k03_gain'), 0), [play('cash')], [play('bad')])],
+                                        [play('pop')]))
+    m.snd('k03_poor', play('bad'))
+    m.finish('자갈치 새벽 경매! 별(신선도)과 크기로 진짜 값을 짐작해\n그보다 싸게 사면 이익, 비싸게 사면 손해예요. (5마리)',
+             '조작: "입찰!" = 값 올려 부르기 · "포기" = 이번 생선 넘기기\n아무도 안 부르고 3초 지나면 낙찰!')
+    return True

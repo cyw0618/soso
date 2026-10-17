@@ -346,3 +346,126 @@ def g03(P, ctx):
     m.finish('사장님이 속으로 정한 최저가에 가깝게 살수록 점수 UP!\n너무 깎으면 화내요 (인내심 0이면 안 팔아요).',
              '조작: −/+ 로 값을 정하고 "이 값에 주세요!"  ·  사장님 표정이 힌트예요')
     return True
+
+
+# ================================================================== 4. 거스름돈 계산 (계산)
+@game(4)
+def g04(P, ctx):
+    NC, TL = 7, 80
+    m = mg(P, ctx, T, 4, time_limit=TL, status='손님 1/%d' % NC, dim=80)
+    goods = [('상추', 1800), ('두부', 2300), ('대파', 2700), ('우유', 2600), ('감자', 3200), ('사과', 4500), ('계란', 6900),
+             ('복숭아', 8400), ('꿀', 12800), ('쌀', 23500)]
+    VAL = [10000, 5000, 1000, 500, 100]
+    P.list('s04_품목', [g[0] for g in goods])
+    P.list('s04_가격', [g[1] for g in goods])
+    P.list('s04_권종', VAL)
+    P.list('s04_개수', [0] * 5)
+    P.list('s04_지폐', [5000, 10000, 20000, 50000])
+    vars_(P, 's04_손님', 's04_합계', 's04_받은', 's04_거스름', 's04_준', 's04_장수', 's04_최소', 's04_줄', 's04_말', 's04_상태',
+          's04_기록', 's04_i', 's04_n', 's04_w', 's04_점')
+    ok = and_(eq(V('입력가능'), 1), eq(V('게임중'), 1))
+    # 손님
+    cu = m.S('손님', [('%d' % (k + 1), AA.s04_customer(k)) for k in range(4)], -178, -42)
+    cu.on(on_msg('s04_새손님'), shape(add(mod(sub(V('s04_손님'), 1), 4), 1)), lx(-300), glide(0.25, -178, -42))
+    cu.on(on_msg('s04_틀림'), rep(3, mvx(4), wait(0.03), mvx(-4), wait(0.03)))
+    cu.on(on_msg('s04_정답'), rep(2, mvy(6), wait(0.05), mvy(-6), wait(0.05)))
+    m.S('손님말칸', AA.s03_bubble(), -150, 66)
+    say_ = m.T('손님말', '', -150, 70, 10, '#1A2050', F_BODY, True, 0, w=204, h=34)
+    for msg in ('s04_새손님', 's04_틀림', 's04_정답'):
+        say_.on(on_msg(msg), write(V('s04_말')))
+    # 영수증
+    RX, RY = -42, 30
+    m.S('영수증', AA.s04_receipt(), RX, RY)
+    rc = m.T('영수증글', '', RX, RY + 22, 9, '#2A2A36', F_BODY, True, 0, w=126, h=50)
+    rc.on(on_msg('s04_새손님'), write(V('s04_줄')))
+    tot = m.T('영수증합계', '', RX, RY - 16, 9, '#2A2A36', F_BODY, True, 0, w=126, h=14)
+    tot.on(on_msg('s04_새손님'), write(join('합계  ', _wonv(V('s04_합계')), '원')))
+    paid = m.T('받은돈', '', RX, RY - 34, 10, '#1E7A46', F_BODY, True, 0, w=126, h=14)
+    paid.on(on_msg('s04_새손님'), write(join('받은 돈  ', _wonv(V('s04_받은')), '원')))
+    chg_t = m.T('거스름글', '', RX, RY - 52, 10, '#C0283C', F_BODY, True, 0, w=126, h=14)
+    chg_t.on(on_msg('s04_새손님'), ifelse(le(V('s04_손님'), 2), [*_won(V('s04_거스름'), 's04_w'), write(join('거스름돈  ', V('s04_w'), '원'))],
+                                       [write('거스름돈  ?')]))
+    # 거스름돈 쟁반
+    TX, TY = 134, 34
+    panel(P, m.sc, '쟁반', TX, TY, 204, 112, 'glass')
+    m.T('쟁반글', '내가 줄 거스름돈', TX, TY + 42, 9, C_DIM, F_BODY, True, 0, w=150, h=14)
+    tx = [TX - 76, TX - 38, TX, TX + 40, TX + 74]
+    for j in range(5):
+        ic = m.S('쟁반돈%d' % j, AA.s04_money(j), tx[j], TY + 16, scale=0.56 if j < 3 else 0.9)
+        ic.on(on_msg('s04_갱신'), ifelse(eq(LGET('s04_개수', j + 1), 0), [fx('brightness', -55)], [fx('brightness', 0)]))
+        cnt = m.T('쟁반수%d' % j, '×0', tx[j], TY - 4, 10, C_WHITE, F_NUM, False, 0, w=34, h=14)
+        cnt.on(on_msg('s04_갱신'), write(join('×', LGET('s04_개수', j + 1))))
+    sm = m.T('쟁반합', '', TX, TY - 30, 13, C_WHITE, F_NUM, False, 0, w=190, h=20)
+    sm.on(on_msg('s04_갱신'), *_won(V('s04_준'), 's04_w'), write(join('= ', V('s04_w'), '원')))
+    # 돈 버튼
+    BY = -76
+    bx = [-196, -122, -48, 18, 66]
+    fly = m.S('나는돈', [('%d' % (j + 1), AA.s04_money(j)) for j in range(5)], 0, 0, visible=False)
+    fly.on(on_msg('s04_날기'), shape(V('_mv')), xy(V('_mx'), BY), to_front(), show(),
+           glide(0.12, add(TX - 76, mul(sub(V('_mv'), 1), 37.5)), TY + 16), hide())
+    for j in range(5):
+        b = m.S('돈%d' % j, AA.s04_money(j), bx[j], BY, scale=1.1 if j < 3 else 1.25)
+        G.hover_scripts(b)
+        b.on(on_click(), if_(ok, chg('s04_장수', 1), chg('s04_준', VAL[j]), lst_set('s04_개수', j + 1, add(LGET('s04_개수', j + 1), 1)),
+                             setv('s04_기록', join(V('s04_기록'), j + 1)), setv('_mv', j + 1), setv('_mx', bx[j]),
+                             cast('s04_갱신'), cast('s04_날기')))
+        b.on(on_click(), b.pct(90), wait(0.06), b.pct(100))
+        m.T('돈글%d' % j, ['만 원', '오천 원', '천 원', '500원', '100원'][j], bx[j], BY - 26, 8, C_DIM, F_BODY, True, 0, w=60, h=12)
+    last = char_at(V('s04_기록'), slen(V('s04_기록')))
+    undo = [if_(and_(ok, gt(slen(V('s04_기록')), 0)),
+                setv('s04_i', last), lst_set('s04_개수', V('s04_i'), sub(LGET('s04_개수', V('s04_i')), 1)),
+                chg('s04_준', mul(-1, LGET('s04_권종', V('s04_i')))), chg('s04_장수', -1),
+                ifelse(le(slen(V('s04_기록')), 1), [setv('s04_기록', '')],
+                       [setv('s04_기록', substr(V('s04_기록'), 1, sub(slen(V('s04_기록')), 1)))]),
+                cast('s04_갱신'))]
+    button(P, m.sc, '빼기버튼', '하나 빼기', 170, -58, 96, 24, 'steel', actions=undo)
+    give = [if_(and_(ok, gt(V('s04_장수'), 0)),
+                ifelse(eq(V('s04_준'), V('s04_거스름')),
+                       [setv('입력가능', 0), setv('s04_상태', 1)],
+                       [chg('틀림', 1), chg('합계', -3),
+                        ifelse(lt(V('s04_준'), V('s04_거스름')), [setv('s04_말', '어? 거스름돈이 모자라요!')],
+                               [setv('s04_말', '어머, 너무 많이 주셨어요!')]),
+                        setv('_mv', 2), cast('s04_틀림'), cast('s04_판정')]))]
+    button(P, m.sc, '건네기버튼', '건네기', 170, -90, 96, 28, 'green', icon='coin', actions=give)
+    _pop(m, '판정글', [('ok', K.big_text('정확해요!', 24, 'green')), ('no', K.big_text('다시 세어 봐요', 20, 'red')),
+                     ('best', K.big_text('최소 장수! +4', 22, 'royal'))], 's04_판정', 134, -2, hold=0.5)
+    # 손님 진행
+    greedy = [setv('s04_w', V('s04_거스름')), setv('s04_최소', 0)]
+    for v in VAL:
+        greedy += [chg('s04_최소', floor(div(V('s04_w'), v))), setv('s04_w', mod(V('s04_w'), v))]
+    order = [setv('s04_합계', 0), setv('s04_줄', ''),
+             ifelse(le(V('s04_손님'), 2), [setv('s04_n', 1)], [setv('s04_n', rnd(2, 3))]),
+             rep(V('s04_n'), setv('s04_i', rnd(1, len(goods))), chg('s04_합계', LGET('s04_가격', V('s04_i'))),
+                 setv('s04_줄', join(V('s04_줄'), LGET('s04_품목', V('s04_i')), '  ', _wonv(LGET('s04_가격', V('s04_i'))), '원\n'))),
+             setv('s04_i', 1),
+             rep(3, if_(le(LGET('s04_지폐', V('s04_i')), V('s04_합계')), chg('s04_i', 1))),
+             if_(and_(lt(V('s04_i'), 4), le(rnd(1, 100), 40)), chg('s04_i', 1)),
+             setv('s04_받은', LGET('s04_지폐', V('s04_i'))), setv('s04_거스름', sub(V('s04_받은'), V('s04_합계'))),
+             *greedy,
+             *[lst_set('s04_개수', j, 0) for j in range(1, 6)], setv('s04_준', 0), setv('s04_장수', 0), setv('s04_기록', ''),
+             setv('s04_말', join(_wonv(V('s04_받은')), '원 드릴게요.\n거스름돈 주세요~')), setv('s04_상태', 0)]
+    mgr = hidden(m, '계산담당')
+    mgr.on(on_msg('게임시작'), setv('s04_손님', 1),
+           until(or_(gt(V('s04_손님'), NC), eq(V('게임중'), 0)),
+                 *order, setv('미니표시', join('손님 ', V('s04_손님'), '/', NC, ' · ', V('합계'), '점')),
+                 cast('s04_새손님'), cast('s04_갱신'), setv('입력가능', 1),
+                 wait_until(or_(eq(V('s04_상태'), 1), eq(V('게임중'), 0))),
+                 if_(eq(V('게임중'), 1),
+                     chg('맞춤', 1), setv('s04_점', 10), setv('_mv', 1),
+                     if_(le(V('s04_장수'), V('s04_최소')), chg('s04_점', 4), setv('_mv', 3)),
+                     chg('합계', V('s04_점')), setv('s04_말', '딱 맞네요! 고마워요~'),
+                     setv('미니표시', join('손님 ', V('s04_손님'), '/', NC, ' · ', V('합계'), '점')),
+                     cast('s04_정답'), cast('s04_판정'), wait(1.2)),
+                 chg('s04_손님', 1)),
+           *m.end_blocks(add(V('합계'), div(V('남은시간'), 5))))
+    mgr.on(on_msg('시간끝'), *m.end_blocks(V('합계')))
+    m.on_start(setv('합계', 0), setv('맞춤', 0), setv('틀림', 0), setv('입력가능', 0), setv('s04_손님', 1), setv('s04_합계', 0),
+               setv('s04_받은', 0), setv('s04_거스름', 0), setv('s04_준', 0), setv('s04_장수', 0), setv('s04_기록', ''),
+               setv('s04_줄', ''), setv('s04_말', '어서 오세요~ 세종 로컬푸드!'),
+               *[lst_set('s04_개수', j, 0) for j in range(1, 6)], cast('s04_새손님'), cast('s04_갱신'))
+    m.snd('s04_정답', play('cash'))
+    m.snd('s04_틀림', play('bad'))
+    m.snd('s04_날기', ifelse(ge(V('_mv'), 4), [play('coin')], [play('tick')]))
+    m.finish('받은 돈 − 물건값 = 거스름돈! 지폐·동전을 눌러\n딱 맞게 건네세요. 적은 장수로 주면 보너스!',
+             '조작: 돈 클릭 = 쟁반에 올리기 · "하나 빼기" · "건네기"  (손님 7명)')
+    return True

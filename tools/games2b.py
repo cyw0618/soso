@@ -184,3 +184,117 @@ def g12(P, ctx):
     m.finish('스페이스를 누르는 동안 힘이 모이고, 떼면 점프!\n노란 화살표를 보고 움직이는 연잎에 맞춰 뛰세요.',
              '조작: 스페이스 누르기 = 힘 모으기 · 떼기 = 점프  ·  물에 빠지면 그 연잎에서 다시')
     return True
+
+
+# ================================================================== 13. 청사 엘리베이터 (운행 관리)
+@game(13)
+def g13(P, ctx):
+    TL, CAP, PAT = 60, 4, 20
+    FL = AB.E13_FLOORS
+    CX = 10                                   # 승강기 x
+    m = mg(P, ctx, T, 13, time_limit=TL, status='배달 0', dim=70)
+    P.list('s13_py', [y + 20 for y in FL])        # 사람 중심 y
+    P.list('s13_cyl', [y + 19 for y in FL])       # 승강기 중심 y
+    P.list('s13_cnt', [0] * 5)                    # 층별 기다리는 사람
+    P.list('s13_qn', [0] * 5)                     # 줄 번호 매기기용
+    P.list('s13_ride', [0] * 5)                   # 안에 탄 사람의 목적층별 수
+    vars_(P, 's13_cy', 's13_at', 's13_tg', 's13_need', 's13_busy', 's13_load', 's13_done', 's13_angry', 's13_iv',
+          's13_last', 's13_dt', 's13_nf', 's13_nd')
+    m.S('s13건물', AB.s13_building(), -15, -8)
+    car = m.S('s13승강기', [('closed', AB.s13_car('closed')), ('open', AB.s13_car('open'))], CX, FL[0] + 19)
+    # 사람 (원본 = 생성 담당, 복제본 = 사람)
+    pics = [('p%d' % d, AB.s13_person(d)) for d in range(1, 6)] + [('a%d' % d, AB.s13_person(d, True)) for d in range(1, 6)]
+    pp = m.S('s13사람', pics, -300, -300, visible=False)
+    for v in ('s13_f', 's13_d', 's13_s', 's13_q', 's13_b', 's13_me'):
+        pp.local(v, 0)
+    f_, d_, s_, q_ = V('s13_f'), V('s13_d'), V('s13_s'), V('s13_q')
+    requeue = [*[lst_set('s13_qn', k, 0) for k in range(1, 6)], cast('s13줄번호')]
+    pp.on(on_msg('게임시작'), if_(eq(V('s13_me'), 0),
+          setv('s13_iv', 2.6), wait(0.6),
+          until(eq(V('게임중'), 0),
+                ifelse(le(rnd(1, 100), 45), [setv('s13_f', 1), setv('s13_d', rnd(2, 5))],
+                       [setv('s13_f', rnd(2, 5)),
+                        ifelse(le(rnd(1, 100), 60), [setv('s13_d', 1)],
+                               [setv('s13_d', rnd(2, 5)), until(ne(V('s13_d'), V('s13_f')), setv('s13_d', rnd(2, 5)))])]),
+                if_(lt(LGET('s13_cnt', f_), 4), lst_set('s13_cnt', f_, add(LGET('s13_cnt', f_), 1)), clone_self(), cast('s13등장')),
+                wait(V('s13_iv')), if_(gt(V('s13_iv'), 1.7), chg('s13_iv', -0.06)))))
+    carx = lambda: add(CX - 12, mul(sub(q_, 1), 8))
+    pp.on(on_clone(), setv('s13_me', 1), setv('s13_s', 1), setv('s13_q', 9), setv('s13_b', timer()), shape(d_),
+          xy(-175, LGET('s13_py', f_)), show(), *requeue,
+          until(eq(s_, 9),
+                if_(eq(s_, 1),
+                    lx(add(obj_x(), mul(sub(sub(-30, mul(sub(q_, 1), 19)), obj_x()), 0.18))),
+                    if_(gt(sub(timer(), V('s13_b')), PAT * 0.6), shape(add(d_, 5))),
+                    if_(gt(sub(timer(), V('s13_b')), PAT),
+                        setv('s13_s', 4), lst_set('s13_cnt', f_, sub(LGET('s13_cnt', f_), 1)), chg('s13_angry', 1),
+                        cast('s13화남'), *requeue)),
+                if_(eq(s_, 2), xy(carx(), add(V('s13_cy'), 1))),
+                if_(eq(s_, 3), mvx(3.2), if_(gt(obj_x(), 128), setv('s13_s', 9))),
+                if_(eq(s_, 4), mvx(-3.2), if_(lt(obj_x(), -170), setv('s13_s', 9))),
+                if_(eq(V('게임중'), 0), setv('s13_s', 9))),
+          del_clone())
+    pp.on(on_msg('s13줄번호'), if_(and_(eq(V('s13_me'), 1), eq(s_, 1)),
+                                lst_set('s13_qn', f_, add(LGET('s13_qn', f_), 1)), setv('s13_q', LGET('s13_qn', f_))))
+    pp.on(on_msg('s13하차'), if_(and_(eq(V('s13_me'), 1), and_(eq(s_, 2), eq(d_, V('s13_at')))),
+                              setv('s13_s', 3), lst_set('s13_ride', d_, sub(LGET('s13_ride', d_), 1)), chg('s13_done', 1),
+                              ly(LGET('s13_py', d_)), cast('s13배달')))
+    pp.on(on_msg('s13재배치'), if_(and_(eq(V('s13_me'), 1), eq(s_, 2)), chg('s13_load', 1), setv('s13_q', V('s13_load'))))
+    pp.on(on_msg('s13탑승'), if_(and_(and_(eq(V('s13_me'), 1), eq(s_, 1)), and_(eq(f_, V('s13_at')), lt(V('s13_load'), CAP))),
+                              chg('s13_load', 1), setv('s13_q', V('s13_load')), setv('s13_s', 2), shape(d_),
+                              lst_set('s13_cnt', f_, sub(LGET('s13_cnt', f_), 1)),
+                              lst_set('s13_ride', d_, add(LGET('s13_ride', d_), 1)), cast('s13탐')))
+    # 승강기 운행 (시간 기준)
+    ty = LGET('s13_cyl', V('s13_tg'))
+    car.local('s13_dir', 0)
+    status = setv('미니표시', join('배달 ', V('s13_done'), ' · 화남 ', V('s13_angry')))
+    car.on(on_msg('게임시작'), setv('s13_last', timer()),
+           until(eq(V('게임중'), 0),
+                 setv('s13_dt', sub(timer(), V('s13_last'))), setv('s13_last', timer()),
+                 if_(gt(V('s13_dt'), 0.1), setv('s13_dt', 0.1)),
+                 if_(eq(V('s13_busy'), 0),
+                     ifelse(lt(V('s13_cy'), ty), [chg('s13_cy', mul(100, V('s13_dt'))), if_(gt(V('s13_cy'), ty), setv('s13_cy', ty))],
+                            [if_(gt(V('s13_cy'), ty), chg('s13_cy', mul(-100, V('s13_dt'))),
+                                 if_(lt(V('s13_cy'), ty), setv('s13_cy', ty)))]),
+                     ly(V('s13_cy')),
+                     setv('s13_at', add(rounded(div(sub(V('s13_cy'), FL[0] + 19), 42)), 1)),
+                     if_(and_(eq(V('s13_cy'), ty), eq(V('s13_need'), 1)),
+                         setv('s13_need', 0), setv('s13_busy', 1), setv('s13_at', V('s13_tg')),
+                         shape('open'), cast('s13열림'), cast('s13하차'), wait(0.35),
+                         setv('s13_load', 0), cast('s13재배치'), wait(0.08), cast('s13탑승'), wait(0.45), *requeue,
+                         status, wait(0.1), shape('closed'), setv('s13_busy', 0)))))
+    # 오른쪽 조작판
+    panel(P, m.sc, 's13판', 196, -12, 64, 228, 'glass')
+    disp = m.T('s13층표시', ' ', 196, 88, 10, '#FFD27A', F_NUM, False, 0, w=60, h=14)
+    disp.on(on_scene(), *G.live_write(disp, setv('_mv', join(V('s13_at'), '층 · ', V('s13_load'), '/', CAP)), '_mv', 0.1))
+    for k in range(1, 6):
+        b = m.S('s13버튼%d' % k, [(st, AB.s13_button(k, st)) for st in ('off', 'ride', 'go')], 196, FL[k - 1] + 19)
+        b.local('s13_v', 0)
+        b.local('s13_w', 0)
+        b.on(on_click(), if_(eq(V('게임중'), 1), setv('s13_tg', k), setv('s13_need', 1), cast('s13누름')),
+             b.pct(88), wait(0.06), b.pct(100))
+        b.on(on_msg('게임시작'), setv('s13_w', 0),
+             until(eq(V('게임중'), 0),
+                   setv('s13_v', 1), if_(gt(LGET('s13_ride', k), 0), setv('s13_v', 2)),
+                   if_(and_(eq(V('s13_tg'), k), eq(V('s13_need'), 1)), setv('s13_v', 3)),
+                   if_(ne(V('s13_v'), V('s13_w')), setv('s13_w', V('s13_v')), shape(V('s13_v'))), wait(0.06)))
+        lamp = m.S('s13호출%d' % k, [('off', AB.s13_lamp(0)), ('on', AB.s13_lamp(1))], -124, FL[k - 1] + 12)
+        lamp.on(on_msg('게임시작'), until(eq(V('게임중'), 0), ifelse(gt(LGET('s13_cnt', k), 0), [shape('on')], [shape('off')]),
+                                        wait(0.15)))
+    m.T('s13판글', '층 버튼', 196, -126, 7, C_DIM, F_BODY, True, 0, w=60, h=10)
+    tip = m.T('s13도움', '말풍선 숫자 = 가고 싶은 층', -60, -122, 8, C_DIM, F_BODY, True, 0, w=200, h=12)
+    plus = m.T('s13득점', '+6', CX + 30, 0, 12, '#FFD27A', F_NUM, False, 0, w=40, h=16, visible=False)
+    plus.on(on_msg('s13배달'), ly(add(V('s13_cy'), 26)), show(), rep(10, mvy(1.5), wait(0.03)), hide())
+    mgr = hidden(m, 's13담당')
+    mgr.on(on_msg('s13화남'), status)
+    mgr.on(on_msg('시간끝'), *m.end_blocks(sub(mul(V('s13_done'), 6), mul(V('s13_angry'), 2))))
+    m.on_start(setv('s13_cy', FL[0] + 19), setv('s13_at', 1), setv('s13_tg', 1), setv('s13_need', 0), setv('s13_busy', 0),
+               setv('s13_load', 0), setv('s13_done', 0), setv('s13_angry', 0),
+               *[lst_set(nm, k, 0) for nm in ('s13_cnt', 's13_qn', 's13_ride') for k in range(1, 6)])
+    m.snd('s13누름', play('click'))
+    m.snd('s13열림', play('beep'))
+    m.snd('s13배달', play('coin'))
+    m.snd('s13화남', play('bad'))
+    m.snd('s13등장', play('tick'))
+    m.finish('공무원 머리 위 숫자가 가고 싶은 층! 층 버튼을 눌러\n승강기를 보내 태우고 내려 주세요. (최대 4명)',
+             '조작: 오른쪽 층 버튼 클릭  ·  주황 버튼 = 안에서 누른 층  ·  오래 기다리면 화나서 가요')
+    return True

@@ -269,3 +269,82 @@ def k13_marker():
         W, H = im.size
         d.polygon([(0, H / 2), (W * 0.55, 0), (W, 0), (W, H), (W * 0.55, H)], fill=(255, 220, 90, 255), outline=(60, 40, 0, 255))
     return art('k13_marker', 16, 10, f)
+
+
+# ================================================================== 14. 땅따먹기 선긋기
+ME_COL = (70, 130, 255)
+AI_COL = (255, 80, 100)
+
+
+def k14_edge(vert, who):
+    """who 0: 아직 안 그은 선(점선, 넓은 클릭 영역), 1: 내 선, 2: 응원단장 선."""
+    w, h = (14, 42) if vert else (42, 14)
+    def f(d, im, s):
+        W, H = im.size
+        d.rectangle((0, 0, W, H), fill=(255, 255, 255, 4))
+        if who == 0:
+            n = 5
+            for i in range(n):
+                if vert:
+                    y0 = H * (i + 0.25) / n
+                    d.rounded_rectangle((W / 2 - 1.3 * s, y0, W / 2 + 1.3 * s, y0 + H * 0.5 / n), 1 * s, fill=(200, 210, 240, 120))
+                else:
+                    x0 = W * (i + 0.25) / n
+                    d.rounded_rectangle((x0, H / 2 - 1.3 * s, x0 + W * 0.5 / n, H / 2 + 1.3 * s), 1 * s, fill=(200, 210, 240, 120))
+        else:
+            col = ME_COL if who == 1 else AI_COL
+            if vert:
+                box = (W / 2 - 3 * s, 1 * s, W / 2 + 3 * s, H - 1 * s)
+            else:
+                box = (1 * s, H / 2 - 3 * s, W - 1 * s, H / 2 + 3 * s)
+            d.rounded_rectangle(box, 3 * s, fill=col + (255,), outline=(255, 255, 255, 230), width=int(1 * s))
+    return art('k14_e%d%d' % (vert, who), w, h, f)
+
+
+def k14_box(who):
+    def f(d, im, s):
+        W, H = im.size
+        if who == 0:
+            d.rectangle((0, 0, W, H), fill=(255, 255, 255, 1))
+            return
+        col = ME_COL if who == 1 else AI_COL
+        d.rounded_rectangle((2 * s, 2 * s, W - 2 * s, H - 2 * s), 5 * s, fill=col + (150,))
+        d.text((W / 2, H / 2 + 1 * s), '나' if who == 1 else '응', font=font('jalnan', int(15 * s)), fill=(255, 255, 255, 255),
+               anchor='mm')
+    return art('k14_box%d' % who, 38, 38, f)
+
+
+def k14_dots(n=5, pitch=46):
+    size = pitch * (n - 1) + 14
+    def f(d, im, s):
+        for r in range(n):
+            for c in range(n):
+                x, y = (7 + c * pitch) * s, (7 + r * pitch) * s
+                d.ellipse((x - 5 * s, y - 5 * s, x + 5 * s, y + 5 * s), fill=(10, 14, 30, 255))
+                d.ellipse((x - 4 * s, y - 4 * s, x + 4 * s, y + 4 * s), fill=(250, 250, 255, 255))
+    return art('k14_dots', size, size, f)
+
+
+def k14_cheer():
+    """응원단장 (머리띠·메가폰)."""
+    def f(d, im, s):
+        W, H = im.size
+        cx = W * 0.42
+        # 몸 (응원단복)
+        d.rounded_rectangle((cx - 20 * s, 44 * s, cx + 20 * s, H), 10 * s, fill=(20, 40, 130, 255), outline=(8, 12, 40, 255), width=int(1.2 * s))
+        d.polygon([(cx - 6 * s, 44 * s), (cx + 6 * s, 44 * s), (cx, 56 * s)], fill=(255, 255, 255, 255))
+        d.rectangle((cx - 20 * s, 62 * s, cx + 20 * s, 66 * s), fill=(255, 210, 60, 255))
+        # 얼굴
+        d.ellipse((cx - 16 * s, 12 * s, cx + 16 * s, 46 * s), fill=(255, 216, 186, 255), outline=(60, 30, 20, 255), width=int(1.2 * s))
+        d.chord((cx - 17 * s, 9 * s, cx + 17 * s, 36 * s), 180, 360, fill=(30, 24, 30, 255))
+        d.rectangle((cx - 17 * s, 20 * s, cx + 17 * s, 25 * s), fill=(230, 40, 60, 255))
+        d.polygon([(cx + 15 * s, 21 * s), (cx + 26 * s, 16 * s), (cx + 24 * s, 26 * s)], fill=(230, 40, 60, 255))
+        for ex in (-6, 6):
+            d.line([((cx + ex - 3) * 1, 31 * s), (cx + ex * s + 3 * s, 31 * s)], fill=(0, 0, 0, 0))
+            d.arc((cx + ex * s - 3 * s, 29 * s, cx + ex * s + 3 * s, 34 * s), 180, 360, fill=(40, 20, 20, 255), width=int(1.4 * s))
+        d.ellipse((cx - 5 * s, 36 * s, cx + 5 * s, 43 * s), fill=(160, 30, 40, 255))
+        # 메가폰
+        d.polygon([(cx + 18 * s, 50 * s), (W - 2 * s, 36 * s), (W - 2 * s, 66 * s), (cx + 18 * s, 58 * s)], fill=(255, 255, 255, 255),
+                  outline=(30, 30, 60, 255))
+        d.rectangle((cx + 14 * s, 49 * s, cx + 19 * s, 59 * s), fill=(230, 40, 60, 255))
+    return art('k14_cheer', 64, 76, f)

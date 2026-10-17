@@ -423,3 +423,173 @@ def flow_board(n=5, cs=38):
 
 def blank(w, h, name='k2x_blank'):
     return art('%s_%d_%d' % (name, w, h), w, h, lambda d, im, s: None)
+
+
+# ================================================================== 26 관광객 통역
+FLAGS = ['일본', '중국', '미국', '프랑스', '스페인', '독일', '이탈리아', '베트남', '태국', '인도', '러시아', '브라질']
+
+
+def _star(d, cx, cy, r, col, rot=-90):
+    pts = []
+    for i in range(10):
+        a = math.radians(rot + i * 36)
+        q = r if i % 2 == 0 else r * 0.42
+        pts.append((cx + q * math.cos(a), cy + q * math.sin(a)))
+    d.polygon(pts, fill=col)
+
+
+def _flag(d, s, x0, y0, w, h, k):
+    X = lambda f: x0 + w * f
+    Y = lambda f: y0 + h * f
+    R, Wt, B = (220, 40, 50, 255), (250, 250, 250, 255), (30, 60, 160, 255)
+    if k == 0:
+        d.rectangle((x0, y0, X(1), Y(1)), fill=Wt)
+        r = h * 0.3
+        d.ellipse((X(0.5) - r, Y(0.5) - r, X(0.5) + r, Y(0.5) + r), fill=(200, 20, 50, 255))
+    elif k == 1:
+        d.rectangle((x0, y0, X(1), Y(1)), fill=(222, 40, 16, 255))
+        _star(d, X(0.17), Y(0.27), h * 0.17, (255, 222, 0, 255))
+        for fx, fy in ((0.33, 0.1), (0.4, 0.2), (0.4, 0.35), (0.33, 0.45)):
+            _star(d, X(fx), Y(fy), h * 0.055, (255, 222, 0, 255))
+    elif k == 2:
+        for i in range(7):
+            d.rectangle((x0, Y(i * 2 / 13), X(1), Y((i * 2 + 1) / 13)), fill=(190, 30, 50, 255))
+            d.rectangle((x0, Y((i * 2 + 1) / 13), X(1), Y((i * 2 + 2) / 13)), fill=Wt)
+        d.rectangle((x0, y0, X(0.42), Y(7 / 13)), fill=(40, 50, 110, 255))
+        for r in range(4):
+            for c in range(5):
+                xx, yy = X(0.05 + c * 0.08), Y(0.06 + r * 0.12)
+                d.ellipse((xx - 0.7 * s, yy - 0.7 * s, xx + 0.7 * s, yy + 0.7 * s), fill=Wt)
+    elif k in (3, 6):
+        cols = [B, Wt, R] if k == 3 else [(0, 146, 70, 255), Wt, (206, 43, 55, 255)]
+        for i, c in enumerate(cols):
+            d.rectangle((X(i / 3), y0, X((i + 1) / 3), Y(1)), fill=c)
+    elif k == 4:
+        d.rectangle((x0, y0, X(1), Y(1)), fill=(170, 21, 27, 255))
+        d.rectangle((x0, Y(0.25), X(1), Y(0.75)), fill=(241, 191, 0, 255))
+    elif k == 5:
+        for i, c in enumerate([(20, 20, 20, 255), (221, 0, 0, 255), (255, 206, 0, 255)]):
+            d.rectangle((x0, Y(i / 3), X(1), Y((i + 1) / 3)), fill=c)
+    elif k == 7:
+        d.rectangle((x0, y0, X(1), Y(1)), fill=(218, 37, 29, 255))
+        _star(d, X(0.5), Y(0.52), h * 0.3, (255, 255, 0, 255))
+    elif k == 8:
+        for a, b, c in ((0, 1 / 6, R), (1 / 6, 2 / 6, Wt), (2 / 6, 4 / 6, (45, 42, 74, 255)), (4 / 6, 5 / 6, Wt), (5 / 6, 1, R)):
+            d.rectangle((x0, Y(a), X(1), Y(b)), fill=c)
+    elif k == 9:
+        for i, c in enumerate([(255, 153, 51, 255), Wt, (19, 136, 8, 255)]):
+            d.rectangle((x0, Y(i / 3), X(1), Y((i + 1) / 3)), fill=c)
+        r = h * 0.13
+        d.ellipse((X(0.5) - r, Y(0.5) - r, X(0.5) + r, Y(0.5) + r), outline=(0, 0, 128, 255), width=max(1, int(0.8 * s)))
+        for i in range(12):
+            a = math.radians(i * 30)
+            d.line((X(0.5), Y(0.5), X(0.5) + r * math.cos(a), Y(0.5) + r * math.sin(a)), fill=(0, 0, 128, 255), width=max(1, int(0.4 * s)))
+    elif k == 10:
+        for i, c in enumerate([Wt, (0, 57, 166, 255), (213, 43, 30, 255)]):
+            d.rectangle((x0, Y(i / 3), X(1), Y((i + 1) / 3)), fill=c)
+    elif k == 11:
+        d.rectangle((x0, y0, X(1), Y(1)), fill=(0, 156, 59, 255))
+        d.polygon([(X(0.08), Y(0.5)), (X(0.5), Y(0.1)), (X(0.92), Y(0.5)), (X(0.5), Y(0.9))], fill=(255, 223, 0, 255))
+        r = h * 0.22
+        d.ellipse((X(0.5) - r, Y(0.5) - r, X(0.5) + r, Y(0.5) + r), fill=(0, 39, 118, 255))
+        d.arc((X(0.5) - r * 1.3, Y(0.5) - r * 0.6, X(0.5) + r * 1.1, Y(0.5) + r * 1.6), 200, 330, fill=Wt, width=max(1, int(0.6 * s)))
+
+
+def flag_btn(k, w=64, h=54):
+    def f(d, im, s):
+        W, H = im.width, im.height
+        d.rounded_rectangle((0, 0, W - 1, H - 1), 6 * s, fill=(12, 18, 44, 235), outline=(110, 140, 255, 255), width=int(1.2 * s))
+        fx0, fy0, fw, fh = 6 * s, 5 * s, W - 12 * s, 30 * s
+        d.rectangle((fx0 - 1 * s, fy0 - 1 * s, fx0 + fw + 1 * s, fy0 + fh + 1 * s), fill=(0, 0, 0, 255))
+        _flag(d, s, fx0, fy0, fw, fh, k)
+        fo = font('nanumx', int(10 * s))
+        d.text((W / 2, H - 9 * s), FLAGS[k], font=fo, fill=(255, 255, 255, 255), anchor='mm')
+    return art('k26_flag%d' % k, w, h, f, colors=128)
+
+
+TOURIST_STYLE = [((230, 90, 60), (250, 220, 190), (90, 60, 30), 'cap'), ((60, 170, 140), (230, 190, 150), (30, 30, 30), 'none'),
+                 ((240, 190, 60), (200, 150, 110), (240, 220, 140), 'hat'), ((170, 90, 220), (250, 215, 190), (150, 70, 40), 'bun')]
+
+
+def tourist(i, mood='n'):
+    shirt, skin, hair, hat = TOURIST_STYLE[i]
+
+    def f(d, im, s):
+        W, H = im.width, im.height
+        cx = W / 2
+        # 다리/몸
+        d.rounded_rectangle((cx - 10 * s, H - 30 * s, cx - 2 * s, H - 2 * s), 3 * s, fill=(50, 60, 100, 255))
+        d.rounded_rectangle((cx + 2 * s, H - 30 * s, cx + 10 * s, H - 2 * s), 3 * s, fill=(50, 60, 100, 255))
+        d.rounded_rectangle((cx - 15 * s, H - 58 * s, cx + 15 * s, H - 26 * s), 8 * s, fill=_c(shirt))
+        # 배낭 끈 + 카메라
+        d.line((cx - 8 * s, H - 58 * s, cx + 8 * s, H - 36 * s), fill=(40, 40, 50, 255), width=int(2 * s))
+        d.rounded_rectangle((cx + 2 * s, H - 40 * s, cx + 14 * s, H - 31 * s), 2 * s, fill=(30, 30, 40, 255))
+        d.ellipse((cx + 5 * s, H - 39 * s, cx + 11 * s, H - 33 * s), fill=(120, 160, 255, 255))
+        # 머리
+        hy = H - 74 * s
+        d.ellipse((cx - 11 * s, hy, cx + 11 * s, hy + 22 * s), fill=_c(skin))
+        if hat == 'cap':
+            d.chord((cx - 12 * s, hy - 2 * s, cx + 12 * s, hy + 16 * s), 180, 360, fill=(40, 80, 200, 255))
+            d.rectangle((cx - 2 * s, hy + 5 * s, cx + 17 * s, hy + 8 * s), fill=(40, 80, 200, 255))
+        elif hat == 'hat':
+            d.ellipse((cx - 19 * s, hy + 1 * s, cx + 19 * s, hy + 9 * s), fill=(230, 200, 120, 255))
+            d.chord((cx - 11 * s, hy - 6 * s, cx + 11 * s, hy + 12 * s), 180, 360, fill=(230, 200, 120, 255))
+            d.rectangle((cx - 11 * s, hy + 1 * s, cx + 11 * s, hy + 3 * s), fill=(200, 60, 60, 255))
+        elif hat == 'bun':
+            d.chord((cx - 12 * s, hy - 1 * s, cx + 12 * s, hy + 16 * s), 180, 360, fill=_c(hair))
+            d.ellipse((cx - 6 * s, hy - 8 * s, cx + 6 * s, hy + 2 * s), fill=_c(hair))
+        else:
+            d.chord((cx - 12 * s, hy - 1 * s, cx + 12 * s, hy + 14 * s), 180, 360, fill=_c(hair))
+        ey = hy + 12 * s
+        for ex in (-4.5, 4.5):
+            d.ellipse((cx + ex * s - 1.3 * s, ey - 1.3 * s, cx + ex * s + 1.3 * s, ey + 1.3 * s), fill=(30, 30, 40, 255))
+        if mood == 'h':
+            d.arc((cx - 5 * s, ey, cx + 5 * s, ey + 7 * s), 20, 160, fill=(150, 40, 40, 255), width=int(1.5 * s))
+        elif mood == 's':
+            d.arc((cx - 5 * s, ey + 4 * s, cx + 5 * s, ey + 10 * s), 200, 340, fill=(150, 40, 40, 255), width=int(1.5 * s))
+            d.line((cx + 9 * s, hy + 2 * s, cx + 9 * s, hy + 7 * s), fill=(120, 180, 255, 255), width=int(1.5 * s))
+        else:
+            d.line((cx - 3 * s, ey + 5 * s, cx + 3 * s, ey + 5 * s), fill=(150, 40, 40, 255), width=int(1.5 * s))
+    return art('k26_tourist%d_%s' % (i, mood), 44, 80, f)
+
+
+def speech_bubble(w=150, h=46):
+    def f(d, im, s):
+        W, H = im.width, im.height
+        d.rounded_rectangle((1 * s, 1 * s, W - 1 * s, H - 10 * s), 12 * s, fill=(255, 255, 255, 250), outline=(80, 110, 220, 255),
+                            width=int(1.4 * s))
+        d.polygon([(W * 0.62, H - 11 * s), (W * 0.74, H - 11 * s), (W * 0.62, H - 1 * s)], fill=(255, 255, 255, 250))
+        d.line((W * 0.62, H - 11 * s, W * 0.62, H - 1 * s), fill=(80, 110, 220, 255), width=int(1.4 * s))
+        d.line((W * 0.62, H - 1 * s, W * 0.74, H - 10.5 * s), fill=(80, 110, 220, 255), width=int(1.4 * s))
+    return art('k26_bubble', w, h, f)
+
+
+def interpreter():
+    def f(d, im, s):
+        W, H = im.width, im.height
+        cx = W / 2
+        d.rounded_rectangle((cx - 9 * s, H - 24 * s, cx - 2 * s, H - 1 * s), 3 * s, fill=(30, 34, 60, 255))
+        d.rounded_rectangle((cx + 2 * s, H - 24 * s, cx + 9 * s, H - 1 * s), 3 * s, fill=(30, 34, 60, 255))
+        d.rounded_rectangle((cx - 13 * s, H - 48 * s, cx + 13 * s, H - 20 * s), 7 * s, fill=(40, 100, 230, 255))
+        d.rectangle((cx - 13 * s, H - 40 * s, cx + 13 * s, H - 35 * s), fill=(250, 220, 60, 255))
+        hy = H - 66 * s
+        d.ellipse((cx - 10 * s, hy, cx + 10 * s, hy + 20 * s), fill=(245, 205, 175, 255))
+        d.chord((cx - 11 * s, hy - 1 * s, cx + 11 * s, hy + 13 * s), 180, 360, fill=(30, 30, 40, 255))
+        d.arc((cx - 12 * s, hy - 2 * s, cx + 12 * s, hy + 18 * s), 180, 360, fill=(250, 220, 60, 255), width=int(2 * s))
+        d.ellipse((cx - 14 * s, hy + 7 * s, cx - 9 * s, hy + 14 * s), fill=(250, 220, 60, 255))
+        d.line((cx - 11 * s, hy + 13 * s, cx - 4 * s, hy + 17 * s), fill=(250, 220, 60, 255), width=int(1.2 * s))
+        for ex in (-4, 4):
+            d.ellipse((cx + ex * s - 1.2 * s, hy + 10 * s, cx + ex * s + 1.2 * s, hy + 12.4 * s), fill=(30, 30, 40, 255))
+        d.arc((cx - 4 * s, hy + 11 * s, cx + 4 * s, hy + 17 * s), 20, 160, fill=(150, 40, 40, 255), width=int(1.3 * s))
+    return art('k26_interp', 32, 70, f)
+
+
+def patience_bar(i, n=10, w=46, h=7):
+    def f(d, im, s):
+        W, H = im.width, im.height
+        d.rounded_rectangle((0, 0, W - 1, H - 1), H / 2, fill=(10, 12, 30, 230), outline=(200, 210, 240, 255), width=int(0.8 * s))
+        fw = (W - 3 * s) * i / n
+        if i > 0:
+            col = (80, 220, 120) if i > 6 else ((250, 200, 50) if i > 3 else (240, 70, 80))
+            d.rounded_rectangle((1.5 * s, 1.5 * s, 1.5 * s + max(fw, H - 3 * s), H - 1.5 * s), (H - 3 * s) / 2, fill=_c(col))
+    return art('k26_pat%d' % i, w, h, f)
