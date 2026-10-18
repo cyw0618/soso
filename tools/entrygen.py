@@ -911,10 +911,13 @@ class Project:
         for fh, pic in self.pics.items():
             rel = 'temp/%s/%s/' % (fh[:2], fh[2:4])
             files[rel + 'image/%s.png' % fh] = pic.data
+            # 미리보기(썸네일)는 엔트리 편집 화면의 그림 목록에서만 쓰여서 작게 (실행에는 안 쓰임): 가로세로 32px 이내, 색 64개
             th = pic.im.copy()
-            th.thumbnail((96 * pic.w // max(pic.h, 1) if pic.h else 96, 96))
-            if th.height > 96:
-                th = th.resize((max(1, round(pic.w * 96 / pic.h)), 96))
+            th.thumbnail((32, 32))
+            try:
+                th = th.quantize(colors=64, method=Image.Quantize.FASTOCTREE)
+            except Exception:
+                pass
             buf = io.BytesIO()
             th.save(buf, 'PNG', optimize=True)
             files[rel + 'thumb/%s.png' % fh] = buf.getvalue()
