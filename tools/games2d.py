@@ -468,7 +468,7 @@ def g38(P, ctx):
     P.list('s38_순서', list(range(1, NWORD + 1)))
     P.list('s38_타일', [''] * NT)
     P.list('s38_씀', [0] * NT)
-    vars_(P, 's38_번째', 's38_진행', 's38_개수', 's38_길이', 's38_누른', 's38_틀림')
+    vars_(P, 's38_r', 's38_t', 's38_번째', 's38_진행', 's38_개수', 's38_길이', 's38_누른', 's38_틀림')
     for v in ('s38_말', 's38_답'):
         P.var(v, '')
     sign = m.S('s38_간판', [('off', AD.s38_sign('off')), ('on', AD.s38_sign('on'))], 0, 52)
@@ -502,8 +502,8 @@ def g38(P, ctx):
                *[lst_set('s38_타일', k, char_at(gl, k)) for k in range(1, NT + 1)],
                *[lst_set('s38_씀', k, 0) for k in range(1, NT + 1)]]
     for k in range(NT, 1, -1):
-        newword.append(if_(le(k, V('s38_개수')), setv('_mk', rnd(1, k)), setv('_mv', LGET('s38_타일', k)),
-                           lst_set('s38_타일', k, LGET('s38_타일', V('_mk'))), lst_set('s38_타일', V('_mk'), V('_mv'))))
+        newword.append(if_(le(k, V('s38_개수')), setv('s38_r', rnd(1, k)), setv('s38_t', LGET('s38_타일', k)),
+                           lst_set('s38_타일', k, LGET('s38_타일', V('s38_r'))), lst_set('s38_타일', V('s38_r'), V('s38_t'))))
     newword += [cast('s38_새단어'), cast('s38_갱신'), setv('입력가능', 1)]
     status = setv('미니표시', join('간판 ', V('맞춤'), '/', NW))
     mgr = hidden(m, 's38_담당')
@@ -523,8 +523,8 @@ def g38(P, ctx):
     mgr.on(on_msg('시간끝'), setv('입력가능', 0), *m.end_blocks(mul(V('맞춤'), 11)))
     shuffle = []
     for k in range(NWORD, 1, -1):
-        shuffle += [setv('_mk', rnd(1, k)), setv('_mv', LGET('s38_순서', k)), lst_set('s38_순서', k, LGET('s38_순서', V('_mk'))),
-                    lst_set('s38_순서', V('_mk'), V('_mv'))]
+        shuffle += [setv('s38_r', rnd(1, k)), setv('s38_t', LGET('s38_순서', k)), lst_set('s38_순서', k, LGET('s38_순서', V('s38_r'))),
+                    lst_set('s38_순서', V('s38_r'), V('s38_t'))]
     m.on_start(setv('맞춤', 0), setv('s38_틀림', 0), setv('입력가능', 0), setv('s38_번째', 1), setv('s38_진행', 0), setv('s38_길이', 4),
                *shuffle)
     m.snd('s38_딸깍', play('tick'))
