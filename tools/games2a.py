@@ -155,7 +155,7 @@ def g02(P, ctx):
             lst_set('s02_물', k, V('w')),
             ifelse(gt(V('w'), 80), [setv('ns', 3), lst_set('s02_자람', k, sub(G_, mul(6, V('dt'))))],
                    [ifelse(lt(V('w'), 30), [setv('ns', 2), lst_set('s02_자람', k, sub(G_, mul(1.5, V('dt'))))],
-                           [setv('ns', 1), lst_set('s02_자람', k, add(G_, mul(3.0, V('dt'))))])]),
+                           [setv('ns', 1), lst_set('s02_자람', k, add(G_, mul(5.0, V('dt'))))])]),
             if_(lt(G_, 0), lst_set('s02_자람', k, 0)), if_(gt(G_, 100), lst_set('s02_자람', k, 100)),
             # 상태가 바뀔 때만 효과
             if_(ne(V('ns'), V('상태')), setv('상태', V('ns')), lst_set('s02_상태', k, V('상태')), fx_clear(),

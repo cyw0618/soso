@@ -499,7 +499,7 @@ def g38(P, ctx):
     gl = LGET('s38_글자', LGET('s38_순서', V('s38_번째')))
     newword = [setv('s38_답', LGET('s38_단어', LGET('s38_순서', V('s38_번째')))), setv('s38_길이', slen(V('s38_답'))),
                setv('s38_개수', add(V('s38_길이'), 1)), setv('s38_진행', 0),
-               *[lst_set('s38_타일', k, char_at(gl, k)) for k in range(1, NT + 1)],
+               *[ifelse(le(k, V('s38_개수')), [lst_set('s38_타일', k, char_at(gl, k))], [lst_set('s38_타일', k, '')]) for k in range(1, NT + 1)],
                *[lst_set('s38_씀', k, 0) for k in range(1, NT + 1)]]
     for k in range(NT, 1, -1):
         newword.append(if_(le(k, V('s38_개수')), setv('s38_r', rnd(1, k)), setv('s38_t', LGET('s38_타일', k)),
@@ -1175,10 +1175,10 @@ def g32(P, ctx):
     stp.on(on_msg('s32_다이얼갱신'), write(join('맞춘 숫자 ', V('s32_금고단계'), ' / 3')))
     smgr = hidden(m, 's32_금고담당')
     want_dir = sub(1, mul(mod(V('s32_금고단계'), 2), 2))     # 단계 0,2: 오른쪽(1) / 단계 1: 왼쪽(-1)
-    smgr.on(on_msg('s32_금고확인'),
-            ifelse(and_(eq(V('s32_다이얼'), LGET('s32_금고수', add(V('s32_금고단계'), 1))), eq(V('s32_방향'), want_dir)),
+    smgr.on(on_msg('s32_금고확인'), if_(lt(V('s32_금고단계'), 3),
+            ifelse(and_(eq(V('s32_다이얼'), LGET('s32_금고수', add(mod(V('s32_금고단계'), 3), 1))), eq(V('s32_방향'), want_dir)),
                    [chg('s32_금고단계', 1), cast('s32_딸깍'), cast('s32_다이얼갱신')],
-                   [setv('s32_금고단계', 0), chg('s32_틀림', 1), cast('s32_삐'), cast('s32_다이얼갱신'), *say('덜컥... 처음부터 다시 돌려야 한다.')]),
+                   [setv('s32_금고단계', 0), chg('s32_틀림', 1), cast('s32_삐'), cast('s32_다이얼갱신'), *say('덜컥... 처음부터 다시 돌려야 한다.')])),
             if_(ge(V('s32_금고단계'), 3), wait(0.3), setv('s32_금고', 1), setv('s32_창', 0), cast('s32_창갱신'), cast('s32_방갱신'),
                 cast('s32_철컥'), *add_item(5), *say('금고가 열렸다! 큰 놋쇠 열쇠를 찾았다.')))
     # ---------------- 탈출과 점수
