@@ -476,7 +476,8 @@ def g38(P, ctx):
     sign.on(on_msg('s38_정답'), shape('on'))
     word = m.T('s38_간판글', '', 0, 52, 26, C_WHITE, F_NUM, False, 0, w=280, h=36)
     shown = join(substr(V('s38_답'), 1, V('s38_진행')), substr('○○○○○', 1, sub(V('s38_길이'), V('s38_진행'))))
-    word.on(on_msg('s38_갱신'), ifelse(eq(V('s38_진행'), 0), [write(substr('○○○○○', 1, V('s38_길이')))], [write(shown)]))
+    word.on(on_msg('s38_갱신'), ifelse(eq(V('s38_진행'), 0), [write(substr('○○○○○', 1, V('s38_길이')))],
+                                      [ifelse(ge(V('s38_진행'), V('s38_길이')), [write(V('s38_답'))], [write(shown)])]))
     hint = m.T('s38_힌트글', '', 0, 6, 13, C_ACC, F_BODY, True, 0, w=360, h=20)
     hint.on(on_msg('s38_새단어'), write(join('힌트: ', LGET('s38_힌트', LGET('s38_순서', V('s38_번째'))), ' (', V('s38_길이'), '글자)')))
     m.T('s38_도움', '글자 하나는 가짜예요!', 0, -14, 9, C_DIM, F_BODY, True, 0, w=200, h=14)
