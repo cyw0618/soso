@@ -318,8 +318,8 @@ def g14(P, ctx):
     vars_(P, 's14_k', 's14_iv', 's14_dy', 's14_nb', 's14_nbm', 's14_ts', 's14_last', 's14_now', 's14_err', 's14_pts',
           's14_judge', 's14_dok', 's14_cnt', 's14_mi', 's14_tone')
     m.S('s14중앙선', A3.line_img('s14_mid', 400, 4, [(0, 0.5), (1, 0.5)], (180, 190, 230), 1, dash=5), 10, 0)
-    m.S('s14위', AB.s14_band('f 세게 ↑', 1), -206, 30)
-    m.S('s14아래', AB.s14_band('p 여리게 ↓', 0), -206, -30)
+    m.S('s14위', AB.s14_band('f 세게 (위)', 1), -198, 30)
+    m.S('s14아래', AB.s14_band('p 여리게 (아래)', 0), -198, -30)
     kinds = ['violin', 'flute', 'drum', 'trumpet', 'cello']
     pos = [(-150, -66), (-75, -48), (0, -40), (75, -48), (150, -66)]
     for k, (kd, (x, y)) in enumerate(zip(kinds, pos)):

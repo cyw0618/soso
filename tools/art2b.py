@@ -384,9 +384,9 @@ def s14_baton():
 def s14_band(label, up):
     def f(d, im, s):
         W, H = im.size
-        _txt(d, (W / 2, H / 2), label, 10 * s, (255, 220, 140, 255) if up else (160, 200, 255, 255), stroke=1.4 * s,
+        _txt(d, (W / 2, H / 2), label, 9 * s, (255, 220, 140, 255) if up else (160, 200, 255, 255), stroke=1.4 * s,
              sfill=(0, 0, 20, 255))
-    return art('s14_band%d' % up, 60, 20, f)
+    return art('s14_bandb%d' % up, 84, 20, f)
 
 
 # ================================================================== 15. 금강 카누

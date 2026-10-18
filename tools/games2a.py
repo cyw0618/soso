@@ -561,6 +561,7 @@ def g05(P, ctx):
                  setv('s05_t', mul(acc, 1.15)), if_(gt(V('s05_t'), 1), setv('s05_t', 1)),
                  setv('s05_점', mul(100.0 / NS, mul(div(sub(V('s05_다음'), LGET('s05_시작', V('s05_판'))), sub(LGET('s05_수', V('s05_판')), 1)),
                                                  V('s05_t')))),
+                 if_(gt(V('s05_점'), 100.0 / NS), setv('s05_점', 100.0 / NS)),
                  chg('합계', V('s05_점')),
                  ifelse(ge(V('s05_점'), 27), [setv('_mv', 1)], [ifelse(ge(V('s05_점'), 17), [setv('_mv', 2)], [setv('_mv', 3)])]),
                  cast('s05_판끝'), cast('s05_판팝'), wait(1.6), chg('s05_판', 1)),
