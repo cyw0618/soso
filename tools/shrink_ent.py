@@ -10,22 +10,26 @@ import tarfile
 from PIL import Image
 
 
-def shrink(png):
+def shrink(png, colors=128):
+    """libimagequant(고품질 팔레트 변환) + oxipng(손실 없는 재압축). 더 작아지지 않으면 원래 그림 그대로."""
     im = Image.open(io.BytesIO(png))
-    if im.mode == 'P':
-        best = png
-        buf = io.BytesIO()
-        im.save(buf, 'PNG', optimize=True)
-        return buf.getvalue() if len(buf.getvalue()) < len(best) else best
-    if len(png) < 6000:
-        return png
-    if im.mode == 'RGB':
-        q = im.quantize(colors=256, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.FLOYDSTEINBERG)
+    if len(png) < 4000:
+        out = png
     else:
-        q = im.convert('RGBA').quantize(colors=256, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE)
-    buf = io.BytesIO()
-    q.save(buf, 'PNG', optimize=True)
-    return buf.getvalue() if len(buf.getvalue()) < len(png) else png
+        try:
+            import imagequant
+            q = imagequant.quantize_pil_image(im.convert('RGBA'), dithering_level=1.0, max_colors=colors)
+        except Exception:
+            q = im.convert('RGBA').quantize(colors=colors, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE)
+        buf = io.BytesIO()
+        q.save(buf, 'PNG', optimize=True)
+        out = buf.getvalue()
+    try:
+        import oxipng
+        out = oxipng.optimize_from_memory(out, level=4)
+    except Exception:
+        pass
+    return out if len(out) < len(png) else png
 
 
 def main(path):
