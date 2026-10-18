@@ -553,7 +553,7 @@ def g05(P, ctx):
            until(or_(gt(V('s05_판'), NS), eq(V('게임중'), 0)),
                  setv('s05_다음', LGET('s05_시작', V('s05_판'))), setv('s05_끝번', sub(add(V('s05_다음'), LGET('s05_수', V('s05_판'))), 1)),
                  setv('s05_좋음', 0), setv('s05_나쁨', 0),
-                 cast('s05_새판'), cast('s05_점이동'), wait(0.1), setv('s05_그리기', 1), reset_timer(),
+                 cast('s05_새판'), cast('s05_점이동'), wait(0.1), setv('s05_그리기', 1), reset_timer(), start_timer(),
                  until(or_(eq(V('s05_그리기'), 0), gt(timer(), SEC)),
                        setv('미니표시', join(LGET('s05_이름', V('s05_판')), ' ', V('s05_판'), '/', NS, ' · ', ceil_(sub(SEC, timer())), '초')),
                        wait(0.1)),
