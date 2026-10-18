@@ -508,12 +508,12 @@ def g38(P, ctx):
     newword += [cast('s38_새단어'), cast('s38_갱신'), setv('입력가능', 1)]
     status = setv('미니표시', join('간판 ', V('맞춤'), '/', NW))
     mgr = hidden(m, 's38_담당')
-    mgr.on(on_msg('s38_누름'),
+    mgr.on(on_msg('s38_누름'), if_(eq(V('입력가능'), 1), setv('입력가능', 0),
            ifelse(eq(LGET('s38_타일', V('s38_누른')), char_at(V('s38_답'), add(V('s38_진행'), 1))),
                   [lst_set('s38_씀', V('s38_누른'), 1), chg('s38_진행', 1), cast('s38_갱신'), cast('s38_딸깍'),
-                   if_(eq(V('s38_진행'), V('s38_길이')), setv('입력가능', 0), chg('맞춤', 1), status, cast('s38_정답'))],
-                  [chg('s38_틀림', 1), setv('입력가능', 0), cast('s38_틀림'), wait(0.35),
-                   setv('s38_진행', 0), *[lst_set('s38_씀', k, 0) for k in range(1, NT + 1)], cast('s38_갱신'), setv('입력가능', 1)]))
+                   ifelse(eq(V('s38_진행'), V('s38_길이')), [chg('맞춤', 1), status, cast('s38_정답')], [setv('입력가능', 1)])],
+                  [chg('s38_틀림', 1), cast('s38_틀림'), wait(0.35),
+                   setv('s38_진행', 0), *[lst_set('s38_씀', k, 0) for k in range(1, NT + 1)], cast('s38_갱신'), setv('입력가능', 1)])))
     mgr.on(on_msg('s38_정답'), wait(0.9), setv('s38_진행', 0), cast('s38_다음'))
     mgr.on(on_msg('s38_다음'), if_(eq(V('게임중'), 1),
                                   ifelse(ge(V('s38_번째'), NW), [*m.end_blocks(add(mul(V('맞춤'), 11), mul(V('남은시간'), 0.4)))],
