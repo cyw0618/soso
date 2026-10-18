@@ -116,7 +116,9 @@ def load_blocks():
     b += IV.scale_blocks()
     b += [lst_set('회사기록', i, V('회사가치')) for i in range(1, 21)]
     b += [setv('기록위치', 1), setv('채움', 1), setv('결과처리됨', 1), setv('현재지역', 0), setv('개표창', 0), setv('작전단계', 0),
-          setv('재계산', 1)]
+          setv('재계산', 1),
+          # 게임을 꺼 둔 동안은 수입이 쌓이지 않는다: 불러온 시각부터 다시 센다
+          setv('마지막시각', 0)]
     return b
 
 
