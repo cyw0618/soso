@@ -689,7 +689,7 @@ def g35(P, ctx):
     # 착륙기 상태: 1 접근, 2 대기 선회, 3 착륙 활주, 4 유도로로 빠짐 / 이륙기: 5 대기, 6 진입·이륙 활주, 7 상승
     arrive = [
         ifelse(eq(Q('s'), 1),
-               [*head(gate_x, RY + 34, 0.9),
+               [*head(gate_x, RY + 34, 1.3),
                 if_(lt(abs_(sub(Q('px'), gate_x)), 4),
                     ifelse(eq(Q('c'), 1), [SQ('s', 8)], [SQ('s', 2), SQ('ang', 0)]))], []),
         ifelse(eq(Q('s'), 8),
@@ -726,7 +726,7 @@ def g35(P, ctx):
                     clone_self()),
                 wait(div(rnd(26, 42), 10))))
     pl.on(on_clone(), SQ('복제', 1), SQ('i', W('slot')), SQ('k', W('kind')), SQ('w', 0), SQ('on', 0), fx('transparency', 0),
-          ifelse(eq(Q('k'), 1), [SQ('s', 1), SQ('c', 1), SQ('px', -250), SQ('py', rnd(66, 96))],
+          ifelse(eq(Q('k'), 1), [SQ('s', 1), SQ('c', 1), SQ('px', 245), SQ('py', rnd(70, 96))],
                  [SQ('s', 5), SQ('c', 0), C_('qn', 1), SQ('px', ifelse_q(W)), SQ('py', -56)]),
           lst_set('k35_kind', Q('i'), Q('k')), *look, xy(Q('px'), Q('py')), show(), *sync,
           until(or_(eq(V('게임중'), 0), eq(Q('s'), 9)),

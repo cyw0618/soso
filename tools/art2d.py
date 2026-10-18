@@ -575,6 +575,7 @@ def s36_person(k, mood, look=0):
     def f(d, im, s):
         W, H = im.size
         cx = W * 0.42
+        d.rounded_rectangle((s, 2 * s, W - s, H - s), 6 * s, fill=(20, 28, 64, 150), outline=col + (200,), width=int(s))
         skin = (250, 214, 182, 255) if mood < 2 else (255, 150, 140, 255)
         d.rounded_rectangle((cx - 10 * s, 30 * s, cx + 10 * s, H - s), 6 * s, fill=shirts[look] + (255,), outline=(20, 24, 40, 255), width=int(s))
         d.ellipse((cx - 9 * s, 12 * s, cx + 9 * s, 30 * s), fill=skin, outline=(60, 40, 30, 255), width=int(s))
