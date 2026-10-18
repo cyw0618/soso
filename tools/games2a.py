@@ -722,7 +722,7 @@ def g08(P, ctx):
     P.list('s08_sx', [p[0] for p in spots])
     P.list('s08_sy', [p[1] for p in spots])
     P.list('s08_칸', [0] * 12)
-    vars_(P, 's08_d1', 's08_d2', 's08_d3', 's08_d4', 's08_판', 's08_열', 's08_행', 's08_크기', 's08_x0', 's08_y0', 's08_수', 's08_맞음', 's08_총맞음', 's08_잡은', 's08_기준')
+    vars_(P, 's08_판', 's08_열', 's08_행', 's08_크기', 's08_x0', 's08_y0', 's08_수', 's08_맞음', 's08_총맞음', 's08_잡은', 's08_기준')
     bd = m.S('복원판', [('1', AA.s08_board(0)), ('2', AA.s08_board(1))], GX, GY)
     bd.on(on_msg('s08_새판'), shape(V('s08_판')))
     wm = m.S('밑그림', [('1', AA.s08_full(0)), ('2', AA.s08_full(1))], GX, GY)
@@ -765,8 +765,8 @@ def g08(P, ctx):
                     setv('r', rounded(div(sub(V('s08_y0'), obj_y()), V('s08_크기')))), *drop[2:]],
                    [*drop]),
             *check, setv('s08_잡은', 0)]
-    pc.on(on_mouse_down(), chg('s08_d1', 1), if_(eq(V('복제'), 1), chg('s08_d2', 1)), if_(touch('mouse'), chg('s08_d3', 1)), if_(and_(and_(eq(V('복제'), 1), eq(V('게임중'), 1)), and_(eq(V('고정'), 0), touch('mouse'))),
-                               chg('s08_d4', 1), if_(eq(V('s08_잡은'), 0), *grab)))
+    pc.on(on_mouse_down(), if_(and_(and_(eq(V('복제'), 1), eq(V('게임중'), 1)), and_(eq(V('고정'), 0), touch('mouse'))),
+                               if_(eq(V('s08_잡은'), 0), *grab)))
     _pop(m, '맞춤반짝', K.icon_img('star', 26), 's08_맞춤', hold=0.15)
     done = m.S('복원도장', K.big_text('복원 완료!', 34, 'red'), GX, GY, visible=False)
     done.on(on_msg('s08_완성'), done.pct(160), rot(-12), show(), rep(6, done.grow_pct(-10), wait(0.02)), wait(1.2), hide())
