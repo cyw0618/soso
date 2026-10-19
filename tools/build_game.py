@@ -397,6 +397,8 @@ def build(dev_dir=None, out=None):
     scenes_more.build_all(P, globals())
     CR.build_ending(P, globals())
     EC.build_contract(P, globals())
+    import slim
+    slim.apply(P)
     out = out or os.path.join(HERE, '..', '군수집_막내아들.ent')
     proj = P.write_ent(out, dev_dir=dev_dir, fast=os.environ.get('FAST') == '1')
     return proj

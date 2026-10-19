@@ -131,8 +131,14 @@ class MG:
         for o in intro:
             o.on(on_msg('시작누름'), hide())
         # 카운트다운
-        for k, (lbl, msg) in enumerate([('3', 'cd3'), ('2', 'cd2'), ('1', 'cd1'), ('START!', 'cdgo')]):
-            G.big_pop(P, sc, '카운트%d' % k, K.big_text(lbl, 56 if k < 3 else 44, 'royal'), 0, 10, msg, hold=0.25)
+        # 카운트다운 글자는 오브젝트 하나(모양 4개)로: 신호마다 모양만 고르고, 튀어나오는 동작은 한 군데에서
+        cd = self.S('카운트', [(str(k + 1), K.big_text(lbl, 56 if k < 3 else 44, 'royal'))
+                             for k, lbl in enumerate(['3', '2', '1', 'START!'])], 0, 10, visible=False)
+        for k, msg in enumerate(['cd3', 'cd2', 'cd1', 'cdgo']):
+            cd.on(on_msg(msg), shape(k + 1), cast('cd팝'))
+        cd.on(on_msg('cd팝'), xy(0, 10), to_front(), cd.pct(25), fx('transparency', 0), show(),
+              rep(6, cd.grow_pct(17), wait(0.016)), rep(3, cd.grow_pct(-6), wait(0.016)), wait(0.25),
+              rep(10, fx_add('transparency', 10), mvy(1), wait(0.02)), hide())
         G.big_pop(P, sc, '끝팝', K.big_text('FINISH!', 44, 'royal'), 0, 22, '끝팝', hold=0.9, fade=False)
         fin = self.T('끝점수', '', 0, -24, 18, C_WHITE, F_NUM, False, 0, w=200, h=26, visible=False)
         fin.on(on_msg('끝팝'), wait(0.4), write(join('유세 점수 ', V('점수'), '점')), show())
