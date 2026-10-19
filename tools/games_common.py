@@ -35,8 +35,8 @@ def stub(P, ctx, tier, idx):
 
 def build_tier(P, ctx, tier, games):
     for idx in range(1, 41):
-        if idx == 7:
-            continue        # 퀴즈는 군수 장면을 같이 씀
+        if idx == 7 or idx in D2.REMOVED.get(tier, ()):
+            continue        # 퀴즈는 군수 장면을 같이 씀 / 용량 때문에 뺀 게임
         fn = games.get(idx)
         if fn is None:
             stub(P, ctx, tier, idx)

@@ -138,10 +138,13 @@ def build_map(P, ctx, tier, sc, whole, dt, pins, dt_ids, ring, mode_names, ring_
                          [if_(eq(V('_hv'), 1), setv('_hv', 0), fx('brightness', 0), ro.pct(100))]), wait(0.05)))
     ro.on(on_click(), if_(and_(eq(V('지도모드'), 0), eq(V('개표창'), 0)), setv('지도모드', 1), cast('지도바꿈'), G.sfx('click')))
     rt = text(P, sc, '확대원글', '', rcx, rcy, 9, C_WHITE, F_NUM, False, 0, w=80, h=28)
-    cnt = [setv('tmp', 0)] + [if_(eq(LGET('지역완료', off + k), 0), chg('tmp', 1)) for k in dt_ids]
+    skip = D2.REMOVED.get(tier, ())
+    cnt = [setv('tmp', 0)] + [if_(eq(LGET('지역완료', off + k), 0), chg('tmp', 1)) for k in dt_ids if k not in skip]
     rt.on(on_msg('지도바꿈'), *vis_ring)
     rt.on(on_scene(), *vis_ring, *G.live_write(rt, [*cnt, setv('_mrt', join(ring_label, '\n', V('tmp'), '곳 (클릭)'))], '_mrt', 0.5))
     for k in range(1, N + 1):
+        if k in skip:
+            continue
         x_, y_ = pins[k]
         m_ = 1 if k in dt_ids else 0
         pics = [('on', SP.arrow_marker(k, 'on')), ('hot', SP.arrow_marker(k, 'hot'))]

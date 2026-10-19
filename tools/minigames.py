@@ -126,7 +126,7 @@ class MG:
         intro.append(hl)
         intro.append(self.T('소개조작', controls, 0, -22, 9, C_ACC, F_BODY, True, 0, w=290, h=28))
         start_act = [if_(eq(V('시작됨'), 0), setv('시작됨', 1), cast('시작누름'))]
-        intro.append(button(P, sc, '시작버튼', '시작!', 0, -60, 110, 28, 'royal', icon='star', actions=start_act))
+        intro.append(button(P, sc, '시작버튼', '시작!', 0, -60, 110, 28, 'royal', icon='star', actions=start_act, hover=False))
         intro.append(self.T('소개안내', 'SPACE 키로도 시작할 수 있어요', 0, -82, 8, C_DIM, F_BODY, True, 0, w=200, h=12))
         for o in intro:
             o.on(on_msg('시작누름'), hide())

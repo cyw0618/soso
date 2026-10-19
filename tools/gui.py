@@ -194,8 +194,8 @@ def hud(P, scene, portraits, first_scene=False, empire=False, empire_xy=(176, -9
     panel(P, scene, 'HUD유세판', -196, 95, 80, 22, 'glass')
     sprite(P, scene, 'HUD투표함', K.icon_img('ballot', 14), -224, 96)
     import data as _D
-    t2 = text(P, scene, 'HUD유세', '유세 0/%d' % _D.N_PLACES, -188, 95, 11, '#FFFFFF', F_NUM, False, 1, w=56, h=16)
-    t2.on(on_scene(), *live_write(t2, [setv('_hu', join('유세 ', V('유세횟수'), '/%d' % _D.N_PLACES))], '_hu', 0.3))
+    t2 = text(P, scene, 'HUD유세', '유세 0/40', -188, 95, 11, '#FFFFFF', F_NUM, False, 1, w=56, h=16)
+    t2.on(on_scene(), *live_write(t2, [setv('_hu', join('유세 ', V('유세횟수'), '/', LGET('곳수', V('단계'))))], '_hu', 0.3))
     # 지지율 (3줄, 합계 100%) + 조치원 지배 자본 지분 (1줄)
     panel(P, scene, 'HUD지지판', 160, 99, 152, 68, 'glass')
     rows = [('me', '나', '내지지율', 'royal', C_ACC), ('u1', '첫째', '큰A', 'red', C_RED),

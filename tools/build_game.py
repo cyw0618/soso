@@ -32,7 +32,8 @@ import data2 as D2
 # 시장·대통령 선거 전용 게임 장면 (퀴즈 7번은 군수 장면을 같이 쓰고 문제만 단계마다 다름)
 S_GAME2 = [S_GAME[k - 1] if k == 7 else '시장%02d %s' % (k, D2.SEJONG[k - 1][1]) for k in range(1, 41)]
 S_GAME3 = [S_GAME[k - 1] if k == 7 else '대선%02d %s' % (k, D2.KOREA[k - 1][1]) for k in range(1, 41)]
-NEW_GAMES = [s_ for s_ in S_GAME2 + S_GAME3 if s_ not in S_GAME]
+NEW_GAMES = [s_ for k_, s_ in enumerate(S_GAME2, 1) if s_ not in S_GAME and k_ not in D2.REMOVED[2]] + \
+            [s_ for k_, s_ in enumerate(S_GAME3, 1) if s_ not in S_GAME and k_ not in D2.REMOVED[3]]
 S_RESULT, S_EVENT, S_SHOP, S_STOCK = '유세 결과', '돌발상황', '작전 본부', '주식'
 S_VOTE, S_RANK, S_BANKRUPT, S_CONTROL = '개표', '랭킹', '파산', '조치원 장악'
 S_GROUP, S_NEGO, S_INVEST = '계열사', '협상 테이블', '투자 회의'
@@ -74,6 +75,7 @@ for k_, v_ in VARS.items():
 N_PL = D.N_PLACES
 N_ALL = N_PL * 3          # 군수 40 + 세종시장 40 + 대통령 40 (지역번호 = (단계-1)*40 + 지역)
 P.list('지역완료', [0] * N_ALL)
+P.list('곳수', D2.PLACE_COUNT)       # 단계별 유세지 수 (군수 40 · 시장/대통령은 일부 뺌)
 P.list('지역점수', [0] * N_ALL)
 P.list('지역이름', [p['name'] for p in D.PLACES] + [x[0] for x in D2.SEJONG] + [x[0] for x in D2.KOREA])
 P.list('지역게임', [p['game'] for p in D.PLACES] + [x[1] for x in D2.SEJONG] + [x[1] for x in D2.KOREA])
@@ -271,7 +273,7 @@ def scene_result():
         rows.append(text(P, sc, '결과값%d' % i, '', 110, yy, 13, col, F_NUM, False, 2, w=150, h=18, visible=False))
     nxt = button(P, sc, '다음버튼', '다음', 40, -100, 100, 28, 'royal', icon='star', visible=False,
                  actions=[*ST.assets_blocks(), if_(le(V('총자산'), 0), *go(S_BANKRUPT)),
-                          if_(ge(V('유세횟수'), N_PL), *go(S_VOTE)),
+                          if_(ge(V('유세횟수'), LGET('곳수', V('단계'))), *go(S_VOTE)),
                           ifelse(le(rnd(1, 100), 70), go(S_EVENT), GO_HOME())])
     # ---- 계산 (한 번만)
     calc = text(P, sc, '결과계산', '', -300, -300, 8, visible=False)

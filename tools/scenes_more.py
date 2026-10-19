@@ -244,7 +244,7 @@ def scene_event(P, ctx):
     r_ext.on(on_msg('사건결과'), if_(eq(V('반대매매'), 1), write('현금이 바닥나서 갖고 있던 주식이 강제로 팔렸다 (반대매매)'), wait(1.3), show()))
     nxt = button(P, sc, '계속버튼', '계속', 150, -112, 96, 26, 'royal', icon='star', visible=False,
                  actions=[*ST.assets_blocks(), if_(le(V('총자산'), 0), *go(ctx['S_BANKRUPT'])),
-                          if_(ge(V('유세횟수'), D.N_PLACES), *go(ctx['S_VOTE'])), *ctx['GO_HOME']()])
+                          if_(ge(V('유세횟수'), LGET('곳수', V('단계'))), *go(ctx['S_VOTE'])), *ctx['GO_HOME']()])
     nxt.on(on_msg('사건결과'), wait(1.5), show())
     grandpa_say(P, sc, ctx, -200, -78, '사건결과',
                 [wait(1.4), ifelse(eq(V('사건성공'), 1),
