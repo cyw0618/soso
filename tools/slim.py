@@ -128,5 +128,61 @@ def apply(P):
     print('· 쓰이지 않는 신호 처리 %d개 삭제' % drop_dead_handlers(P))
     # 3) 경제 시계는 필요한 화면에만
     P.objects = [o for o in P.objects if not (o.name.startswith('경제시계_') and o.scene not in TICKER_KEEP)]
+    analyze(P)
     after = statement_count(P)
     print('· 블록 정리: %d → %d' % (before, after))
+
+
+# ---------------------------------------------------------------- 같은 코드 묶음을 엔트리 '함수'로 한 번만 정의
+UNSAFE_TYPES = {'when_clone_start', 'create_clone', 'delete_clone', 'remove_all_clones', 'stop_object', 'stop_repeat',
+                'stop_run', 'restart_project', 'create_clone', 'when_object_click', 'when_some_key_pressed'}
+
+
+def _canon(b, flags):
+    """블록을 id 없는 글자로 (장면·오브젝트마다 달라지는 참조를 쓰면 flags['bad'] 표시)."""
+    if isinstance(b, Ref):
+        if b[0] == 'msg' or b[0] == 'var' or b[0] == 'list' or b[0] == 'scene':
+            return 'R:%s:%s' % (b[0], b[1])
+        flags['bad'] = True       # 그림·소리·오브젝트 참조는 오브젝트마다 달라서 함수로 옮기지 않는다
+        return 'R?'
+    if isinstance(b, dict):
+        t = b.get('type')
+        if t in UNSAFE_TYPES or (t or '').startswith('func_'):
+            flags['bad'] = True
+        return '{%s|%s|%s}' % (t, ','.join(_canon(p, flags) for p in b.get('params', [])),
+                              ';'.join(','.join(_canon(s, flags) for s in st) for st in b.get('statements', [])))
+    if b is None:
+        return 'N'
+    return repr(b)
+
+
+def analyze(P, min_blocks=6):
+    from collections import defaultdict
+    groups = defaultdict(list)
+    for o in P.objects:
+        if o.locals:
+            # 지역 변수를 쓸 수 있는 오브젝트는 함수 밖에서 이름이 달라질 수 있어 제외
+            continue
+        for sc in o.scripts:
+            if len(sc) < 2:
+                continue
+            fl = {}
+            key = '|'.join(_canon(b, fl) for b in sc[1:])
+            if fl.get('bad'):
+                continue
+            n = [0]
+            for b in sc[1:]:
+                _walk_stmt(b, lambda x: n.__setitem__(0, n[0] + 1))
+            if n[0] >= min_blocks:
+                groups[key].append((o, sc, n[0]))
+    saved = 0
+    rows = []
+    for key, items in groups.items():
+        if len(items) >= 2:
+            n = items[0][2]
+            saved += (len(items) - 1) * n - len(items)
+            rows.append((len(items), n, items[0][0].name))
+    rows.sort(key=lambda r: -(r[0] * r[1]))
+    print('· 함수로 합칠 수 있는 같은 코드: 묶음 %d개, 줄일 수 있는 블록 약 %d개' % (len(rows), saved))
+    print('  ', rows[:12])
+    return groups
