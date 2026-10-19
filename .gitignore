@@ -2,3 +2,4 @@ build/
 __pycache__/
 *.pyc
 node_modules/
+업로드테스트/
