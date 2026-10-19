@@ -51,6 +51,8 @@ def main():
     G.bg(P, sc, BG.BLACK)
     t = G.text(P, sc, '결과점수', '', 0, 0, 30, '#FFFFFF', G.F_NUM, False, 0, w=300, h=40)
     t.on(on_scene(), write(join('점수 ', V('점수'))))
+    import slim
+    slim.apply(P)
     os.makedirs(dev, exist_ok=True)
     proj = P.write_ent(os.path.join(dev, 'lite.ent'), dev_dir=dev, fast=True)
     json.dump(proj, open(os.path.join(dev, 'project.json'), 'w'), ensure_ascii=False)

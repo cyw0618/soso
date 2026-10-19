@@ -690,6 +690,7 @@ class Project:
         self.vars = {}          # name -> dict
         self.lists = {}         # name -> dict
         self.msgs = {}          # name -> id
+        self.functions = []     # [dict(id, name, body)]  (엔트리 '함수' 정의: 같은 코드를 한 번만 두고 호출)
         self.pics = {}          # file md5 -> Picture (for packaging)
         self.snds = {}          # file md5 -> Sound
 
@@ -826,6 +827,24 @@ class Project:
                    lineBreak=o.line_break, visible=o.visible)
         return ent
 
+    def _functions_json(self):
+        out = []
+        base = self.objects[0] if self.objects else None
+        for f in self.functions:
+            create = {'type': 'function_create', 'statements': [],
+                      'params': [{'type': 'function_field_label', 'params': [f['name'], None], 'statements': []}, None]}
+            blocks = [self._finalize_block(b, base, 40 if i == 0 else 0, 40 if i == 0 else 0)
+                      for i, b in enumerate([create] + list(f['body']))]
+            out.append(dict(id=f['id'], type='normal', localVariables=[], useLocalVariables=False,
+                            content=json.dumps([blocks], ensure_ascii=False, separators=(',', ':'))))
+        return out
+
+    def new_function(self, name, body):
+        """함수를 만들고 부르는 블록을 돌려준다."""
+        fid = new_id()
+        self.functions.append(dict(id=fid, name=name, body=body))
+        return {'type': 'func_' + fid, 'params': [], 'statements': []}
+
     def to_json(self):
         # 로컬 변수 id 먼저 배정
         for o in self.objects:
@@ -880,7 +899,7 @@ class Project:
             scenes=[dict(id=sid, name=nm) for sid, nm in self.scenes],
             variables=variables,
             messages=[dict(id=i, name=nm) for nm, i in self.msgs.items()],
-            functions=[], tables=[], speed=60,
+            functions=self._functions_json(), tables=[], speed=60,
             interface=dict(canvasWidth=480, menuWidth=280, object=(self.objects[-1].id if self.objects else None)),
             expansionBlocks=[], aiUtilizeBlocks=[], hardwareLiteBlocks=[],
             externalModules=[], externalModulesLite=[],

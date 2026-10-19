@@ -128,7 +128,8 @@ def apply(P):
     print('· 쓰이지 않는 신호 처리 %d개 삭제' % drop_dead_handlers(P))
     # 3) 경제 시계는 필요한 화면에만
     P.objects = [o for o in P.objects if not (o.name.startswith('경제시계_') and o.scene not in TICKER_KEEP)]
-    analyze(P)
+    groups = analyze(P)
+    print('· 함수 %d개로 합침' % functionize(P, groups))
     after = statement_count(P)
     print('· 블록 정리: %d → %d' % (before, after))
 
@@ -186,3 +187,22 @@ def analyze(P, min_blocks=6):
     print('· 함수로 합칠 수 있는 같은 코드: 묶음 %d개, 줄일 수 있는 블록 약 %d개' % (len(rows), saved))
     print('  ', rows[:12])
     return groups
+
+
+def functionize(P, groups, min_gain=3):
+    """같은 코드 묶음을 엔트리 함수 하나로 만들고, 각 오브젝트에는 함수 부르기 한 칸만 남긴다."""
+    import copy
+    made = 0
+    for key, items in groups.items():
+        n = items[0][2]
+        gain = (len(items) - 1) * n - len(items)
+        if len(items) < 2 or gain < min_gain:
+            continue
+        made += 1
+        body = copy.deepcopy(items[0][1][1:])
+        for o, sc, _ in items:
+            call = P.new_function_call(made) if False else None
+        fn_call = P.new_function('공통%d' % made, body)
+        for o, sc, _ in items:
+            sc[1:] = [dict(fn_call)]
+    return made
