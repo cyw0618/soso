@@ -54,6 +54,39 @@ def statement_count(P):
     return n[0]
 
 
+def _hat_msg(sc):
+    h = sc[0] if sc else None
+    if h and h.get('type') == 'when_message_cast':
+        m = [p for p in h['params'] if isinstance(p, Ref) and p[0] == 'msg']
+        return m[0][1] if m else None
+    return None
+
+
+def drop_dead_handlers(P):
+    """그 장면 오브젝트 어디서도 보내지 않는 신호를 기다리는 코드 묶음(스크립트)을 지운다."""
+    cast = {}
+    for o in P.objects:
+        def f(b, o=o):
+            if b.get('type') in ('message_cast', 'message_cast_wait'):
+                v = b['params'][0] if b.get('params') else None
+                if isinstance(v, Ref) and v[0] == 'msg':
+                    cast.setdefault(o.scene, set()).add(v[1])
+        for sc in o.scripts:
+            for b in sc:
+                _walk(b, f)
+    n = 0
+    for o in P.objects:
+        keep = []
+        for sc in o.scripts:
+            m = _hat_msg(sc)
+            if m is not None and m not in cast.get(o.scene, set()):
+                n += 1
+                continue
+            keep.append(sc)
+        o.scripts = keep
+    return n
+
+
 def apply(P):
     before = statement_count(P)
     # 1) 장면별로 실제 쓰는 snd: 신호 모으기
@@ -91,7 +124,9 @@ def apply(P):
             for b in sc:
                 _walk(b, g)
         o.sounds = [s for s in o.sounds if s.name in refs]
-    # 2) 경제 시계는 필요한 화면에만
+    # 2) 아무도 보내지 않는 신호 처리 지우기
+    print('· 쓰이지 않는 신호 처리 %d개 삭제' % drop_dead_handlers(P))
+    # 3) 경제 시계는 필요한 화면에만
     P.objects = [o for o in P.objects if not (o.name.startswith('경제시계_') and o.scene not in TICKER_KEEP)]
     after = statement_count(P)
     print('· 블록 정리: %d → %d' % (before, after))
