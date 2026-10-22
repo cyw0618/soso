@@ -4,6 +4,7 @@
  1. 소리 담당 오브젝트: 그 장면에서 실제로 쓰지 않는 효과음 신호 처리(snd:이름)와 소리 파일을 뺀다.
  2. 경제 시계(10초 수입 계산)는 돈·집무 화면에서만 돌게 하고 나머지 하위 화면에서는 뺀다 (시간은 다음에 돌아오면 이어서 계산).
 """
+import os
 from entrygen import Ref
 
 TICKER_KEEP = {'집무실', '조치원 지도', '세종시 지도', '대한민국 지도', '주식', '유세 결과', '내 회사', '기업 인수', '부동산', '작전 세력'}
@@ -129,7 +130,10 @@ def apply(P):
     # 3) 경제 시계는 필요한 화면에만
     P.objects = [o for o in P.objects if not (o.name.startswith('경제시계_') and o.scene not in TICKER_KEEP)]
     groups = analyze(P)
-    print('· 함수 %d개로 합침' % functionize(P, groups))
+    if os.environ.get('NOFUNC') != '1':
+        print('· 함수 %d개로 합침' % functionize(P, groups))
+    else:
+        print('· (함수 사용 안 함)')
     after = statement_count(P)
     print('· 블록 정리: %d → %d' % (before, after))
 
