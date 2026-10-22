@@ -130,6 +130,8 @@ def apply(P):
     # 3) 경제 시계는 필요한 화면에만
     P.objects = [o for o in P.objects if not (o.name.startswith('경제시계_') and o.scene not in TICKER_KEEP)]
     groups = analyze(P)
+    if os.environ.get('SKEL') == '1':
+        analyze_skeleton(P)
     if os.environ.get('NOFUNC') != '1':
         print('· 함수 %d개로 합침' % functionize(P, groups))
     else:
@@ -210,3 +212,45 @@ def functionize(P, groups, min_gain=3):
         for o, sc, _ in items:
             sc[1:] = [dict(fn_call)]
     return made
+
+
+def _canon_lit(b, flags):
+    """analyze 와 같지만 숫자·글자 값은 무시한 뼈대 (값만 다른 코드가 얼마나 있는지 보려고)."""
+    if isinstance(b, Ref):
+        if b[0] in ('msg', 'var', 'list', 'scene'):
+            return 'R:%s:%s' % (b[0], b[1])
+        flags['bad'] = True
+        return 'R?'
+    if isinstance(b, dict):
+        t = b.get('type')
+        if t in UNSAFE_TYPES or (t or '').startswith('func_'):
+            flags['bad'] = True
+        if t in ('number', 'text'):
+            return '{%s|#}' % t
+        return '{%s|%s|%s}' % (t, ','.join(_canon_lit(p, flags) for p in b.get('params', [])),
+                              ';'.join(','.join(_canon_lit(s, flags) for s in st) for st in b.get('statements', [])))
+    if b is None:
+        return 'N'
+    return repr(b)
+
+
+def analyze_skeleton(P, min_blocks=6):
+    from collections import defaultdict
+    groups = defaultdict(list)
+    for o in P.objects:
+        if o.locals:
+            continue
+        for sc in o.scripts:
+            if len(sc) < 2:
+                continue
+            fl = {}
+            key = '|'.join(_canon_lit(b, fl) for b in sc[1:])
+            if fl.get('bad'):
+                continue
+            n = [0]
+            for b in sc[1:]:
+                _walk_stmt(b, lambda x: n.__setitem__(0, n[0] + 1))
+            if n[0] >= min_blocks:
+                groups[key].append((o, sc, n[0]))
+    saved = sum((len(v) - 1) * v[0][2] - len(v) * 3 for v in groups.values() if len(v) >= 2)
+    print('· (참고) 값만 다른 코드까지 합치면 줄일 수 있는 블록 약 %d개' % saved)
