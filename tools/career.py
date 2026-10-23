@@ -356,6 +356,7 @@ def build_office(P, ctx):
     retire = button(P, sc, '은퇴버튼', '은퇴·기록', 176, -98, 92, 24, 'gray', icon='trophy',
                     actions=[setv('엔딩종류', 2), *go(ctx['S_ENDING'])])
     elect.on(on_scene(), ifelse(ge(V('직위'), 3), [hide()], [show()]))
+    SG.save_button(P, sc, -196, -121)
     # 할아버지 / 취임 알림
     G.big_pop(P, sc, '취임팝', [('1', K.big_text('군수 취임!', 40, 'royal')), ('2', K.big_text('세종시장 취임!', 40, 'royal')),
                                ('3', K.big_text('대통령 집무 시작!', 36, 'royal'))], 0, 30, '취임', hold=1.6,

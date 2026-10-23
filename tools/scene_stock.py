@@ -110,8 +110,7 @@ def _assets_body():
 
 
 def _save():
-    import savegame as SG
-    return [if_(eq(V('체결성공'), 1), *SG.save_blocks())]
+    return [if_(eq(V('체결성공'), 1), setv('저장필요', 1))]
 
 
 def assets_blocks():
@@ -541,6 +540,8 @@ def build(P, ctx):
     opst.on(on_msg('시세갱신'), ifelse(gt(V('작전단계'), 0),
                                       [write(join('작전 중: ', LGET('주식이름', V('작전종목')))), show()], [hide()]))
 
+    import savegame as SG
+    SG.save_button(P, sc, -13, -121)
     # ---- 거래 담당 (보이지 않음)
     mgr = text(P, sc, '거래담당', '', -300, -300, 8, visible=False)
     s_ = V('_s')

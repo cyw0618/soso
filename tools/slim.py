@@ -154,7 +154,7 @@ def _canon(b, flags):
         return 'R?'
     if isinstance(b, dict):
         t = b.get('type')
-        if t in UNSAFE_TYPES or (t or '').startswith('func_'):
+        if t in UNSAFE_TYPES:
             flags['bad'] = True
         return '{%s|%s|%s}' % (t, ','.join(_canon(p, flags) for p in b.get('params', [])),
                               ';'.join(','.join(_canon(s, flags) for s in st) for st in b.get('statements', [])))

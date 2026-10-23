@@ -283,7 +283,8 @@ def tick_blocks():
 
 def ticker(P, sc):
     o = text(P, sc, '경제시계', '', -300, -300, 8, visible=False)
-    o.on(on_scene(), *income_sum(), forever(wait(1), *tick_blocks()))
+    import savegame as SG
+    o.on(on_scene(), *income_sum(), forever(wait(1), *tick_blocks(), *SG.tick_blocks()))
     return o
 
 
