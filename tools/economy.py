@@ -18,8 +18,8 @@ PERIOD = 10                  # 초
 NC = len(D2.COMPANIES)       # 100
 NL = len(D2.LANDS)           # 15
 NT = len(D2.MYCO_TYPES)      # 5
-TAB_START = [0, 40, 75]
-TAB_COUNT = [40, 35, 25]
+TAB_COUNT = [sum(1 for c in D2.COMPANIES if c[2] == k) for k in (1, 2, 3)]
+TAB_START = [0, TAB_COUNT[0], TAB_COUNT[0] + TAB_COUNT[1]]
 LAND_TAB = [0, 5, 10]
 
 ECON_VARS = dict(마지막시각=0, 주기수입=0, 투자자산=0, 이번수입=0, 인수가치=0, 땅가치합=0, _ci2=0, _li=0, _lp=0,
@@ -533,7 +533,7 @@ def build_ma(P, ctx):
     sprite(P, sc, '제목', K.banner('기업 인수', 130, 30, 'royal'), 0, 116)
     P.list('기업탭시작', TAB_START)
     P.list('기업탭개수', TAB_COUNT)
-    for k, (lbl, col) in enumerate((('군수 (40개)', 'royal'), ('시장 (35개)', 'purple'), ('대통령 (25개)', 'red')), 1):
+    for k, (lbl, col) in enumerate((('군수 (%d개)' % TAB_COUNT[0], 'royal'), ('시장 (%d개)' % TAB_COUNT[1], 'purple'), ('대통령 (%d개)' % TAB_COUNT[2], 'red')), 1):
         tb = sprite(P, sc, '기업탭%d' % k, [('off', K.badge(lbl, 92, 18, 'navy')), ('on', K.badge(lbl, 92, 18, col)),
                                          ('lock', K.badge('잠김 · ' + lbl.split(' ')[0], 92, 18, 'gray'))], -184 + (k - 1) * 98, 86)
         tb.on(on_msg('기업갱신'), ifelse(lt(V('직위'), k), [shape('lock')], [ifelse(eq(V('기업탭'), k), [shape('on')], [shape('off')])]))
