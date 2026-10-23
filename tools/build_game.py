@@ -161,9 +161,9 @@ def scene_title():
     cont.on(on_run(), hide())
     cont.on(on_msg('저장확인'), if_(eq(V('저장있음'), 1), show()))
     save_t.on(on_msg('저장확인'),
-              ifelse(eq(V('저장있음'), 1), [write('하던 게임이 저장돼 있어요.\n새로 시작하면 덮어써요.')],
-                     [ifelse(SG.logged_in(), [write('게임을 끝내기 전까지\n자동 저장돼요.')],
-                             [write('로그인하면 나갔다 와도\n이어서 할 수 있어요.')])]))
+              ifelse(eq(V('저장있음'), 1), [write(join('하던 게임이 저장돼 있어요.\n계정 ', V('내계정'), ' · 저장 번호 ', V('저장번호')))],
+                     [ifelse(SG.logged_in(), [write(join('자동 저장돼요. 계정 ', V('내계정'), '\n서버에 저장된 칸 ', LLEN('저장목록'), '개'))],
+                             [write('로그인이 안 돼 있어요.\n(로그인해야 저장·이어하기)')])]))
     G.sound_hub(P, sc, 'bgm_title', first_scene=True)
     G.fader(P, sc, BLACK, first_scene=True)
 

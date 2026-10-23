@@ -187,6 +187,6 @@ def save_button(P, sc, x, y):
     from gui import button
     return button(P, sc, '지금저장', '지금 저장', x, y, 78, 22, 'green', icon='star',
                   actions=[ifelse(logged_in(),
-                                  [*save_blocks(), setv('경제알림', '저장 완료! 같은 계정이면 어느 컴퓨터에서든 이어해요')],
+                                  [*save_blocks(), setv('경제알림', join('저장 완료! 저장 번호 ', V('저장번호'), ' · 서버 저장 ', LLEN('저장목록'), '칸'))],
                                   [setv('경제알림', '엔트리에 로그인해야 저장돼요')]),
                            cast('경제알림')])
