@@ -614,7 +614,10 @@ class Picture:
         im = Image.open(io.BytesIO(self.data))
         self.w, self.h = im.size
         self.im = im.convert('RGBA')
-        if RES < 1.0 and self.w * self.h > 64:
+        self.ext = 'jpg' if path.lower().endswith('.jpg') else 'png'
+        if self.ext == 'jpg':
+            pass        # JPEG 그림(인트로 영상 프레임)은 그대로 쓴다
+        elif RES < 1.0 and self.w * self.h > 64 :
             self._shrink()
         self.file = hashlib.md5(self.data).hexdigest()  # 32자
         self.id = new_id()
@@ -912,8 +915,8 @@ class Project:
                 pictures.append(dict(
                     id=pic.id, dimension=dict(width=pic.w, height=pic.h, scaleX=round(pic.scale * o.scale, 4),
                                               scaleY=round(pic.scale * o.scale, 4)),
-                    filename=pic.file, name=pic.name, imageType='png',
-                    fileurl='temp/%s/%s/image/%s.png' % (pic.file[:2], pic.file[2:4], pic.file)))
+                    filename=pic.file, name=pic.name, imageType=pic.ext,
+                    fileurl='temp/%s/%s/image/%s.%s' % (pic.file[:2], pic.file[2:4], pic.file, pic.ext)))
             sounds = []
             for sd in o.sounds:
                 self.snds[sd.file] = sd
@@ -949,7 +952,7 @@ class Project:
             for fh, sd in self.snds.items():
                 files['temp/%s/%s/sound/%s.mp3' % (fh[:2], fh[2:4], fh)] = sd.data
             for fh, pic in self.pics.items():
-                files['temp/%s/%s/image/%s.png' % (fh[:2], fh[2:4], fh)] = pic.data
+                files['temp/%s/%s/image/%s.%s' % (fh[:2], fh[2:4], fh, pic.ext)] = pic.data
             for path, data in files.items():
                 full = os.path.join(dev_dir, path)
                 if path != 'temp/project.json' and os.path.exists(full):
@@ -962,7 +965,7 @@ class Project:
             files['temp/%s/%s/sound/%s.mp3' % (fh[:2], fh[2:4], fh)] = sd.data
         for fh, pic in self.pics.items():
             rel = 'temp/%s/%s/' % (fh[:2], fh[2:4])
-            files[rel + 'image/%s.png' % fh] = pic.data
+            files[rel + 'image/%s.%s' % (fh, pic.ext)] = pic.data
             # 미리보기(썸네일)는 엔트리 편집 화면의 그림 목록에서만 쓰여서 작게 (실행에는 안 쓰임): 가로세로 32px 이내, 색 64개
             th = pic.im.copy()
             th.thumbnail((24, 24))

@@ -18,6 +18,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(HERE, 'assets_src', 'intro', 'intro.mp4')
 DIR = os.path.join(OUT, 'intro')
 SPEED = 0.75
+W, H = 544, 405                  # 고화질: 화면에 보이는 크기(362x270)의 1.34배 해상도
 N_FRAMES = 200                   # 영상을 200장으로 쪼갠다 (4.06초 → 초당 약 49장)
 
 
@@ -25,30 +26,29 @@ def make_assets():
     """프레임(256색 PNG)과 0.75배 소리를 만든다 (이미 있으면 그대로)."""
     os.makedirs(DIR, exist_ok=True)
     mp3 = os.path.join(DIR, 'intro_075.mp3')
-    if len(glob.glob(os.path.join(DIR, 'r_*.png'))) != N_FRAMES:
-        for old in glob.glob(os.path.join(DIR, 'f_*.png')) + glob.glob(os.path.join(DIR, 'q_*.png')) + glob.glob(os.path.join(DIR, 'r_*.png')):
+    if len(glob.glob(os.path.join(DIR, 'r_*.jpg'))) != N_FRAMES:
+        for old in glob.glob(os.path.join(DIR, 'f_*.png')) + glob.glob(os.path.join(DIR, 'q_*.png')) + glob.glob(os.path.join(DIR, 'r_*.jpg')):
             os.remove(old)
         src_dur = float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=nw=1:nk=1', SRC],
                                        capture_output=True, text=True).stdout.strip())
-        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', SRC, '-vf', 'fps=%.4f,scale=362:270:flags=lanczos' % ((N_FRAMES + 2) / src_dur),
+        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', SRC, '-vf', 'fps=%.4f,scale=%d:%d:flags=lanczos' % ((N_FRAMES + 2) / src_dur, W, H),
                         '-frames:v', str(N_FRAMES), os.path.join(DIR, 'f_%03d.png')], check=True)
         for f in sorted(glob.glob(os.path.join(DIR, 'f_*.png'))):
             im = Image.open(f).convert('RGB')
-            im.quantize(colors=96, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.FLOYDSTEINBERG).save(
-                f.replace('f_', 'r_'), optimize=True)
+            im.save(f.replace('f_', 'r_').replace('.png', '.jpg'), 'JPEG', quality=72, optimize=True, progressive=True)
     if not os.path.exists(mp3):
         subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', SRC, '-vn', '-filter:a', 'atempo=%g' % SPEED, '-ac', '2',
                         '-ar', '44100', '-b:a', '128k', mp3], check=True)
     dur = float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=nw=1:nk=1', mp3],
                                capture_output=True, text=True).stdout.strip())
-    return sorted(glob.glob(os.path.join(DIR, 'r_*.png'))), mp3, dur
+    return sorted(glob.glob(os.path.join(DIR, 'r_*.jpg'))), mp3, dur
 
 
 def build(P, ctx):
     sc = ctx['S_INTRO']
     frames, mp3, dur = make_assets()
     G.bg(P, sc, ctx['BLACK'])
-    v = P.sprite(G.uname(sc, '인트로영상'), sc, [('f%03d' % k, f) for k, f in enumerate(frames, 1)], pic_scale=1.0, x=0, y=0)
+    v = P.sprite(G.uname(sc, '인트로영상'), sc, [('f%03d' % k, f) for k, f in enumerate(frames, 1)], pic_scale=362.0 / W, x=0, y=0)
     v.add_sound('intro', mp3, round(dur, 2))
     P.var('인트로끝', 0)
     P.var('_인', 1)

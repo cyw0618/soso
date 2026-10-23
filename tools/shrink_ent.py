@@ -53,7 +53,7 @@ def main(path):
                 out.addfile(m)
                 continue
             data = src.extractfile(m).read()
-            if '/image/' in m.name:
+            if '/image/' in m.name and m.name.endswith('.png'):
                 new = shrink(data)
                 saved += len(data) - len(new)
                 data = new
