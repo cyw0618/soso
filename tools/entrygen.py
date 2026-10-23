@@ -617,7 +617,7 @@ class Picture:
         self.ext = 'jpg' if path.lower().endswith('.jpg') else 'png'
         if self.ext == 'jpg':
             pass        # JPEG 그림(인트로 영상 프레임)은 그대로 쓴다
-        elif RES < 1.0 and self.w * self.h > 64 :
+        elif RES < 1.0 and self.w * self.h > 64 and '/intro/' not in path.replace(os.sep, '/'):
             self._shrink()
         self.file = hashlib.md5(self.data).hexdigest()  # 32자
         self.id = new_id()
