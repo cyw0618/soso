@@ -10,7 +10,7 @@ from gui import text, button
 P = Project('저장 점검')
 sc = '점검'
 P.scene(sc)
-G.bg(P, sc, 'os.path.join(os.path.dirname(os.path.abspath(__file__)), 'probe_bg.png')')
+G.bg(P, sc, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'probe_bg.png'))
 P.list('실시간A', [], cloud='realtime', lid='rtla')
 P.list('실시간C', [], cloud='realtime', lid='rt3')
 P.list('실시간D', [], cloud='realtime', lid='rtld')
