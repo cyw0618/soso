@@ -207,7 +207,7 @@ def build_map(P, ctx, tier, sc, whole, dt, pins, dt_ids, ring, mode_names, ring_
     dt_b.on(on_msg('지도바꿈'), *vd)
     text(P, sc, '지도안내', '화살표를 눌러\n유세 시작!', 186, 0, 9, C_DIM, F_BODY, True, 0, w=100, h=26)
     left_t = text(P, sc, '남은곳', '', 186, -24, 9, C_WHITE, F_NUM, False, 0, w=100, h=14)
-    left_t.on(on_scene(), *G.live_write(left_t, [setv('_mlt', join('남은 유세지 ', sub(N, V('유세횟수')), '곳'))], '_mlt', 0.5))
+    left_t.on(on_scene(), *G.live_write(left_t, [setv('_mlt', join('남은 유세지 ', sub(LGET('곳수', V('단계')), V('유세횟수')), '곳'))], '_mlt', 0.5))
     button(P, sc, '개표버튼', '개표하기', 186, -56, 96, 26, 'red', icon='ballot',
            actions=[if_(eq(V('개표창'), 0), setv('개표창', 1), cast('개표묻기'))])
     hud(P, sc, ctx['PORT'], empire=True, empire_xy=(186, -98), empire_w=104)
