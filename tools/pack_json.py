@@ -26,7 +26,7 @@ def strip(b):
             strip(x)
 
 
-def main(src_path, out_path, as_array):
+def main(src_path, out_path, as_array, lean=False):
     src = tarfile.open(src_path)
     raw = io.BytesIO()
     with tarfile.open(fileobj=raw, mode='w', format=tarfile.USTAR_FORMAT) as out:
@@ -37,9 +37,18 @@ def main(src_path, out_path, as_array):
             data = src.extractfile(m).read()
             if m.name.endswith('project.json'):
                 pj = json.loads(data)
+                if lean:
+                    for o in pj['objects']:
+                        for p in o['sprite']['pictures']:
+                            p.pop('fileurl', None)
                 for o in pj['objects']:
                     th = json.loads(o['script'])
                     strip(th)
+                    if lean:
+                        for t_ in th:
+                            if t_:
+                                t_[0].pop('x', None)
+                                t_[0].pop('y', None)
                     o['script'] = th if as_array else json.dumps(th, ensure_ascii=False, separators=(',', ':'))
                 for f in pj['functions']:
                     th = json.loads(f['content'])
@@ -55,4 +64,4 @@ def main(src_path, out_path, as_array):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1], sys.argv[2], '--array' in sys.argv)
+    main(sys.argv[1], sys.argv[2], '--array' in sys.argv, '--lean' in sys.argv)
