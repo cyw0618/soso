@@ -114,8 +114,8 @@ PORT.update(cand_art.all_rings())
 BUST = {k: SP.bust(COVER, k) for k in ('gp', 'me', 'u1', 'u2')}
 CAND_CARD = cand_art.all_cards()
 PLACE_PICS = ([('%02d' % i, ART('place_%02d' % i)) for i in range(1, D.N_PLACES + 1)] +
-              [('%02d' % (40 + i), ART('sj_%02d' % i)) for i in range(1, 41)] +
-              [('%03d' % (80 + i), ART('kr_%02d' % i)) for i in range(1, 41)])
+              [('%02d' % (40 + i), ART('sj_%02d' % (1 if i in D2.REMOVED[2] else i))) for i in range(1, 41)] +
+              [('%03d' % (80 + i), ART('kr_%02d' % (1 if i in D2.REMOVED[3] else i))) for i in range(1, 41)])
 
 
 def GO_HOME():

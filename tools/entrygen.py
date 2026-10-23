@@ -600,6 +600,10 @@ def script(*blocks):
 
 
 # ---------------------------------------------------------------- project model
+RES = float(os.environ.get('RES', '0.6'))      # 그림 해상도 배율 (1 이면 줄이지 않음)
+_SHRINK_CACHE = {}
+
+
 class Picture:
     def __init__(self, name, path, scale=0.5):
         self.name = name
@@ -610,8 +614,37 @@ class Picture:
         im = Image.open(io.BytesIO(self.data))
         self.w, self.h = im.size
         self.im = im.convert('RGBA')
+        if RES < 1.0 and self.w * self.h > 64:
+            self._shrink()
         self.file = hashlib.md5(self.data).hexdigest()  # 32자
         self.id = new_id()
+
+    def _shrink(self):
+        """작품 파일(.ent) 용량 제한(16MB)에 맞추려고 그림을 RES 배로 줄이고 128색으로 만든다.
+        화면에 보이는 크기는 그대로 (scale 을 그만큼 키운다)."""
+        key = (hashlib.md5(self.data).hexdigest(), RES)
+        hit = _SHRINK_CACHE.get(key)
+        if hit is None:
+            w2, h2 = max(1, round(self.w * RES)), max(1, round(self.h * RES))
+            im = self.im.resize((w2, h2), Image.LANCZOS)
+            try:
+                import imagequant
+                q = imagequant.quantize_pil_image(im, dithering_level=0.5, max_colors=128)
+            except Exception:
+                q = im.quantize(colors=128, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE)
+            buf = io.BytesIO()
+            q.save(buf, 'PNG', optimize=True)
+            data = buf.getvalue()
+            try:
+                import oxipng
+                data = oxipng.optimize_from_memory(data, level=3)
+            except Exception:
+                pass
+            hit = (data, w2, h2, im)
+            _SHRINK_CACHE[key] = hit
+        data, w2, h2, im = hit
+        self.scale = self.scale * self.w / float(w2)
+        self.data, self.w, self.h, self.im = data, w2, h2, im
 
 
 class Sound:
@@ -932,9 +965,9 @@ class Project:
             files[rel + 'image/%s.png' % fh] = pic.data
             # 미리보기(썸네일)는 엔트리 편집 화면의 그림 목록에서만 쓰여서 작게 (실행에는 안 쓰임): 가로세로 32px 이내, 색 64개
             th = pic.im.copy()
-            th.thumbnail((32, 32))
+            th.thumbnail((24, 24))
             try:
-                th = th.quantize(colors=64, method=Image.Quantize.FASTOCTREE)
+                th = th.quantize(colors=32, method=Image.Quantize.FASTOCTREE)
             except Exception:
                 pass
             buf = io.BytesIO()

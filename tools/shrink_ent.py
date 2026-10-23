@@ -7,13 +7,14 @@ import sys
 import io
 import gzip
 import tarfile
+import subprocess
 from PIL import Image
 
 
 def shrink(png, colors=128):
     """libimagequant(고품질 팔레트 변환) + oxipng(손실 없는 재압축). 더 작아지지 않으면 원래 그림 그대로."""
     im = Image.open(io.BytesIO(png))
-    if len(png) < 4000:
+    if im.mode == 'P' or len(png) < 4000:
         out = png
     else:
         try:
@@ -32,6 +33,16 @@ def shrink(png, colors=128):
     return out if len(out) < len(png) else png
 
 
+def shrink_sound(mp3):
+    """효과음·배경음을 모노 56kbps 로 다시 인코딩 (길이는 그대로)."""
+    try:
+        r = subprocess.run(['ffmpeg', '-v', 'error', '-i', 'pipe:0', '-ac', '1', '-ar', '32000', '-b:a', '56k', '-f', 'mp3', 'pipe:1'],
+                           input=mp3, capture_output=True, check=True)
+        return r.stdout if 0 < len(r.stdout) < len(mp3) else mp3
+    except Exception:
+        return mp3
+
+
 def main(path):
     src = tarfile.open(path)
     raw = io.BytesIO()
@@ -44,6 +55,10 @@ def main(path):
             data = src.extractfile(m).read()
             if '/image/' in m.name:
                 new = shrink(data)
+                saved += len(data) - len(new)
+                data = new
+            if '/sound/' in m.name:
+                new = shrink_sound(data)
                 saved += len(data) - len(new)
                 data = new
             ti = tarfile.TarInfo(m.name)
