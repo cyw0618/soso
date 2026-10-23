@@ -14,7 +14,7 @@ import data as D
 import data2 as D2
 import scene_stock as ST
 
-VERSION = 'S3'
+VERSION = 'S4'
 SEP, KEY = '|', '§'
 SAVE_VARS = ['돈', '내지지율', '큰A', '큰B', '유세횟수', '방어권', '차단턴', '장시간', '첫째주', '둘째주', '지배알림',
              '협상기회', '협상금지턴', '지도모드',
@@ -23,14 +23,21 @@ SAVE_VARS = ['돈', '내지지율', '큰A', '큰B', '유세횟수', '방어권',
              '의혹', '수사기관', '수사혐의', '수사남은', '수사위험']
 DIGIT_LISTS = [('지역완료', D.N_PLACES * 3), ('인수레벨', len(D2.COMPANIES)), ('땅보유', len(D2.LANDS)),
                ('계열사주인', len(D.AFFILIATES))]
-SAVE_LISTS = [('주가', ST.N), ('보유', ST.N), ('평단', ST.N), ('투자부채', 3), ('투자만기', 3), ('투자결렬', 3),
+SAVE_LISTS = [('주가', ST.N), ('보유', ST.N), ('평단', ST.N), ('배수', ST.N), ('투자부채', 3), ('투자만기', 3), ('투자결렬', 3),
               ('땅가격', len(D2.LANDS)), ('땅예정', len(D2.LANDS)), ('땅배율', len(D2.LANDS)), ('특별X', len(D2.SPECIALS)),
               ('세력인원', len(D2.OPS_MEMBERS)), ('직원수', len(D2.POSITIONS)), ('직원능력합', len(D2.POSITIONS)),
               ('매수남은', len(D2.AGENCIES))]
 FIELDS = len(SAVE_VARS) + len(DIGIT_LISTS) + sum(n for _, n in SAVE_LISTS)
 
 
+_P = None
+_FN = {}
+
+
 def setup(P):
+    global _P
+    _P = P
+    _FN.clear()
     P.list('저장목록', [], cloud=True, lid='sv1')
     for v, d in (('내계정', ''), ('저장위치', 0), ('저장있음', 0), ('저장글', ''), ('_불러온', ''), ('_sp', 0), ('_si', 0),
                  ('_dg', '')):
@@ -67,6 +74,13 @@ def find_blocks():
 
 
 def save_blocks():
+    """저장 함수를 부르는 블록 (함수 본문은 한 번만 만든다)."""
+    if 'save' not in _FN:
+        _FN['save'] = _P.new_function('저장하기', _save_body())
+    return [dict(_FN['save'])]
+
+
+def _save_body():
     """지금 상태를 저장 (한 프레임 안에 끝나도록 반복 없이 펼쳐서)."""
     data = [setv('저장글', VERSION + SEP)]
     for v in SAVE_VARS:

@@ -109,6 +109,11 @@ def _assets_body():
     return b
 
 
+def _save():
+    import savegame as SG
+    return [if_(eq(V('체결성공'), 1), *SG.save_blocks())]
+
+
 def assets_blocks():
     """평가금(주식·코인 평가액 = 보유 × 상품가)과 총자산(현금+평가금)을 계산."""
     return _shared('자산계산', _assets_body)
@@ -575,7 +580,7 @@ def build(P, ctx):
            ifelse(eq(V('_lk'), 1), [setv('체결글', '대통령 선거 때 열리는 특별주예요!'), setv('체결성공', 0)],
                   [ifelse(eq(V('주문방향'), 1), buy, sell)]),
            setv('돈', div(rounded(mul(V('돈'), 10)), 10)),
-           cast('체결'), *assets_blocks(), cast('시세갱신'), *E.majority_check())
+           cast('체결'), *assets_blocks(), *_save(), cast('시세갱신'), *E.majority_check())
     mgr.on(on_scene(), *assets_blocks(),
            if_(or_(lt(V('선택종목'), 1), gt(V('선택종목'), N)), setv('선택종목', 1)),
            setv('탭', 1), setv('탭기준', 0), setv('탭개수', ND),
