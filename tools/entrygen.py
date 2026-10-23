@@ -848,8 +848,8 @@ class Project:
     def _entity(self, o):
         if o.kind == 'sprite':
             pic = o.pictures[0]
-            ent = dict(x=o.x, y=o.y, regX=pic.w / 2, regY=pic.h / 2, scaleX=pic.scale * o.scale,
-                       scaleY=pic.scale * o.scale, rotation=0, direction=90, width=pic.w, height=pic.h,
+            ent = dict(x=o.x, y=o.y, regX=pic.w / 2, regY=pic.h / 2, scaleX=round(pic.scale * o.scale, 4),
+                       scaleY=round(pic.scale * o.scale, 4), rotation=0, direction=90, width=pic.w, height=pic.h,
                        font='undefinedpx ', visible=o.visible)
             return ent
         w = o.width or 200
@@ -910,8 +910,8 @@ class Project:
             for pic in o.pictures:
                 self.pics[pic.file] = pic
                 pictures.append(dict(
-                    id=pic.id, dimension=dict(width=pic.w, height=pic.h, scaleX=pic.scale * o.scale,
-                                              scaleY=pic.scale * o.scale),
+                    id=pic.id, dimension=dict(width=pic.w, height=pic.h, scaleX=round(pic.scale * o.scale, 4),
+                                              scaleY=round(pic.scale * o.scale, 4)),
                     filename=pic.file, name=pic.name, imageType='png',
                     fileurl='temp/%s/%s/image/%s.png' % (pic.file[:2], pic.file[2:4], pic.file)))
             sounds = []
