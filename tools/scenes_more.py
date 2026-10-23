@@ -276,7 +276,7 @@ def scene_event(P, ctx):
     sz = LGET('사건크기', V('이벤트'))
     liquidate = []
     for i in range(1, ST.N + 1):
-        liquidate.append(if_(gt(LGET('보유', i), 0), chg('돈', mul(LGET('보유', i), LGET('주가', i))),
+        liquidate.append(if_(gt(LGET('보유', i), 0), chg('돈', mul(LGET('보유', i), LGET('상품가', i))),
                              lst_set('보유', i, 0), lst_set('평단', i, 0)))
     mgr.on(on_msg('사건선택'),
            setv('_i', add(mul(sub(V('이벤트'), 1), 3), LGET('카드옵션', V('선택')))),

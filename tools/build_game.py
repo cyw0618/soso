@@ -341,7 +341,7 @@ def scene_result():
     ST.overnight_object(P, sc)
     E.overnight_object(P, sc)
     # 해외 투자금 상환 (만기가 된 것). 현금이 모자라면 주식을 판다.
-    liq = [if_(gt(LGET('보유', i_), 0), chg('돈', mul(LGET('보유', i_), LGET('주가', i_))), lst_set('보유', i_, 0), lst_set('평단', i_, 0))
+    liq = [if_(gt(LGET('보유', i_), 0), chg('돈', mul(LGET('보유', i_), LGET('상품가', i_))), lst_set('보유', i_, 0), lst_set('평단', i_, 0))
            for i_ in range(1, ST.N + 1)]
     text(P, sc, '투자상환', '', -300, -300, 8, visible=False).on(on_msg('주가변동'), wait(0.05), *IV.overnight_blocks(liq))
 
