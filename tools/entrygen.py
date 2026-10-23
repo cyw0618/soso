@@ -898,7 +898,7 @@ class Project:
                                   object=None, x=v['x'], y=v['y']))
         for nm, v in self.lists.items():
             variables.append(dict(name=nm, id=v['id'], visible=v['visible'], value=0, variableType='list',
-                                  isCloud=False, isRealTime=bool(v.get('cloud')), cloudDate=False, object=None,
+                                  isCloud=v.get('cloud') == 'shared', isRealTime=v.get('cloud') in (True, 'realtime'), cloudDate=False, object=None,
                                   x=v['x'], y=v['y'], width=v['w'], height=v['h'],
                                   array=[dict(data=str(i)) for i in v['items']]))
         for o in self.objects:
