@@ -743,7 +743,8 @@ class Project:
         self.vars[name] = dict(id=new_id(), value=value, visible=visible, x=x, y=y)
 
     def list(self, name, items=(), visible=False, x=0, y=0, w=100, h=120, cloud=False, lid=None):
-        """cloud=True 면 엔트리 '공유 리스트'(작품을 공유했을 때 모든 사람이 같은 리스트를 씀). lid: 리스트 id 를 직접 지정."""
+        """cloud=True 면 엔트리 '실시간 리스트'(바꾸는 즉시 서버에 저장되고, 작품을 쓰는 모든 사람이 같은 리스트를 씀).
+        예전의 '공유 리스트'(isCloud)는 값이 서버에 올라가는 때가 정해져 있지 않아 창을 닫으면 사라질 수 있었다. lid: 리스트 id 를 직접 지정."""
         self.lists[name] = dict(id=lid or new_id(), items=list(items), visible=visible, x=x, y=y, w=w, h=h, cloud=cloud)
 
     def msg(self, name):
@@ -897,7 +898,7 @@ class Project:
                                   object=None, x=v['x'], y=v['y']))
         for nm, v in self.lists.items():
             variables.append(dict(name=nm, id=v['id'], visible=v['visible'], value=0, variableType='list',
-                                  isCloud=bool(v.get('cloud')), isRealTime=False, cloudDate=False, object=None,
+                                  isCloud=False, isRealTime=bool(v.get('cloud')), cloudDate=False, object=None,
                                   x=v['x'], y=v['y'], width=v['w'], height=v['h'],
                                   array=[dict(data=str(i)) for i in v['items']]))
         for o in self.objects:

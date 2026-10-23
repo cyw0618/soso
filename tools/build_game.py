@@ -150,7 +150,10 @@ def scene_title():
     cont = button(P, sc, '버튼이어하기', '이어하기', 170, 74, 120, 32, 'red', icon='back', visible=False, first_scene=True,
                   actions=[if_(eq(V('저장있음'), 1), cast_wait('초기화'), *SG.load_blocks(), *GO_HOME())])
     save_t = text(P, sc, '저장안내', '', 170, -76, 8, C_DIM, F_BODY, True, 0, w=150, h=24)
-    check = [hide(), wait(0.3), *SG.find_blocks(), cast('저장확인')]
+    # 실시간 리스트는 서버에서 늦게 도착할 수 있어서, 저장이 안 보이면 두 번 더 찾아본다 (0.3초 · 2초 · 5초 뒤)
+    check = [hide(), wait(0.3), *SG.find_blocks(), cast('저장확인'),
+             if_(and_(eq(V('저장있음'), 0), SG.logged_in()), wait(1.7), *SG.find_blocks(), cast('저장확인'),
+                 if_(eq(V('저장있음'), 0), wait(3), *SG.find_blocks(), cast('저장확인')))]
     chk_o = text(P, sc, '저장확인담당', '', -300, -300, 8, visible=False)
     chk_o.on(on_run(), *check)
     chk_o.on(on_scene(), *check)
