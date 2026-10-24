@@ -172,6 +172,18 @@ UNSAFE_TYPES = {'when_clone_start', 'create_clone', 'delete_clone', 'remove_all_
                 'stop_run', 'restart_project', 'create_clone', 'when_object_click', 'when_some_key_pressed'}
 
 
+_FNAMES = {}
+
+
+def _fname(prefix):
+    """함수 이름을 겹치지 않게 (같은 이름이 여러 개면 엔트리 편집기가 헷갈릴 수 있다)."""
+    _FNAMES[prefix] = _FNAMES.get(prefix, 0) + 1
+    return '%s%d' % (prefix, _FNAMES[prefix])
+
+
+MIN_GAIN = int(os.environ.get('MINGAIN', '0'))      # 함수 하나로 줄이는 블록 수가 이보다 적으면 만들지 않는다
+
+
 def _canon(b, flags):
     """블록을 id 없는 글자로 (장면·오브젝트마다 달라지는 참조를 쓰면 flags['bad'] 표시)."""
     if isinstance(b, Ref):
@@ -235,7 +247,7 @@ def functionize(P, groups, min_gain=3):
         body = copy.deepcopy(items[0][1][1:])
         for o, sc, _ in items:
             call = P.new_function_call(made) if False else None
-        fn_call = P.new_function('공통%d' % made, body)
+        fn_call = P.new_function(_fname('공통'), body)
         for o, sc, _ in items:
             sc[1:] = [dict(fn_call)]
     return made
@@ -352,7 +364,7 @@ def functionize_params(P, max_params=60, min_gain=8):
             continue
         body_n = sum(_all_count(b) for b in items[0][1][1:])
         gain = (len(items) - 1) * body_n - _pcost(len(items), len(vary))
-        if gain < min_gain:
+        if gain < max(min_gain, MIN_GAIN):
             continue
         ptypes = ['stringParam_' + new_id() for _ in vary]
         body = copy.deepcopy(items[0][1][1:])
@@ -361,7 +373,7 @@ def functionize_params(P, max_params=60, min_gain=8):
             ps, i = bslots[k]
             ps[i] = {'type': pt, 'params': []}
         made += 1
-        fid = P.new_param_function('값함수%d' % made, body, ptypes)
+        fid = P.new_param_function(_fname('값함수'), body, ptypes)
         for (o, sc), s in zip(items, slots):
             args = [copy.deepcopy(s[k][0][s[k][1]]) for k in vary]
             sc[1:] = [{'type': 'func_' + fid, 'params': args + [None], 'statements': []}]
@@ -475,7 +487,7 @@ def outline_statements(P, min_size=4, max_params=60):
             continue
         size = items[0][3]
         gain = (len(items) - 1) * size - _pcost(len(items), len(vary))
-        if gain > 4:
+        if gain > max(4, MIN_GAIN):
             order.append((gain, key, items, vary))
     order.sort(key=lambda r: -r[0])
     consumed = set()
@@ -515,7 +527,7 @@ def outline_statements(P, min_size=4, max_params=60):
             ps, i = bslots[k]
             ps[i] = {'type': pt, 'params': []}
         made += 1
-        fid = P.new_param_function('덩어리%d' % made, [body], ptypes)
+        fid = P.new_param_function(_fname('덩어리'), [body], ptypes)
         for (stmts, i, b, _), sl in zip(live, slots):
             args = [copy.deepcopy(sl[k][0][sl[k][1]]) for k in vary]
             mark(b)
@@ -596,7 +608,7 @@ def outline_sequences(P, max_w=24, min_size=5, max_params=60):
             continue
         size = uniq[0][2]
         gain = (len(uniq) - 1) * size - _pcost(len(uniq), len(vary)) - 4
-        if gain > 6:
+        if gain > max(6, MIN_GAIN):
             order.append((gain, key, uniq, vary))
     order.sort(key=lambda r: -r[0])
     consumed = set()
@@ -638,7 +650,7 @@ def outline_sequences(P, max_w=24, min_size=5, max_params=60):
             ps, i = bslots[k]
             ps[i] = {'type': pt, 'params': []}
         made += 1
-        fid = P.new_param_function('연속%d' % made, body, ptypes)
+        fid = P.new_param_function(_fname('연속'), body, ptypes)
         for (stmts, blocks, _), sl in zip(live, slots):
             args = [copy.deepcopy(sl[k][0][sl[k][1]]) for k in vary]
             for b in blocks:
@@ -754,7 +766,7 @@ def outline_exprs(P, max_params=12):
             a[b] = {'type': pt, 'params': []}
         expr = holder['params'][0]
         made += 1
-        fid = P.new_value_function('식%d' % made, expr, ptypes)
+        fid = P.new_value_function(_fname('식'), expr, ptypes)
         for (ps, i, p, sz), sl in zip(live, slots):
             args = [copy.deepcopy(sl[j][0][sl[j][1]]) for j in vary]
 
