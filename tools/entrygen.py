@@ -868,8 +868,12 @@ class Project:
         out = []
         base = self.objects[0] if self.objects else None
         for f in self.functions:
+            # 매개변수: 이름표 뒤에 '문자/숫자값' 칸을 줄줄이 잇는다 (function_field_label → function_field_string → ...)
+            nxt = None
+            for ptype in reversed(f.get('params', [])):
+                nxt = {'type': 'function_field_string', 'params': [{'type': ptype, 'params': []}, nxt], 'statements': []}
             create = {'type': 'function_create', 'statements': [],
-                      'params': [{'type': 'function_field_label', 'params': [f['name'], None], 'statements': []}, None]}
+                      'params': [{'type': 'function_field_label', 'params': [f['name'], nxt], 'statements': []}, None]}
             blocks = [self._finalize_block(b, base, 40 if i == 0 else 0, 40 if i == 0 else 0)
                       for i, b in enumerate([create] + list(f['body']))]
             out.append(dict(id=f['id'], type='normal', localVariables=[], useLocalVariables=False,
@@ -881,6 +885,13 @@ class Project:
         fid = new_id()
         self.functions.append(dict(id=fid, name=name, body=body))
         return {'type': 'func_' + fid, 'params': [], 'statements': []}
+
+    def new_param_function(self, name, body, ptypes):
+        """매개변수가 있는 함수. ptypes: 본문에서 쓴 'stringParam_xxxx' 블록 이름들 (순서대로 매개변수).
+        부르는 블록은 func_<id> 이고 params = [값 블록들..., None]."""
+        fid = new_id()
+        self.functions.append(dict(id=fid, name=name, body=body, params=list(ptypes)))
+        return fid
 
     def to_json(self):
         # 로컬 변수 id 먼저 배정

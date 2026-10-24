@@ -50,7 +50,7 @@ def setup(P):
     for k, nm in enumerate(CHUNKS, 1):
         P.list(nm, [], cloud='shared', lid='cy%02d' % k)
     for v, d in (('내계정', ''), ('저장위치A', 0), ('저장위치B', 0), ('저장슬롯', 0), ('저장번호', 0), ('저장틱', 0), ('저장필요', 0), ('_okA', 0), ('_okB', 0), ('_nA', 0), ('_nB', 0), ('_t', ''), ('_t2', ''), ('_n0', 0), ('_w', 0), ('회원번호', 0), ('저장중', 0), ('_초', 0), ('_okC', 0), ('_nC', 0), ('_tC', ''), ('_L', 0), ('_bk', 0), ('_bn', 0), ('저장있음', 0), ('저장글', ''), ('_불러온', ''), ('_sp', 0), ('_si', 0),
-                 ('_dg', '')):
+                 ('_dg', ''), ('_v', ''), ('_i', 0)):
         P.var(v, d)
 
 
@@ -229,37 +229,39 @@ def tick_blocks():
     return [dict(_FN['tick'])]
 
 
-def load_blocks():
-    """find_blocks 가 남긴 _불러온 을 풀어서 변수/리스트에 넣는다."""
-    b = [setv('_불러온', substr(V('_불러온'), len(VERSION) + 2, slen(V('_불러온'))))]
+def _take_body():
+    """_불러온 앞에서 값 하나를 꺼내 _v 에 (빈 값이면 '')."""
+    return [setv('_sp', str_index(V('_불러온'), SEP)),
+            ifelse(eq(V('_sp'), 1), [setv('_v', '')], [setv('_v', substr(V('_불러온'), 1, sub(V('_sp'), 1)))]),
+            setv('_불러온', substr(V('_불러온'), add(V('_sp'), 1), slen(V('_불러온'))))]
 
-    def take():
-        return [setv('_sp', str_index(V('_불러온'), SEP))], substr(V('_불러온'), 1, sub(V('_sp'), 1)), \
-            [setv('_불러온', substr(V('_불러온'), add(V('_sp'), 1), slen(V('_불러온'))))]
+
+def load_blocks():
+    """find_blocks 가 남긴 _불러온 을 풀어서 변수/리스트에 넣는다 (반복문으로: 코드 수를 줄이려고. 몇 초 걸린다)."""
+    if 'load' in _FN:
+        return [dict(_FN['load'])]
+    take = _P.new_function('값꺼내기', _take_body())
+    b = [setv('_불러온', substr(V('_불러온'), len(VERSION) + 2, slen(V('_불러온'))))]
     for v in SAVE_VARS:
-        pre, val, post = take()
-        # 빈 글자(이름 없음)는 substring 이 실패하므로 구분자가 바로 나오면 '' 로
-        b += pre + [ifelse(eq(V('_sp'), 1), [setv(v, '')], [setv(v, val)])] + post
+        b += [dict(take), setv(v, V('_v'))]
     for lst, n in DIGIT_LISTS:
-        pre, val, post = take()
-        b += pre + [setv('_dg', val)] + post
-        b += [lst_set(lst, i, char_at(V('_dg'), i)) for i in range(1, n + 1)]
+        b += [dict(take), setv('_dg', V('_v')), setv('_i', 1),
+              rep(n, lst_set(lst, V('_i'), char_at(V('_dg'), V('_i'))), chg('_i', 1))]
     for lst, n in SAVE_LISTS:
-        for i in range(1, n + 1):
-            pre, val, post = take()
-            b += pre + [lst_set(lst, i, val)] + post
+        b += [setv('_i', 1), rep(n, dict(take), lst_set(lst, V('_i'), V('_v')), chg('_i', 1))]
     # 차트 기록과 '전날 가격'은 불러온 가격으로 다시 시작
-    for i in range(1, ST.N + 1):
-        b += [lst_set('전주가', i, LGET('주가', i)), lst_set('주가기록', (i - 1) * ST.HIST + 1, LGET('주가', i))]
+    b += [setv('_i', 1), rep(ST.N, lst_set('전주가', V('_i'), LGET('주가', V('_i'))),
+                             lst_set('주가기록', add(mul(sub(V('_i'), 1), ST.HIST), 1), LGET('주가', V('_i'))), chg('_i', 1))]
     b += [lst_set('주식이름', ST.CTL, LGET('지배이름', V('단계')))]
     import invest as IV
     b += IV.scale_blocks()
-    b += [lst_set('회사기록', i, V('회사가치')) for i in range(1, 21)]
+    b += [setv('_i', 1), rep(20, lst_set('회사기록', V('_i'), V('회사가치')), chg('_i', 1))]
     b += [setv('기록위치', 1), setv('채움', 1), setv('결과처리됨', 1), setv('현재지역', 0), setv('개표창', 0), setv('작전단계', 0),
           setv('재계산', 1),
           # 게임을 꺼 둔 동안은 수입이 쌓이지 않는다: 불러온 시각부터 다시 센다
           setv('마지막시각', 0)]
-    return b
+    _FN['load'] = _P.new_function('불러오기', b)
+    return [dict(_FN['load'])]
 
 
 def clear_blocks():
