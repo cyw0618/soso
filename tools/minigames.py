@@ -4,6 +4,7 @@
 공통 틀(MG): 장소 사진 배경 → 소개 창(규칙/조작) → 3·2·1·START → 게임 → FINISH → 점수(0~100) → 유세 결과 장면.
 build_minigame(P, idx, ctx) 가 True 를 돌려주면 구현된 것.
 """
+import os
 import random
 from entrygen import *
 import ui_kit as K
@@ -42,18 +43,21 @@ class MG:
             self.sc = ctx['S_GAME%d' % tier][idx - 1]
             self.p = dict(name=src[0], game=src[1], kind=kind or '미니게임', help=src[2])
             self.titles = [(src[0], src[1])]
-            G.bg(P, self.sc, ctx['ART'](('sj_%02d' if tier == 2 else 'kr_%02d') % idx))
+            G.bg(P, self.sc, _dimmed(ctx['ART'](('sj_%02d' if tier == 2 else 'kr_%02d') % idx), dim))
         else:
             self.sc = ctx['S_GAME'][idx - 1]
             self.p = D.PLACES[idx - 1]
             # 퀴즈처럼 단계마다 같은 장면을 쓰는 게임: 배경·제목·설명이 단계에 따라 바뀐다
             self.titles = [(self.p['name'], self.p['game']), (D2.SEJONG[idx - 1][0], D2.SEJONG[idx - 1][1]),
                            (D2.KOREA[idx - 1][0], D2.KOREA[idx - 1][1])]
-            bgo = G.bg(P, self.sc, [('1', ctx['ART']('place_%02d' % idx)), ('2', ctx['ART']('sj_%02d' % idx)),
-                                    ('3', ctx['ART']('kr_%02d' % idx))])
-            bgo.on(on_scene(), shape(V('단계')))
-        if dim:
-            self.S('어둡게', A.plain_rect(480, 270, (2, 4, 14, dim), 'dim_%d' % dim), 0, 0)
+            if idx in SHARED_GAMES:
+                bgo = G.bg(P, self.sc, [('1', _dimmed(ctx['ART']('place_%02d' % idx), dim)),
+                                        ('2', _dimmed(ctx['ART']('sj_%02d' % idx), dim)),
+                                        ('3', _dimmed(ctx['ART']('kr_%02d' % idx), dim))])
+                bgo.on(on_scene(), shape(V('단계')))
+            else:
+                # 군수 선거에서만 쓰는 장면: 배경 하나 (어둡게 덮는 판은 그림에 미리 합친다)
+                G.bg(P, self.sc, _dimmed(ctx['ART']('place_%02d' % idx), dim))
         self.status0 = status
 
     # 줄임 함수
@@ -98,57 +102,63 @@ class MG:
         """HUD/소개/카운트다운/시간/종료 처리 오브젝트를 만든다 (게임 오브젝트보다 앞에 보이도록 마지막에 호출)."""
         P, sc, ctx, p = self.P, self.sc, self.ctx, self.p
         # HUD
-        if self.tier:
-            self.S('제목띠', K.banner('%s · %s' % self.titles[0], 236, 30, 'royal'), -116, 118)
+        # 위쪽 제목 띠와 HUD 판은 그림 한 장으로 (오브젝트 수를 줄여 저장 크기를 줄임)
+        hud_panel = K.panel(152, 24, 'glass')
+        if self.tier or self.idx not in SHARED_GAMES:
+            self.S('제목띠', _topbar(K.banner('%s · %s' % self.titles[0], 236, 30, 'royal'), hud_panel), 0, 118)
         else:
-            tb = self.S('제목띠', [(str(t + 1), K.banner('%s · %s' % self.titles[t], 236, 30, 'royal')) for t in range(3)], -116, 118)
+            tb = self.S('제목띠', [(str(t + 1), _topbar(K.banner('%s · %s' % self.titles[t], 236, 30, 'royal'), hud_panel))
+                                 for t in range(3)], 0, 118)
             tb.on(on_scene(), shape(V('단계')))
-        panel(P, sc, 'HUD판', 162, 118, 152, 24, 'glass')
         st = self.T('HUD상태', self.status0, 128, 118, 10, C_WHITE, F_NUM, False, 1, w=96, h=15)
         st.on(on_scene(), *G.live_write(st, [], '미니표시', 0.08))
         if self.time_limit:
             self.S('HUD시계', K.icon_img('clock', 13), 186, 118)
             tm = self.T('HUD시간', '', 214, 118, 10, C_ACC, F_NUM, False, 2, w=36, h=15)
             tm.on(on_scene(), forever(write(join(ceil_(V('남은시간')), '초')), wait(0.05)))
-        # 소개 창
-        intro = [self.S('소개어둡게', A.plain_rect(480, 270, (2, 3, 12, 205), 'dim_intro'), 0, 0)]
-        intro.append(panel(P, sc, '소개판', 0, -4, 320, 186, 'glass', header='royal'))
-        if self.tier:
-            intro.append(self.S('소개제목', K.big_text(self.titles[0][1], 22, 'white'), 0, 72))
+        # 소개 창: 어둡게·판·제목·종류·설명·조작 글을 그림 한 장으로 합친다 (오브젝트·코드 수를 크게 줄임)
+        ctl = controls + '\n(SPACE 키로도 시작할 수 있어요)'
+        badge_ = K.badge(p['kind'], 74, 18, 'royal')
+        if self.tier or self.idx not in SHARED_GAMES:
+            card = _intro_card('%s_%d' % ('t%d' % self.tier if self.tier else 't1', self.idx),
+                               K.big_text(self.titles[0][1], 22, 'white'), badge_, help_lines, ctl)
+            intro = [self.S('소개', card, 0, 0)]
         else:
-            it = self.S('소개제목', [(str(t + 1), K.big_text(self.titles[t][1], 22, 'white')) for t in range(3)], 0, 72)
-            it.on(on_scene(), shape(V('단계')))
-            intro.append(it)
-        intro.append(self.S('소개종류', K.badge(p['kind'], 74, 18, 'royal'), 0, 46))
-        hl = self.T('소개설명', help_lines, 0, 14, 11, C_WHITE, F_BODY, True, 0, w=290, h=44)
-        if not self.tier:
-            hl.on(on_scene(), ifelse(eq(V('단계'), 1), [write(help_lines)], [write(LGET('지역설명', V('지역번호')))]))
-        intro.append(hl)
-        intro.append(self.T('소개조작', controls, 0, -22, 9, C_ACC, F_BODY, True, 0, w=290, h=28))
+            # 단계마다 같은 장면을 쓰는 게임: 제목·설명이 단계별로 다른 그림 3장
+            helps = [help_lines, D2.SEJONG[self.idx - 1][2], D2.KOREA[self.idx - 1][2]]
+            cards = [(str(t + 1), _intro_card('t1_%d_%d' % (self.idx, t + 1), K.big_text(self.titles[t][1], 22, 'white'),
+                                              badge_, helps[t], ctl)) for t in range(3)]
+            io = self.S('소개', cards, 0, 0)
+            io.on(on_scene(), shape(V('단계')))
+            intro = [io]
         start_act = [if_(eq(V('시작됨'), 0), setv('시작됨', 1), cast('시작누름'))]
-        intro.append(button(P, sc, '시작버튼', '시작!', 0, -60, 110, 28, 'royal', icon='star', actions=start_act, hover=False))
-        intro.append(self.T('소개안내', 'SPACE 키로도 시작할 수 있어요', 0, -82, 8, C_DIM, F_BODY, True, 0, w=200, h=12))
+        intro.append(button(P, sc, '시작버튼', '시작!', 0, -66, 110, 28, 'royal', icon='star', actions=start_act, hover=False))
         for o in intro:
             o.on(on_msg('시작누름'), hide())
         # 카운트다운
         # 카운트다운 글자는 오브젝트 하나(모양 4개)로: 신호마다 모양만 고르고, 튀어나오는 동작은 한 군데에서
         cd = self.S('카운트', [(str(k + 1), K.big_text(lbl, 56 if k < 3 else 44, 'royal'))
                              for k, lbl in enumerate(['3', '2', '1', 'START!'])], 0, 10, visible=False)
-        for k, msg in enumerate(['cd3', 'cd2', 'cd1', 'cdgo']):
-            cd.on(on_msg(msg), shape(k + 1), cast('cd팝'))
-        cd.on(on_msg('cd팝'), xy(0, 10), to_front(), cd.pct(25), fx('transparency', 0), show(),
+        # 신호 하나('cd') + 변수(_cd = 1·2·3·4)로: 카운트가 모양을 고르고 소리도 직접 낸다 (신호 처리 코드 수를 줄임)
+        for snd_ in ('beep', 'go'):
+            cd.add_sound(snd_, G._snd_path(snd_), G.SND_META[snd_])
+        cd.on(on_msg('cd'), shape(V('_cd')), ifelse(lt(V('_cd'), 4), [play('beep')], [play('go')]),
+              xy(0, 10), to_front(), cd.pct(25), fx('transparency', 0), show(),
               rep(6, cd.grow_pct(17), wait(0.016)), rep(3, cd.grow_pct(-6), wait(0.016)), wait(0.25),
               rep(10, fx_add('transparency', 10), mvy(1), wait(0.02)), hide())
-        G.big_pop(P, sc, '끝팝', K.big_text('FINISH!', 44, 'royal'), 0, 22, '끝팝', hold=0.9, fade=False)
+        fp = G.big_pop(P, sc, '끝팝', K.big_text('FINISH!', 44, 'royal'), 0, 22, '끝팝', hold=0.9, fade=False,
+                       pre=[play('whistle')])
+        fp.add_sound('whistle', G._snd_path('whistle'), G.SND_META['whistle'])
         fin = self.T('끝점수', '', 0, -24, 18, C_WHITE, F_NUM, False, 0, w=200, h=26, visible=False)
         fin.on(on_msg('끝팝'), wait(0.4), write(join('유세 점수 ', V('점수'), '점')), show())
         # 담당: 초기화 / 시작 / 시간 / 종료
+        P.var('_cd', 1)
         mgr = self.T('미니담당', '', -300, -300, 8, visible=False)
         mgr.on(on_scene(), setv('게임중', 0), setv('시작됨', 0), setv('점수', 0), setv('미니표시', self.status0),
                setv('남은시간', self.time_limit or 0), *self.init_blocks)
         mgr.on(on_key(K_SPACE), if_(eq(V('시작됨'), 0), setv('시작됨', 1), cast('시작누름')))
-        mgr.on(on_msg('시작누름'), wait(0.25), cast('cd3'), wait(0.55), cast('cd2'), wait(0.55), cast('cd1'), wait(0.55),
-               cast('cdgo'), setv('게임중', 1), cast('게임시작'))
+        mgr.on(on_msg('시작누름'), wait(0.25), setv('_cd', 1), cast('cd'), wait(0.55), setv('_cd', 2), cast('cd'), wait(0.55),
+               setv('_cd', 3), cast('cd'), wait(0.55), setv('_cd', 4), cast('cd'), setv('게임중', 1), cast('게임시작'))
         if self.time_limit:
             T_ = self.time_limit
             mgr.on(on_msg('게임시작'), reset_timer(), start_timer(),
@@ -156,21 +166,98 @@ class MG:
                    if_(eq(V('게임중'), 1), setv('남은시간', 0), cast('시간끝')))
         # 소리: 카운트다운, 게임 음악, 종료 호루라기, 게임별 효과음
         hub = G.sound_hub(P, sc, extra_bgm=[self.music])
-        for msg_ in ('cd3', 'cd2', 'cd1'):
-            hub.on(on_msg(msg_), play('beep'))
-        hub.on(on_msg('cdgo'), play('go'))
         if self.music == 'bgm_rhythm':
             hub.on(on_msg('게임시작'), play(self.music))
         else:
             hub.on(on_msg('게임시작'), until(eq(V('게임중'), 0), play_wait(self.music)))
         hub.on(on_msg('게임종료'), stop_sounds())
-        hub.on(on_msg('끝팝'), play('whistle'))
         for msg_, blocks in self.snd_map:
             hub.on(on_msg(msg_), *blocks)
         mgr.on(on_msg('게임종료'), setv('게임중', 0),
                setv('점수', rounded(V('점수'))), if_(gt(V('점수'), 100), setv('점수', 100)), if_(lt(V('점수'), 0), setv('점수', 0)),
                wait(0.3), cast('끝팝'), wait(1.9), setv('결과처리됨', 0), *go(ctx['S_RESULT']))
         G.fader(P, sc, ctx['BLACK'])
+
+
+def _wrap(md, text, f, maxw):
+    out = []
+    for para in text.split('\n'):
+        line = ''
+        for ch in para:
+            if md.textlength(line + ch, font=f) > maxw and line:
+                out.append(line)
+                line = ch
+            else:
+                line += ch
+        out.append(line)
+    return out
+
+
+SHARED_GAMES = {7}      # 시장·대선 단계에서도 같은 장면을 쓰는 군수 게임 (build_game.S_GAME2/3 참고)
+
+
+def _dimmed(path, dim):
+    """배경 그림에 어두운 판(알파 dim)을 미리 합친 그림."""
+    if not dim:
+        return path
+    import hashlib
+    from PIL import Image
+    from art_common import ensure_out
+    out = os.path.join(ensure_out(), 'mg_dim_%s_%d.png' % (hashlib.md5(path.encode()).hexdigest()[:10], dim))
+    if os.path.exists(out):
+        return out
+    im = Image.open(path).convert('RGBA')
+    im.alpha_composite(Image.new('RGBA', im.size, (2, 4, 14, dim)))
+    im.convert('RGB').save(out, optimize=True)
+    return out
+
+
+def _topbar(banner_path, panel_path):
+    """제목 띠(-116, 118)와 HUD 판(162, 118)을 가로 480 그림 한 장(가운데 0, 118)에."""
+    import hashlib
+    from PIL import Image
+    from art_common import ensure_out
+    R = 2
+    out = os.path.join(ensure_out(), 'mg_top_%s.png' % hashlib.md5((banner_path + panel_path).encode()).hexdigest()[:10])
+    if os.path.exists(out):
+        return out
+    bn, pn = Image.open(banner_path).convert('RGBA'), Image.open(panel_path).convert('RGBA')
+    H = max(bn.height, pn.height)
+    im = Image.new('RGBA', (480 * R, H), (0, 0, 0, 0))
+    for p, sx in ((bn, -116), (pn, 162)):
+        im.alpha_composite(p, (int(240 * R + sx * R - p.width / 2), int(H / 2 - p.height / 2)))
+    im.save(out, optimize=True)
+    return out
+
+
+def _intro_card(key, title_path, badge_path, help_text, ctrl_text):
+    """미니게임 소개 창 한 장 (무대 480x270, 파일은 2배): 어두운 바탕 + 판 + 제목 + 종류 + 설명 + 조작."""
+    import hashlib
+    from PIL import Image, ImageDraw
+    from art_common import font, ensure_out
+    R = 2
+    h = hashlib.md5((key + help_text + ctrl_text + title_path + badge_path).encode()).hexdigest()[:10]
+    out = os.path.join(ensure_out(), 'mg_card_%s.png' % h)
+    if os.path.exists(out):
+        return out
+    im = Image.new('RGBA', (480 * R, 270 * R), (2, 3, 12, 205))
+
+    def paste(path, sx, sy):
+        p = Image.open(path).convert('RGBA')
+        im.alpha_composite(p, (int(240 * R + sx * R - p.width / 2), int(135 * R - sy * R - p.height / 2)))
+    paste(K.panel(320, 186, 'glass', header='royal'), 0, -4)
+    paste(title_path, 0, 72)
+    paste(badge_path, 0, 46)
+    md = ImageDraw.Draw(im)
+    for txt, sy, size, col, top in ((help_text, 14, 11, (255, 255, 255, 255), 44), (ctrl_text, -26, 9, (125, 151, 255, 255), 34)):
+        f = font('nsr', size * R)
+        lines = _wrap(md, txt, f, 290 * R)
+        lh = size * R * 1.35
+        y0 = 135 * R - sy * R - lh * (len(lines) - 1) / 2
+        for i, ln in enumerate(lines):
+            md.text((240 * R, y0 + i * lh), ln, font=f, fill=col, anchor='mm')
+    im.save(out, optimize=True)
+    return out
 
 
 def clamp_blocks(var, lo, hi):

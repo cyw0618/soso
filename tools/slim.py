@@ -129,6 +129,9 @@ def apply(P):
     print('· 쓰이지 않는 신호 처리 %d개 삭제' % drop_dead_handlers(P))
     # 3) 경제 시계는 필요한 화면에만
     P.objects = [o for o in P.objects if not (o.name.startswith('경제시계_') and o.scene not in TICKER_KEEP)]
+    # 3.5) 같은 오브젝트에서 머리(시작 조건)가 같은 코드 묶음 합치기 (앞 묶음에 기다림·반복이 없을 때만)
+    if os.environ.get('NOMERGEHAT') != '1':
+        print('· 같은 시작 조건 코드 묶음 합침 %d개' % merge_same_hats(P))
     # 4) 모양·소리를 id 대신 이름(글자)으로: 엔트리는 이름으로도 찾는다 → 오브젝트가 달라도 같은 코드가 되어 함수로 합칠 수 있다
     if os.environ.get('NONAMEREF') != '1':
         print('· 모양·소리 이름으로 바꾼 곳 %d개' % names_as_text(P))
@@ -157,6 +160,9 @@ def apply(P):
                             break
     else:
         print('· (함수 사용 안 함)')
+    if os.environ.get('NOFUNC') != '1' and os.environ.get('NOROWS') != '1':
+        n, g = args_to_lists(P)
+        print('· 함수 입력값 %d개 함수를 리스트(행 번호)로 (전체 블록 약 %d개 줄임)' % (n, g))
     after = statement_count(P)
     print('· 블록 정리: %d → %d' % (before, after))
 
@@ -310,7 +316,14 @@ def _lit_slots(body):
     return out
 
 
-def functionize_params(P, max_params=24, min_gain=8):
+def _pcost(n_calls, n_vary):
+    """매개변수 비용(블록 수): 2개 이상이면 행 번호(부를 때 1개) + 함수 안에서 리스트 읽기 식(6개씩)."""
+    if n_vary <= 1:
+        return n_calls * (1 + n_vary)
+    return n_calls * 2 + 6 * n_vary
+
+
+def functionize_params(P, max_params=60, min_gain=8):
     import copy
     from collections import defaultdict
     from entrygen import new_id
@@ -338,7 +351,7 @@ def functionize_params(P, max_params=24, min_gain=8):
         if not vary or len(vary) > max_params:
             continue
         body_n = sum(_all_count(b) for b in items[0][1][1:])
-        gain = (len(items) - 1) * body_n - len(items) * (1 + len(vary))
+        gain = (len(items) - 1) * body_n - _pcost(len(items), len(vary))
         if gain < min_gain:
             continue
         ptypes = ['stringParam_' + new_id() for _ in vary]
@@ -401,7 +414,7 @@ def _has_param_ref(b):
     return hit[0]
 
 
-def outline_statements(P, min_size=4, max_params=20):
+def outline_statements(P, min_size=4, max_params=60):
     """스크립트 안의 문장(블록 덩어리) 가운데 모양이 같은 것(숫자·글자 값만 다름)을 모아 매개변수 함수로 뺀다."""
     import copy
     from collections import defaultdict
@@ -461,7 +474,7 @@ def outline_statements(P, min_size=4, max_params=20):
         if len(vary) > max_params:
             continue
         size = items[0][3]
-        gain = (len(items) - 1) * size - len(items) * (1 + len(vary))
+        gain = (len(items) - 1) * size - _pcost(len(items), len(vary))
         if gain > 4:
             order.append((gain, key, items, vary))
     order.sort(key=lambda r: -r[0])
@@ -492,7 +505,7 @@ def outline_statements(P, min_size=4, max_params=20):
             continue
         slots = [_lit_slots([it[2]]) for it in live]
         size = live[0][3]
-        g = (len(live) - 1) * size - len(live) * (1 + len(vary))
+        g = (len(live) - 1) * size - _pcost(len(live), len(vary))
         if g <= 4:
             continue
         ptypes = ['stringParam_' + new_id() for _ in vary]
@@ -511,7 +524,7 @@ def outline_statements(P, min_size=4, max_params=20):
     return made, total
 
 
-def outline_sequences(P, max_w=16, min_size=5, max_params=20):
+def outline_sequences(P, max_w=24, min_size=5, max_params=60):
     """문장 목록 안에서 연달아 나오는 블록 묶음(2~max_w개)이 다른 곳에서도 같은 모양(값만 다름)으로 나오면 함수로 뺀다."""
     import copy
     from collections import defaultdict
@@ -582,7 +595,7 @@ def outline_sequences(P, max_w=16, min_size=5, max_params=20):
         if len(vary) > max_params:
             continue
         size = uniq[0][2]
-        gain = (len(uniq) - 1) * size - len(uniq) * (1 + len(vary)) - 4
+        gain = (len(uniq) - 1) * size - _pcost(len(uniq), len(vary)) - 4
         if gain > 6:
             order.append((gain, key, uniq, vary))
     order.sort(key=lambda r: -r[0])
@@ -613,7 +626,7 @@ def outline_sequences(P, max_w=16, min_size=5, max_params=20):
         if len({len(x) for x in slots}) != 1:
             continue
         size = live[0][2]
-        g = (len(live) - 1) * size - len(live) * (1 + len(vary)) - 4
+        g = (len(live) - 1) * size - _pcost(len(live), len(vary)) - 4
         if g <= 6:
             continue
         ptypes = ['stringParam_' + new_id() for _ in vary]
@@ -752,3 +765,161 @@ def outline_exprs(P, max_params=12):
             ps[i] = {'type': 'func_' + fid, 'params': args, 'statements': []}
         total += g2
     return made, total
+
+
+def args_to_lists(P, min_gain=6):
+    """매개변수가 2개 이상인 함수: 부를 때마다 값 블록을 여러 개 넘기는 대신, 값들을 리스트에 한 줄(행)로 저장하고
+    행 번호 하나만 넘긴다. 함수 안에서는 '리스트의 (행-1)×개수+j 번째 항목'으로 읽는다.
+    (값 블록 하나는 엔트리 저장 데이터에서 200바이트쯤, 리스트 항목은 십여 바이트)"""
+    from entrygen import new_id, LGET, add, mul
+    funcs = {f['id']: f for f in P.functions if f.get('params') and f.get('value') is None}
+    calls = {fid: [] for fid in funcs}
+
+    def scan(b):
+        if isinstance(b, dict):
+            t = str(b.get('type', ''))
+            if t.startswith('func_') and t[5:] in calls:
+                calls[t[5:]].append(b)
+            for p in b.get('params', []):
+                scan(p)
+            for st in b.get('statements', []):
+                for x in st:
+                    scan(x)
+    for o in P.objects:
+        for sc in o.scripts:
+            for b in sc:
+                scan(b)
+    for f in P.functions:
+        for b in f['body']:
+            scan(b)
+    made, total = 0, 0
+    for fid, f in funcs.items():
+        cs = calls[fid]
+        m = len(f['params'])
+        if m < 2 or len(cs) < 2:
+            continue
+        ok = True
+        for c in cs:
+            args = c['params'][:m]
+            if len(args) < m or any(not (isinstance(a, dict) and a.get('type') in ('number', 'text')
+                                         and len(a.get('params', [])) == 1 and not isinstance(a['params'][0], (dict, Ref)))
+                                    for a in args):
+                ok = False
+                break
+        if not ok:
+            continue
+        uses = [0]
+        pset = set(f['params'])
+
+        def count(b):
+            if isinstance(b, dict) and b.get('type') in pset:
+                uses[0] += 1
+        _walk(f['body'], count)
+        gain = len(cs) * (m - 1) - 5 * uses[0] - 2 * (m - 1)
+        if gain < min_gain:
+            continue
+        lname = '_인자_' + fid
+        rows = []
+        for c in cs:
+            rows += [str(a['params'][0]) for a in c['params'][:m]]
+        P.list(lname, rows)
+        rp = 'stringParam_' + new_id()
+        idx = {pt: j for j, pt in enumerate(f['params'], 1)}
+
+        def repl(b):
+            if isinstance(b, dict):
+                ps = b.get('params', [])
+                for i, p in enumerate(ps):
+                    if isinstance(p, dict) and p.get('type') in idx:
+                        j = idx[p['type']]
+                        ps[i] = LGET(lname, add(mul({'type': rp, 'params': []}, m), j - m))
+                    else:
+                        repl(p)
+                for st in b.get('statements', []):
+                    for x in st:
+                        repl(x)
+        for b in f['body']:
+            repl(b)
+        f['params'] = [rp]
+        for r, c in enumerate(cs, 1):
+            tail = c['params'][m:]
+            c['params'] = [{'type': 'number', 'params': [str(r)]}] + tail
+        made += 1
+        total += gain
+    return made, total
+
+
+YIELD_TYPES = {'wait_second', 'repeat_basic', 'repeat_inf', 'repeat_while_true', 'wait_until_true', 'ask_and_wait',
+               'message_cast_wait', 'sound_something_wait_with_block', 'sound_from_to_and_wait', 'stop_object',
+               'start_scene', 'start_neighbor_scene', 'create_clone', 'delete_clone', 'when_clone_start',
+               'stop_repeat', 'continue_repeat', 'restart_project', 'stop_run', 'text_read'}
+
+
+def _yields(b):
+    hit = [False]
+
+    def f(x):
+        if isinstance(x, dict):
+            t = str(x.get('type', ''))
+            if t in YIELD_TYPES or t.startswith('func_') or 'wait' in t:
+                hit[0] = True
+    _walk(b, f)
+    return hit[0]
+
+
+def merge_same_hats(P):
+    """한 오브젝트 안에서 같은 신호/같은 시작 조건의 코드 묶음이 여럿이면, 기다림이 없는 묶음들을 다른 묶음 앞에 이어 붙인다."""
+    merged = 0
+    for o in P.objects:
+        groups = {}
+        for sc in o.scripts:
+            if not sc:
+                continue
+            h = sc[0]
+            key = json_key(h)
+            groups.setdefault(key, []).append(sc)
+        keep = []
+        done = set()
+        for sc in o.scripts:
+            if not sc:
+                continue
+            key = json_key(sc[0])
+            if key in done:
+                continue
+            g = groups[key]
+            if len(g) == 1:
+                keep.append(sc)
+                done.add(key)
+                continue
+            instant = [x for x in g if not any(_yields(b) for b in x[1:])]
+            other = [x for x in g if x not in instant]
+            if len(instant) + (1 if other else 0) <= 1 and len(other) <= 1:
+                keep += g
+                done.add(key)
+                continue
+            # 기다림 없는 묶음들은 하나로 합쳐 (기다림 있는 묶음이 있으면 그 중 하나의 앞에 붙인다)
+            body = []
+            for x in instant:
+                body += x[1:]
+            if other:
+                first = other[0]
+                new = [first[0]] + body + first[1:]
+                keep.append(new)
+                keep += other[1:]
+            else:
+                keep.append([instant[0][0]] + body)
+            merged += len(instant) - (0 if other else 1)
+            done.add(key)
+        o.scripts = keep
+    return merged
+
+
+def json_key(h):
+    import json as _j
+    def norm(x):
+        if isinstance(x, Ref):
+            return ['R', x[0], x[1]]
+        if isinstance(x, dict):
+            return {'t': x.get('type'), 'p': [norm(p) for p in x.get('params', [])]}
+        return x
+    return _j.dumps(norm(h), ensure_ascii=False, sort_keys=True)

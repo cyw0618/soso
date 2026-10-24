@@ -56,11 +56,13 @@ def panel(P, scene, base, x, y, w, h, kind='glass', header=None, visible=True):
 
 
 def hover_scripts(o, big=108, normal=100, first_scene=False):
-    """마우스를 올리면 살짝 커지고 밝아지는 효과. 상태가 바뀔 때만 크기·밝기를 바꾼다 (매 프레임 바꾸면 화면이 느려짐)."""
-    o.local('_hv', 0)
-    loop = [setv('_hv', 0), o.pct(normal), fx('brightness', 0),
-            forever(ifelse(touch('mouse'), [if_(eq(V('_hv'), 0), setv('_hv', 1), o.pct(big), fx('brightness', 12))],
-                           [if_(eq(V('_hv'), 1), setv('_hv', 0), o.pct(normal), fx('brightness', 0))]),
+    """마우스를 올리면 살짝 커지고 밝아지는 효과. 상태가 바뀔 때만 크기·밝기를 바꾼다 (매 프레임 바꾸면 화면이 느려짐).
+    상태는 지역 변수 대신 '지금 크기'로 판단한다 → 버튼마다 같은 코드가 되어 함수 하나로 합쳐진다."""
+    mid = round(o.base_size * (big + normal) / 200.0, 2)
+    size = B('coordinate_object', VALUE='self', COORDINATE='size')
+    loop = [o.pct(normal), fx('brightness', 0),
+            forever(ifelse(touch('mouse'), [if_(lt(size, mid), o.pct(big), fx('brightness', 12))],
+                           [if_(gt(size, mid), o.pct(normal), fx('brightness', 0))]),
                     wait(0.04))]
     o.on(on_scene(), *loop)
     if first_scene:
@@ -79,15 +81,15 @@ def button(P, scene, base, label, x, y, w, h, color='royal', icon=None, actions=
 
 
 def live_write(o, make, var, period=0.2):
-    """make 블록으로 변수 var 에 글을 만든 뒤, 바뀌었을 때만 글상자에 쓴다 (on_scene 에 붙일 블록 목록)."""
-    o.local('_lt', '')
-    return [setv('_lt', '__처음__'), forever(*flat(make), if_(ne(V(var), V('_lt')), write(V(var)), setv('_lt', V(var))), wait(period))]
+    """make 블록으로 변수 var 에 글을 만든 뒤, 글상자의 지금 글과 다를 때만 쓴다 (on_scene 에 붙일 블록 목록)."""
+    cur = {'type': 'text_read', 'params': ['self', None]}
+    return [forever(*flat(make), if_(ne(V(var), cur), write(V(var))), wait(period))]
 
 
 def live_shape(o, expr, period=0.15):
-    """모양 번호 expr 가 바뀌었을 때만 모양을 바꾼다."""
-    o.local('_ls', -1)
-    return [setv('_ls', -1), forever(if_(ne(expr, V('_ls')), setv('_ls', expr), shape(V('_ls'))), wait(period))]
+    """모양 번호 expr 가 지금 모양 번호와 다를 때만 모양을 바꾼다."""
+    cur = B('coordinate_object', VALUE='self', COORDINATE='picture_index')
+    return [forever(if_(ne(expr, cur), shape(expr)), wait(period))]
 
 
 def big_pop(P, scene, base, path, x, y, msg, hold=0.7, fade=True, then=(), pre=()):
