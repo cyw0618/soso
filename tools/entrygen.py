@@ -872,11 +872,19 @@ class Project:
             nxt = None
             for ptype in reversed(f.get('params', [])):
                 nxt = {'type': 'function_field_string', 'params': [{'type': ptype, 'params': []}, nxt], 'statements': []}
-            create = {'type': 'function_create', 'statements': [],
-                      'params': [{'type': 'function_field_label', 'params': [f['name'], nxt], 'statements': []}, None]}
-            blocks = [self._finalize_block(b, base, 40 if i == 0 else 0, 40 if i == 0 else 0)
-                      for i, b in enumerate([create] + list(f['body']))]
-            out.append(dict(id=f['id'], type='normal', localVariables=[], useLocalVariables=False,
+            label = {'type': 'function_field_label', 'params': [f['name'], nxt], 'statements': []}
+            if f.get('value') is not None:
+                # 값을 돌려주는 함수: 하는 일(DO)은 없고 VALUE 식만 계산해서 돌려준다
+                create = {'type': 'function_create_value', 'statements': [list(f['body'])],
+                          'params': [label, None, None, f['value']]}
+                blocks = [self._finalize_block(create, base, 40, 40)]
+                ftype = 'value'
+            else:
+                create = {'type': 'function_create', 'statements': [], 'params': [label, None]}
+                blocks = [self._finalize_block(b, base, 40 if i == 0 else 0, 40 if i == 0 else 0)
+                          for i, b in enumerate([create] + list(f['body']))]
+                ftype = 'normal'
+            out.append(dict(id=f['id'], type=ftype, localVariables=[], useLocalVariables=False,
                             content=json.dumps([blocks], ensure_ascii=False, separators=(',', ':'))))
         return out
 
@@ -885,6 +893,12 @@ class Project:
         fid = new_id()
         self.functions.append(dict(id=fid, name=name, body=body))
         return {'type': 'func_' + fid, 'params': [], 'statements': []}
+
+    def new_value_function(self, name, expr, ptypes):
+        """값을 돌려주는 함수 (매개변수 ptypes). 부르는 블록은 func_<id>, params = [값 블록들...]."""
+        fid = new_id()
+        self.functions.append(dict(id=fid, name=name, body=[], params=list(ptypes), value=expr))
+        return fid
 
     def new_param_function(self, name, body, ptypes):
         """매개변수가 있는 함수. ptypes: 본문에서 쓴 'stringParam_xxxx' 블록 이름들 (순서대로 매개변수).

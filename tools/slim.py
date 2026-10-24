@@ -146,6 +146,15 @@ def apply(P):
                     print('· 코드 속 되풀이 덩어리 %d묶음을 함수로 뺌 (전체 블록 약 %d개 줄임)' % (n, g))
                     if n == 0:
                         break
+                if os.environ.get('EXPR') == '1':      # 값 함수: 엔트리에서 값이 안 나오는 경우가 있어 기본은 끔
+                    n, g = outline_exprs(P)
+                    print('· 되풀이되는 식 %d묶음을 값 함수로 (전체 블록 약 %d개 줄임)' % (n, g))
+                if os.environ.get('NOSEQ') != '1':
+                    for rnd_ in range(4):
+                        n, g = outline_sequences(P)
+                        print('· 되풀이되는 연속 블록 %d묶음을 함수로 뺌 (전체 블록 약 %d개 줄임)' % (n, g))
+                        if n == 0:
+                            break
     else:
         print('· (함수 사용 안 함)')
     after = statement_count(P)
@@ -499,4 +508,247 @@ def outline_statements(P, min_size=4, max_params=20):
             mark(b)
             stmts[i] = {'type': 'func_' + fid, 'params': args + [None], 'statements': []}
         total += g
+    return made, total
+
+
+def outline_sequences(P, max_w=16, min_size=5, max_params=20):
+    """문장 목록 안에서 연달아 나오는 블록 묶음(2~max_w개)이 다른 곳에서도 같은 모양(값만 다름)으로 나오면 함수로 뺀다."""
+    import copy
+    from collections import defaultdict
+    from entrygen import new_id
+    lists = []                      # (문장 리스트, 지역 변수 이름들, 머리 블록 수)
+
+    def collect(stmts, locs, head):
+        lists.append((stmts, locs, head))
+        for b in stmts[head:]:
+            if isinstance(b, dict):
+                for st in b.get('statements', []):
+                    collect(st, locs, 0)
+    for o in P.objects:
+        for sc in o.scripts:
+            collect(sc, set(o.locals), 1)
+    for f in list(P.functions):
+        collect(f['body'], set(), 0)
+    info = {}                       # id(block) -> (key, size, ok)
+
+    def binfo(b):
+        k = id(b)
+        if k not in info:
+            if not isinstance(b, dict):
+                info[k] = (None, 0, False)
+            else:
+                fl = {}
+                key = _canon_lit(b, fl)
+                ok = not fl.get('bad') and not _has_param_ref(b)
+                info[k] = (key, _all_count(b), ok)
+        return info[k]
+    cands = defaultdict(list)       # key -> [(list, [blocks])]
+    for stmts, locs, head in lists:
+        n = len(stmts)
+        for i in range(head, n):
+            key_parts, size = [], 0
+            for w in range(1, max_w + 1):
+                j = i + w - 1
+                if j >= n:
+                    break
+                b = stmts[j]
+                k, sz, ok = binfo(b)
+                if not ok or (locs and _uses_names(b, locs)):
+                    break
+                key_parts.append(k)
+                size += sz
+                if w >= 2 and size >= min_size:
+                    cands['#'.join(key_parts)].append((stmts, stmts[i:j + 1], size))
+    order = []
+    for key, occ in cands.items():
+        if len(occ) < 2:
+            continue
+        # 같은 리스트 안에서 겹치는 자리는 하나만
+        seen, uniq = {}, []
+        for stmts, blocks, size in occ:
+            ids = [id(x) for x in blocks]
+            lst = seen.setdefault(id(stmts), [])
+            if any(set(ids) & set(o) for o in lst):
+                continue
+            lst.append(ids)
+            uniq.append((stmts, blocks, size))
+        if len(uniq) < 2:
+            continue
+        slots = [_lit_slots(blocks) for _, blocks, _ in uniq]
+        if len({len(x) for x in slots}) != 1:
+            continue
+        vals = [[ps[i]['params'][0] for ps, i in x] for x in slots]
+        vary = [k for k in range(len(slots[0])) if len({str(v[k]) for v in vals}) > 1]
+        if len(vary) > max_params:
+            continue
+        size = uniq[0][2]
+        gain = (len(uniq) - 1) * size - len(uniq) * (1 + len(vary)) - 4
+        if gain > 6:
+            order.append((gain, key, uniq, vary))
+    order.sort(key=lambda r: -r[0])
+    consumed = set()
+
+    def mark(b):
+        def f(x):
+            if isinstance(x, dict):
+                consumed.add(id(x))
+        _walk(b, f)
+    made, total = 0, 0
+    for gain, key, uniq, vary in order:
+        live = []
+        for stmts, blocks, size in uniq:
+            if any(id(b) in consumed for b in blocks):
+                continue
+            # 지금도 리스트 안에 그대로 이어서 있는지
+            try:
+                i0 = next(i for i, x in enumerate(stmts) if x is blocks[0])
+            except StopIteration:
+                continue
+            if stmts[i0:i0 + len(blocks)] != blocks or any(a is not b for a, b in zip(stmts[i0:i0 + len(blocks)], blocks)):
+                continue
+            live.append((stmts, blocks, size))
+        if len(live) < 2:
+            continue
+        slots = [_lit_slots(blocks) for _, blocks, _ in live]
+        if len({len(x) for x in slots}) != 1:
+            continue
+        size = live[0][2]
+        g = (len(live) - 1) * size - len(live) * (1 + len(vary)) - 4
+        if g <= 6:
+            continue
+        ptypes = ['stringParam_' + new_id() for _ in vary]
+        body = copy.deepcopy(live[0][1])
+        bslots = _lit_slots(body)
+        if len(bslots) != len(slots[0]):
+            continue
+        for pt, k in zip(ptypes, vary):
+            ps, i = bslots[k]
+            ps[i] = {'type': pt, 'params': []}
+        made += 1
+        fid = P.new_param_function('연속%d' % made, body, ptypes)
+        for (stmts, blocks, _), sl in zip(live, slots):
+            args = [copy.deepcopy(sl[k][0][sl[k][1]]) for k in vary]
+            for b in blocks:
+                mark(b)
+            i0 = next(i for i, x in enumerate(stmts) if x is blocks[0])
+            stmts[i0:i0 + len(blocks)] = [{'type': 'func_' + fid, 'params': args + [None], 'statements': []}]
+        total += g
+    return made, total
+
+
+def _expr_candidates(P, min_size=5):
+    """값 블록(식) 중 크기가 min_size 이상인 것: [(부모 params 리스트, 인덱스, 블록, 크기, 지역변수이름)]"""
+    out = []
+
+    def rec(b, locs):
+        if not isinstance(b, dict):
+            return
+        ps = b.get('params', [])
+        for i, p in enumerate(ps):
+            if isinstance(p, dict):
+                t = p.get('type', '')
+                if t not in ('number', 'text') and not str(t).startswith('stringParam_') and not str(t).startswith('func_'):
+                    sz = _all_count(p)
+                    if sz >= min_size:
+                        out.append((ps, i, p, sz, locs))
+                rec(p, locs)
+        for st in b.get('statements', []):
+            for x in st:
+                rec(x, locs)
+    for o in P.objects:
+        for sc in o.scripts:
+            for b in sc:
+                rec(b, set(o.locals))
+    for f in P.functions:
+        for b in f['body']:
+            rec(b, set())
+    return out
+
+
+def analyze_exprs(P):
+    from collections import defaultdict
+    g = defaultdict(list)
+    for ps, i, p, sz, locs in _expr_candidates(P):
+        fl = {}
+        k = _canon_lit(p, fl)
+        if fl.get('bad') or _has_param_ref(p) or (locs and _uses_names(p, locs)):
+            continue
+        g[k].append((p, sz))
+    gain = 0
+    rows = []
+    for k, items in g.items():
+        if len(items) < 2:
+            continue
+        nl = len(_lit_slots([{'type': 'x', 'params': [items[0][0]]}]))
+        gg = (len(items) - 1) * items[0][1] - len(items) * (1 + nl) - 4
+        if gg > 0:
+            gain += gg
+            rows.append((gg, len(items), items[0][1]))
+    rows.sort(reverse=True)
+    print('· (참고) 되풀이되는 식을 값 함수로 바꾸면 줄일 블록 약 %d개 (겹침 포함 추정)' % gain, rows[:8])
+
+
+def outline_exprs(P, max_params=12):
+    """되풀이되는 식(값 블록 덩어리)을 값을 돌려주는 함수로."""
+    import copy
+    from collections import defaultdict
+    from entrygen import new_id
+    groups = defaultdict(list)
+    for ps, i, p, sz, locs in _expr_candidates(P):
+        fl = {}
+        k = _canon_lit(p, fl)
+        if fl.get('bad') or _has_param_ref(p) or (locs and _uses_names(p, locs)):
+            continue
+        groups[k].append((ps, i, p, sz))
+    order = []
+    for k, items in groups.items():
+        if len(items) < 2:
+            continue
+        slots = [_lit_slots([{'type': 'x', 'params': [it[2]]}]) for it in items]
+        if len({len(x) for x in slots}) != 1:
+            continue
+        vals = [[a[b]['params'][0] for a, b in x] for x in slots]
+        vary = [j for j in range(len(slots[0])) if len({str(v[j]) for v in vals}) > 1]
+        if len(vary) > max_params:
+            continue
+        g = (len(items) - 1) * items[0][3] - len(items) * (1 + len(vary)) - 4
+        if g > 4:
+            order.append((g, k, items, vary))
+    order.sort(key=lambda r: -r[0])
+    consumed = set()
+    made, total = 0, 0
+    for g, k, items, vary in order:
+        live = []
+        for ps, i, p, sz in items:
+            if id(p) in consumed or i >= len(ps) or ps[i] is not p:
+                continue
+            fl = {}
+            if _canon_lit(p, fl) != k or fl.get('bad'):
+                continue
+            live.append((ps, i, p, sz))
+        if len(live) < 2:
+            continue
+        g2 = (len(live) - 1) * live[0][3] - len(live) * (1 + len(vary)) - 4
+        if g2 <= 4:
+            continue
+        slots = [_lit_slots([{'type': 'x', 'params': [it[2]]}]) for it in live]
+        ptypes = ['stringParam_' + new_id() for _ in vary]
+        expr = copy.deepcopy(live[0][2])
+        holder = {'type': 'x', 'params': [expr]}
+        bs = _lit_slots([holder])
+        for pt, j in zip(ptypes, vary):
+            a, b = bs[j]
+            a[b] = {'type': pt, 'params': []}
+        expr = holder['params'][0]
+        made += 1
+        fid = P.new_value_function('식%d' % made, expr, ptypes)
+        for (ps, i, p, sz), sl in zip(live, slots):
+            args = [copy.deepcopy(sl[j][0][sl[j][1]]) for j in vary]
+
+            def f(x):
+                if isinstance(x, dict):
+                    consumed.add(id(x))
+            _walk(p, f)
+            ps[i] = {'type': 'func_' + fid, 'params': args, 'statements': []}
+        total += g2
     return made, total
