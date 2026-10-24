@@ -392,7 +392,7 @@ def _has_param_ref(b):
     return hit[0]
 
 
-def outline_statements(P, min_size=6, max_params=16):
+def outline_statements(P, min_size=4, max_params=20):
     """스크립트 안의 문장(블록 덩어리) 가운데 모양이 같은 것(숫자·글자 값만 다름)을 모아 매개변수 함수로 뺀다."""
     import copy
     from collections import defaultdict
