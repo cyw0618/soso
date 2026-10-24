@@ -141,7 +141,7 @@ def scene_title():
     init += E.reset_blocks()
     init += IV.reset_blocks()
     init += EC.reset_blocks()
-    mgr.on(on_msg('초기화'), *init)
+    mgr.on(on_msg('초기화'), setv('타이틀중', 0), *init)
     for lbl, yy, col, ic, act in [('게임 시작', 34, 'royal', 'star', [cast_wait('초기화')] + go(S_STORY)),
                                   ('게임 방법', -6, 'blue', 'map', go(S_HOWTO)),
                                   ('랭킹', -46, 'purple', 'trophy', go(S_RANK))]:
@@ -151,9 +151,13 @@ def scene_title():
                   actions=[if_(eq(V('저장있음'), 1), cast_wait('초기화'), *SG.load_blocks(), *GO_HOME())])
     save_t = text(P, sc, '저장안내', '', 170, -76, 8, C_DIM, F_BODY, True, 0, w=150, h=24)
     # 실시간 리스트는 서버에서 늦게 도착할 수 있어서, 저장이 안 보이면 두 번 더 찾아본다 (0.3초 · 2초 · 5초 뒤)
-    check = [hide(), wait(0.3), *SG.find_blocks(), cast('저장확인'),
-             if_(and_(eq(V('저장있음'), 0), SG.logged_in()), wait(1.7), *SG.find_blocks(), cast('저장확인'),
-                 if_(eq(V('저장있음'), 0), wait(3), *SG.find_blocks(), cast('저장확인')))]
+    P.var('타이틀중', 0)
+    P.var('_찾기', 0)
+    # 실시간 리스트는 작품이 무거우면 서버에서 늦게 도착한다: 저장을 찾을 때까지 타이틀에 있는 동안 1초마다 다시 찾는다 (최대 60초)
+    check = [hide(), setv('타이틀중', 1), setv('_찾기', 0), wait(0.3), *SG.find_blocks(), cast('저장확인'),
+             until(or_(or_(eq(V('저장있음'), 1), gt(V('_찾기'), 59)), or_(eq(V('타이틀중'), 0), not_(SG.logged_in()))),
+                   wait(1), chg('_찾기', 1), *SG.find_blocks(), cast('저장확인')),
+             if_(eq(V('저장있음'), 0), setv('_찾기', 99), cast('저장확인'))]
     chk_o = text(P, sc, '저장확인담당', '', -300, -300, 8, visible=False)
     chk_o.on(on_run(), *check)
     chk_o.on(on_scene(), *check)
@@ -162,7 +166,9 @@ def scene_title():
     cont.on(on_msg('저장확인'), if_(eq(V('저장있음'), 1), show()))
     save_t.on(on_msg('저장확인'),
               ifelse(eq(V('저장있음'), 1), [write(join('하던 게임이 저장돼 있어요.\n계정 ', V('내계정'), ' · 저장 번호 ', V('저장번호')))],
-                     [ifelse(SG.logged_in(), [write(join('자동 저장돼요. 계정 ', V('내계정'), '\n서버 저장 ', LLEN('저장칸목록'), '칸 · 랭킹 ', sub(LLEN('명예이름'), 1), '명'))],
+                     [ifelse(SG.logged_in(), [ifelse(lt(V('_찾기'), 99),
+                                                     [write(join('서버에서 저장을 찾는 중... ', V('_찾기'), '초\n서버 저장 ', LLEN('저장칸목록'), '칸 · 랭킹 ', sub(LLEN('명예이름'), 1), '명'))],
+                                                     [write(join('저장된 게임이 없어요. 계정 ', V('내계정'), '\n서버 저장 ', LLEN('저장칸목록'), '칸 · 랭킹 ', sub(LLEN('명예이름'), 1), '명'))])],
                              [write('로그인이 안 돼 있어요.\n(로그인해야 저장·이어하기)')])]))
     G.sound_hub(P, sc, 'bgm_title', first_scene=True)
     G.fader(P, sc, BLACK, first_scene=True)

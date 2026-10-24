@@ -78,6 +78,13 @@ def _check(pos, letter, ok, num, lst=SL):
 
 
 def find_blocks():
+    """저장 찾기 함수를 부르는 블록."""
+    if 'find' not in _FN:
+        _FN['find'] = _P.new_function('저장찾기', _find_body())
+    return [dict(_FN['find'])]
+
+
+def _find_body():
     """타이틀에서: 내 계정의 저장 세 칸(실시간 A·B, 공유 백업 C)을 찾아, 온전한 것 중 저장 번호가 가장 큰 것을 고른다
     (저장있음=1, 내용은 _불러온 에)."""
     pick = []
