@@ -15,7 +15,7 @@ import data2 as D2
 import scene_stock as ST
 
 VERSION = 'S5'
-SEP, KEY = '|', '§'
+SEP, KEY = '|', '^'
 SAVE_VARS = ['저장번호', '돈', '내지지율', '큰A', '큰B', '유세횟수', '방어권', '차단턴', '장시간', '첫째주', '둘째주', '지배알림',
              '협상기회', '협상금지턴', '지도모드',
              '단계', '직위', '캠페인중', '평판', '창당', '당원', '공천', '당선', '회사상태', '회사업종', '회사가치', '회사투자',
@@ -38,7 +38,7 @@ def setup(P):
     global _P
     _P = P
     _FN.clear()
-    P.list('저장목록', [], cloud=True, lid='sv1')
+    P.list('저장칸목록', [], cloud=True, lid='sv7q')
     for v, d in (('내계정', ''), ('저장위치A', 0), ('저장위치B', 0), ('저장슬롯', 0), ('저장번호', 0), ('저장틱', 0), ('저장필요', 0), ('_okA', 0), ('_okB', 0), ('_nA', 0), ('_nB', 0), ('_t', ''), ('_t2', ''), ('_n0', 0), ('_w', 0), ('저장있음', 0), ('저장글', ''), ('_불러온', ''), ('_sp', 0), ('_si', 0),
                  ('_dg', '')):
         P.var(v, d)
@@ -55,9 +55,9 @@ def _slot_key(letter):
 
 def _search(key, out):
     """저장목록에서 key 로 시작하는 칸 찾기 (최근 칸부터). 못 찾으면 out=0."""
-    return [setv(out, 0), setv('_si', LLEN('저장목록')),
+    return [setv(out, 0), setv('_si', LLEN('저장칸목록')),
             until(or_(lt(V('_si'), 1), gt(V(out), 0)),
-                  if_(eq(str_index(LGET('저장목록', V('_si')), key), 1), setv(out, V('_si'))),
+                  if_(eq(str_index(LGET('저장칸목록', V('_si')), key), 1), setv(out, V('_si'))),
                   chg('_si', -1))]
 
 
@@ -65,7 +65,7 @@ def _check(pos, letter, ok, num):
     """칸 pos 의 저장이 온전한지(형식 버전·값 개수) 보고, 저장 번호를 num 에 넣는다 (ok=1 이면 쓸 수 있음)."""
     return [setv(ok, 0), setv(num, 0),
             if_(gt(V(pos), 0),
-                setv('_t', LGET('저장목록', V(pos))),
+                setv('_t', LGET('저장칸목록', V(pos))),
                 setv('_t', substr(V('_t'), add(slen(V('내계정')), 3), slen(V('_t')))),
                 if_(and_(eq(str_index(V('_t'), VERSION + SEP), 1), eq(str_count(V('_t'), SEP), FIELDS + 1)),
                     setv('_t2', substr(V('_t'), len(VERSION) + 2, slen(V('_t')))),
@@ -82,8 +82,8 @@ def find_blocks():
                 *_check('저장위치A', 'A', '_okA', '_nA'), *_check('저장위치B', 'B', '_okB', '_nB'),
                 if_(or_(eq(V('_okA'), 1), eq(V('_okB'), 1)),
                     ifelse(and_(eq(V('_okA'), 1), or_(eq(V('_okB'), 0), ge(V('_nA'), V('_nB')))),
-                           [setv('_불러온', LGET('저장목록', V('저장위치A'))), setv('저장슬롯', 1)],
-                           [setv('_불러온', LGET('저장목록', V('저장위치B'))), setv('저장슬롯', 2)]),
+                           [setv('_불러온', LGET('저장칸목록', V('저장위치A'))), setv('저장슬롯', 1)],
+                           [setv('_불러온', LGET('저장칸목록', V('저장위치B'))), setv('저장슬롯', 2)]),
                     setv('_불러온', substr(V('_불러온'), add(slen(V('내계정')), 3), slen(V('_불러온')))),
                     setv('저장있음', 1)))]
 
@@ -98,12 +98,12 @@ def save_blocks():
 def _write_slot(letter, pos):
     """내 칸(letter)에 저장글을 쓴다. 칸 번호가 어긋났으면 다시 찾고, 없으면 새로 만든다."""
     key = _slot_key(letter)
-    return [if_(gt(V(pos), LLEN('저장목록')), setv(pos, 0)),
-            if_(gt(V(pos), 0), if_(ne(str_index(LGET('저장목록', V(pos)), key), 1), setv(pos, 0))),
-            ifelse(gt(V(pos), 0), [lst_set('저장목록', V(pos), join(key, V('저장글')))],
+    return [if_(gt(V(pos), LLEN('저장칸목록')), setv(pos, 0)),
+            if_(gt(V(pos), 0), if_(ne(str_index(LGET('저장칸목록', V(pos)), key), 1), setv(pos, 0))),
+            ifelse(gt(V(pos), 0), [lst_set('저장칸목록', V(pos), join(key, V('저장글')))],
                    # 실시간 리스트는 서버에 다녀와야 항목이 늘어난다: 늘어날 때까지(최대 4초) 기다렸다가 내 칸을 찾는다
-                   [setv('_n0', LLEN('저장목록')), lst_add('저장목록', join(key, V('저장글'))), setv('_w', 0),
-                    until(or_(gt(LLEN('저장목록'), V('_n0')), gt(V('_w'), 40)), wait(0.1), chg('_w', 1)),
+                   [setv('_n0', LLEN('저장칸목록')), lst_add('저장칸목록', join(key, V('저장글'))), setv('_w', 0),
+                    until(or_(gt(LLEN('저장칸목록'), V('_n0')), gt(V('_w'), 40)), wait(0.1), chg('_w', 1)),
                     *_search(key, pos)])]
 
 
@@ -176,8 +176,8 @@ def clear_blocks():
     """게임이 끝나면(군수 선거 패배·파산·끝내기) 내 저장 두 칸을 모두 비운다."""
     if 'clear' not in _FN:
         body = [if_(logged_in(), *_search(_slot_key('A'), '저장위치A'), *_search(_slot_key('B'), '저장위치B'),
-                    if_(gt(V('저장위치A'), 0), lst_set('저장목록', V('저장위치A'), join(_slot_key('A'), '없음'))),
-                    if_(gt(V('저장위치B'), 0), lst_set('저장목록', V('저장위치B'), join(_slot_key('B'), '없음'))))]
+                    if_(gt(V('저장위치A'), 0), lst_set('저장칸목록', V('저장위치A'), join(_slot_key('A'), '없음'))),
+                    if_(gt(V('저장위치B'), 0), lst_set('저장칸목록', V('저장위치B'), join(_slot_key('B'), '없음'))))]
         _FN['clear'] = _P.new_function('저장지우기', body)
     return [dict(_FN['clear']), setv('저장있음', 0), setv('저장필요', 0)]
 
@@ -187,6 +187,6 @@ def save_button(P, sc, x, y):
     from gui import button
     return button(P, sc, '지금저장', '지금 저장', x, y, 78, 22, 'green', icon='star',
                   actions=[ifelse(logged_in(),
-                                  [*save_blocks(), setv('경제알림', join('저장 완료! 저장 번호 ', V('저장번호'), ' · 서버 저장 ', LLEN('저장목록'), '칸'))],
+                                  [*save_blocks(), setv('경제알림', join('저장 완료! 저장 번호 ', V('저장번호'), ' · 서버 저장 ', LLEN('저장칸목록'), '칸'))],
                                   [setv('경제알림', '엔트리에 로그인해야 저장돼요')]),
                            cast('경제알림')])

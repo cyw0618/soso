@@ -114,14 +114,14 @@ def name_asker(P, sc, x=200, y=-64):
          # 이전 내 기록 지우기
          if_(and_(gt(slen(V('등록이름')), 0), ge(V('등록점수'), 0)),
              setv('i', 1),
-             until(or_(gt(V('i'), sub(LLEN('랭킹이름'), 1)),
-                       and_(eq(LGET('랭킹이름', V('i')), V('등록이름')), eq(LGET('랭킹점수', V('i')), V('등록점수')))),
+             until(or_(gt(V('i'), sub(LLEN('명예이름'), 1)),
+                       and_(eq(LGET('명예이름', V('i')), V('등록이름')), eq(LGET('명예점수', V('i')), V('등록점수')))),
                    chg('i', 1)),
-             if_(le(V('i'), sub(LLEN('랭킹이름'), 1)), lst_del('랭킹이름', V('i')), lst_del('랭킹점수', V('i')))),
+             if_(le(V('i'), sub(LLEN('명예이름'), 1)), lst_del('명예이름', V('i')), lst_del('명예점수', V('i')))),
          wait(0.5),        # 실시간 리스트는 서버에 다녀와야 바뀐다
          setv('i', 1),
-         until(lt(LGET('랭킹점수', V('i')), V('최종점수')), chg('i', 1)),
-         lst_ins('랭킹이름', V('i'), V('플레이어이름')), lst_ins('랭킹점수', V('i'), V('최종점수')),
+         until(lt(LGET('명예점수', V('i')), V('최종점수')), chg('i', 1)),
+         lst_ins('명예이름', V('i'), V('플레이어이름')), lst_ins('명예점수', V('i'), V('최종점수')),
          wait(0.6),
          setv('등록이름', V('플레이어이름')), setv('등록점수', V('최종점수')),
          setv('내순위', V('i')), setv('방금등록', 1),
@@ -554,7 +554,7 @@ def scene_rank(P, ctx):
     sprite(P, sc, '청색빛', _edge_glow('fx_edge_blue', (20, 50, 200), 170), 0, 0)
     sprite(P, sc, '랭킹제목', K.banner('명예의 전당', 170, 34, 'royal'), 0, 114)
     panel(P, sc, '랭킹판', 0, -6, 320, 204, 'glass')
-    N = sub(LLEN('랭킹이름'), 1)            # 마지막은 표시용 '끝'
+    N = sub(LLEN('명예이름'), 1)            # 마지막은 표시용 '끝'
     badge_pics = [('1', K.badge('', 40, 16, 'royal')), ('2', K.badge('', 40, 16, 'silver')),
                   ('3', K.badge('', 40, 16, 'purple')), ('n', K.badge('', 40, 16, 'navy'))]
     for r in range(1, 11):
@@ -566,9 +566,9 @@ def scene_rank(P, ctx):
         scr = text(P, sc, '랭킹점수%d' % r, '', 108, y, 10, C_ACC, F_NUM, False, 2, w=110, h=15)
         bd.on(on_msg('쪽갱신'), ifelse(le(idx, 3), [shape(idx)], [shape('n')]), ifelse(le(idx, N), [show()], [hide()]))
         rn.on(on_msg('쪽갱신'), ifelse(le(idx, N), [write(join(idx, '위'))], [write('')]))
-        nm.on(on_msg('쪽갱신'), ifelse(le(idx, N), [write(LGET('랭킹이름', idx))], [write('')]),
+        nm.on(on_msg('쪽갱신'), ifelse(le(idx, N), [write(LGET('명예이름', idx))], [write('')]),
               ifelse(and_(eq(V('내순위'), idx), gt(V('내순위'), 0)), [text_color(C_ACC)], [text_color(C_WHITE)]))
-        scr.on(on_msg('쪽갱신'), ifelse(le(idx, N), [*fmt_comma(LGET('랭킹점수', idx), '_q'), write(join(V('_q'), '점'))],
+        scr.on(on_msg('쪽갱신'), ifelse(le(idx, N), [*fmt_comma(LGET('명예점수', idx), '_q'), write(join(V('_q'), '점'))],
                                        [write('')]))
     pg = text(P, sc, '쪽표시', '', 0, -104, 9, C_DIM, F_BODY, True, 0, w=220, h=13)
     pg.on(on_msg('쪽갱신'), ifelse(gt(N, 0), [write(join(V('랭킹쪽'), '~', add(V('랭킹쪽'), 9), '위  ·  지금까지 ', N, '명 기록'))],

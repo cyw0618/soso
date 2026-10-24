@@ -83,8 +83,8 @@ P.list('지역설명', [p['help'] for p in D.PLACES] + [x[2] for x in D2.SEJONG]
 P.list('지역비중', [p['weight'] for p in D.PLACES] * 3)
 P.list('이야기', D.INTRO_STORY)
 # 랭킹: 공유 리스트(작품을 공유하면 모든 플레이어의 기록이 계속 쌓임). 처음에는 비어 있고 끝에 표시용 항목('끝', -1)만 있다.
-P.list('랭킹이름', ['끝'], cloud=True, lid='rk2n')
-P.list('랭킹점수', [-1], cloud=True, lid='rk2s')
+P.list('명예이름', ['끝'], cloud=True, lid='hn7q')
+P.list('명예점수', [-1], cloud=True, lid='hs7q')
 
 # ------------------------------------------------------------------ 공통 그림
 ensure_out()
@@ -162,7 +162,7 @@ def scene_title():
     cont.on(on_msg('저장확인'), if_(eq(V('저장있음'), 1), show()))
     save_t.on(on_msg('저장확인'),
               ifelse(eq(V('저장있음'), 1), [write(join('하던 게임이 저장돼 있어요.\n계정 ', V('내계정'), ' · 저장 번호 ', V('저장번호')))],
-                     [ifelse(SG.logged_in(), [write(join('자동 저장돼요. 계정 ', V('내계정'), '\n서버에 저장된 칸 ', LLEN('저장목록'), '개'))],
+                     [ifelse(SG.logged_in(), [write(join('자동 저장돼요. 계정 ', V('내계정'), '\n서버 저장 ', LLEN('저장칸목록'), '칸 · 랭킹 ', sub(LLEN('명예이름'), 1), '명'))],
                              [write('로그인이 안 돼 있어요.\n(로그인해야 저장·이어하기)')])]))
     G.sound_hub(P, sc, 'bgm_title', first_scene=True)
     G.fader(P, sc, BLACK, first_scene=True)
