@@ -16,7 +16,12 @@ import scene_stock as ST
 
 VERSION = 'S5'
 SEP, KEY = '|', '^'
-SL, BK = '저장칸목록', '백업목록'
+SL = '저장칸목록'
+# 백업: 참고 작품('저장기능 v3')처럼 공유 리스트에 '회원 번호' 칸마다 짧은 값으로 저장한다.
+#   세이브회원[n] = 계정, 세이브1~NCH[n] = 저장글을 CH 글자씩 나눈 조각 (긴 글 한 칸보다 서버에 안전하게)
+MEM = '세이브회원'
+NCH, CH = 8, 300
+CHUNKS = ['세이브%d' % k for k in range(1, NCH + 1)]
 SAVE_VARS = ['저장번호', '돈', '내지지율', '큰A', '큰B', '유세횟수', '방어권', '차단턴', '장시간', '첫째주', '둘째주', '지배알림',
              '협상기회', '협상금지턴', '지도모드',
              '단계', '직위', '캠페인중', '평판', '창당', '당원', '공천', '당선', '회사상태', '회사업종', '회사가치', '회사투자',
@@ -40,9 +45,11 @@ def setup(P):
     _P = P
     _FN.clear()
     P.list('저장칸목록', [], cloud=True, lid='sv7q')
-    # 백업: 엔트리 '공유 리스트'(작품을 정지할 때 서버에 올라감). 실시간 연결이 끊겨도 정지하면 남는다.
-    P.list(BK, [], cloud='shared', lid='bk7q')
-    for v, d in (('내계정', ''), ('저장위치A', 0), ('저장위치B', 0), ('저장슬롯', 0), ('저장번호', 0), ('저장틱', 0), ('저장필요', 0), ('_okA', 0), ('_okB', 0), ('_nA', 0), ('_nB', 0), ('_t', ''), ('_t2', ''), ('_n0', 0), ('_w', 0), ('백업위치', 0), ('_okC', 0), ('_nC', 0), ('_bk', 0), ('_bn', 0), ('저장있음', 0), ('저장글', ''), ('_불러온', ''), ('_sp', 0), ('_si', 0),
+    # 백업: 엔트리 '공유 리스트' (회원 번호 칸마다 짧은 조각)
+    P.list(MEM, [], cloud='shared', lid='cym1')
+    for k, nm in enumerate(CHUNKS, 1):
+        P.list(nm, [], cloud='shared', lid='cy%02d' % k)
+    for v, d in (('내계정', ''), ('저장위치A', 0), ('저장위치B', 0), ('저장슬롯', 0), ('저장번호', 0), ('저장틱', 0), ('저장필요', 0), ('_okA', 0), ('_okB', 0), ('_nA', 0), ('_nB', 0), ('_t', ''), ('_t2', ''), ('_n0', 0), ('_w', 0), ('회원번호', 0), ('저장중', 0), ('_초', 0), ('_okC', 0), ('_nC', 0), ('_tC', ''), ('_L', 0), ('_bk', 0), ('_bn', 0), ('저장있음', 0), ('저장글', ''), ('_불러온', ''), ('_sp', 0), ('_si', 0),
                  ('_dg', '')):
         P.var(v, d)
 
@@ -77,6 +84,34 @@ def _check(pos, letter, ok, num, lst=SL):
                     setv(ok, 1)))]
 
 
+def _chunks_ok():
+    """모든 조각 리스트에 회원번호 칸이 있는지 (칸이 없으면 읽기·쓰기를 하지 않는다: 엔트리는 없는 칸에서 멈춘다)."""
+    c = le(V('회원번호'), LLEN(CHUNKS[0]))
+    for nm in CHUNKS[1:]:
+        c = and_(c, le(V('회원번호'), LLEN(nm)))
+    return and_(gt(V('회원번호'), 0), c)
+
+
+def _member_search():
+    """세이브회원 리스트에서 내 계정 칸 번호 찾기 (최근 칸부터). 못 찾으면 회원번호=0."""
+    return [setv('회원번호', 0), setv('_si', LLEN(MEM)),
+            until(or_(lt(V('_si'), 1), gt(V('회원번호'), 0)),
+                  if_(eq(LGET(MEM, V('_si')), V('내계정')), setv('회원번호', V('_si'))),
+                  chg('_si', -1))]
+
+
+def _member_check():
+    """회원번호 칸의 조각을 이어 붙여(_tC) 온전한지 보고 저장 번호를 _nC 에."""
+    joins = [setv('_tC', join(V('_tC'), LGET(nm, V('회원번호')))) for nm in CHUNKS]
+    return [setv('_okC', 0), setv('_nC', 0), setv('_tC', ''),
+            if_(_chunks_ok(), *joins,
+                if_(and_(eq(str_index(V('_tC'), VERSION + SEP), 1), eq(str_count(V('_tC'), SEP), FIELDS + 1)),
+                    setv('_t2', substr(V('_tC'), len(VERSION) + 2, slen(V('_tC')))),
+                    setv('_sp', str_index(V('_t2'), SEP)),
+                    setv('_nC', substr(V('_t2'), 1, sub(V('_sp'), 1))),
+                    setv('_okC', 1)))]
+
+
 def find_blocks():
     """저장 찾기 함수를 부르는 블록."""
     if 'find' not in _FN:
@@ -85,24 +120,22 @@ def find_blocks():
 
 
 def _find_body():
-    """타이틀에서: 내 계정의 저장 세 칸(실시간 A·B, 공유 백업 C)을 찾아, 온전한 것 중 저장 번호가 가장 큰 것을 고른다
+    """타이틀에서: 내 계정의 저장(실시간 A·B, 공유 리스트 백업 C)을 찾아, 온전한 것 중 저장 번호가 가장 큰 것을 고른다
     (저장있음=1, 내용은 _불러온 에)."""
     pick = []
     for k, (ok, num) in enumerate((('_okA', '_nA'), ('_okB', '_nB'), ('_okC', '_nC')), 1):
         pick.append(if_(and_(eq(V(ok), 1), gt(V(num), V('_bn'))), setv('_bn', V(num)), setv('_bk', k)))
-    return [setv('내계정', user_id()), setv('저장위치A', 0), setv('저장위치B', 0), setv('백업위치', 0), setv('저장있음', 0),
+    strip = lambda pos: setv('_불러온', substr(LGET(SL, V(pos)), add(slen(V('내계정')), 3), slen(LGET(SL, V(pos)))))
+    return [setv('내계정', user_id()), setv('저장위치A', 0), setv('저장위치B', 0), setv('회원번호', 0), setv('저장있음', 0),
             setv('저장슬롯', 0),
             if_(logged_in(),
-                *_search(_slot_key('A'), '저장위치A'), *_search(_slot_key('B'), '저장위치B'),
-                *_search(_slot_key('C'), '백업위치', BK),
-                *_check('저장위치A', 'A', '_okA', '_nA'), *_check('저장위치B', 'B', '_okB', '_nB'),
-                *_check('백업위치', 'C', '_okC', '_nC', BK),
+                *_search(_slot_key('A'), '저장위치A'), *_search(_slot_key('B'), '저장위치B'), *_member_search(),
+                *_check('저장위치A', 'A', '_okA', '_nA'), *_check('저장위치B', 'B', '_okB', '_nB'), *_member_check(),
                 setv('_bk', 0), setv('_bn', -1), *pick,
                 if_(gt(V('_bk'), 0),
-                    ifelse(eq(V('_bk'), 1), [setv('_불러온', LGET(SL, V('저장위치A'))), setv('저장슬롯', 1)],
-                           [ifelse(eq(V('_bk'), 2), [setv('_불러온', LGET(SL, V('저장위치B'))), setv('저장슬롯', 2)],
-                                   [setv('_불러온', LGET(BK, V('백업위치'))), setv('저장슬롯', 0)])]),
-                    setv('_불러온', substr(V('_불러온'), add(slen(V('내계정')), 3), slen(V('_불러온')))),
+                    ifelse(eq(V('_bk'), 1), [strip('저장위치A'), setv('저장슬롯', 1)],
+                           [ifelse(eq(V('_bk'), 2), [strip('저장위치B'), setv('저장슬롯', 2)],
+                                   [setv('_불러온', V('_tC')), setv('저장슬롯', 0)])]),
                     setv('저장있음', 1)))]
 
 
@@ -125,14 +158,22 @@ def _write_slot(letter, pos):
                     *_search(key, pos)])]
 
 
+PAD = '~' * (NCH * CH)
+
+
 def _write_backup():
-    """공유 리스트(백업)의 내 칸 C 에 저장글을 쓴다 (공유 리스트는 바로 바뀌므로 기다릴 필요 없음)."""
-    key = _slot_key('C')
-    return [if_(gt(V('백업위치'), LLEN(BK)), setv('백업위치', 0)),
-            if_(gt(V('백업위치'), 0), if_(ne(str_index(LGET(BK, V('백업위치')), key), 1), setv('백업위치', 0))),
-            if_(eq(V('백업위치'), 0), *_search(key, '백업위치', BK)),
-            ifelse(gt(V('백업위치'), 0), [lst_set(BK, V('백업위치'), join(key, V('저장글')))],
-                   [lst_add(BK, join(key, V('저장글'))), setv('백업위치', LLEN(BK))])]
+    """공유 리스트(백업)의 내 회원 칸에 저장글을 CH 글자씩 나눠 쓴다.
+    저장글 뒤를 '~' 로 채워 길이를 NCH*CH 로 맞추면 조각마다 조건 없이 자를 수 있다 (읽을 때 'E' 뒤는 무시됨)."""
+    return [if_(gt(V('회원번호'), LLEN(MEM)), setv('회원번호', 0)),
+            if_(gt(V('회원번호'), 0), if_(ne(LGET(MEM, V('회원번호')), V('내계정')), setv('회원번호', 0))),
+            if_(eq(V('회원번호'), 0), *_member_search()),
+            if_(eq(V('회원번호'), 0), lst_add(MEM, V('내계정')), setv('회원번호', LLEN(MEM)),
+                *[lst_add(nm, '') for nm in CHUNKS]),
+            if_(and_(_chunks_ok(), le(slen(V('저장글')), NCH * CH)),
+                setv('_tC', substr(join(V('저장글'), PAD), 1, NCH * CH)),
+                # 바뀐 조각만 쓴다 (공유 리스트 쓰기는 한 번에 한 프레임씩 걸린다)
+                *[if_(ne(LGET(nm, V('회원번호')), substr(V('_tC'), (k - 1) * CH + 1, k * CH)),
+                      lst_set(nm, V('회원번호'), substr(V('_tC'), (k - 1) * CH + 1, k * CH))) for k, nm in enumerate(CHUNKS, 1)])]
 
 
 def _save_body():
@@ -151,26 +192,38 @@ def _save_body():
     data.append(setv('저장글', join(V('저장글'), 'E')))
     if 'data' not in _FN:
         # 저장글 만들기 + 공유 리스트(백업)에 쓰기: 기다리는 블록이 없어 한 번에 끝난다
-        _FN['data'] = _P.new_function('저장글만들기', [chg('저장번호', 1), *data, *_write_backup()])
+        _FN['bk'] = _P.new_function('백업쓰기', _write_backup())
+        _FN['data'] = _P.new_function('저장글만들기', [chg('저장번호', 1), *data, dict(_FN['bk'])])
+    # 저장은 리스트 조각을 여러 프레임에 걸쳐 쓰므로, 두 저장이 겹치면 조각이 섞인다 → 하나씩만 (10초 넘게 안 끝나면 풀림)
     return [if_(logged_in(),
-                dict(_FN['data']),
-                ifelse(eq(V('저장슬롯'), 1), [setv('저장슬롯', 2), *_write_slot('B', '저장위치B')],
-                       [setv('저장슬롯', 1), *_write_slot('A', '저장위치A')]),
-                setv('저장있음', 1), setv('저장틱', 0), setv('저장필요', 0))]
+                ifelse(_busy(), [setv('저장필요', 1)],
+                       [setv('저장중', add(V('_초'), 1)),
+                        dict(_FN['data']),
+                        ifelse(eq(V('저장슬롯'), 1), [setv('저장슬롯', 2), *_write_slot('B', '저장위치B')],
+                               [setv('저장슬롯', 1), *_write_slot('A', '저장위치A')]),
+                        setv('저장있음', 1), setv('저장틱', 0), setv('저장필요', 0), setv('저장중', 0)]))]
+
+
+def _busy():
+    return and_(gt(V('저장중'), 0), lt(sub(add(V('_초'), 1), V('저장중')), 10))
 
 
 def backup_blocks():
     """저장글을 만들어 백업(공유 리스트)에만 쓴다 (save_blocks 가 먼저 한 번 불려 함수가 만들어져 있어야 한다)."""
     if 'data' not in _FN:
         save_blocks()
-    return [dict(_FN['data'])]
+    if 'quit' not in _FN:
+        _FN['quit'] = _P.new_function('백업만저장', [
+            setv('_w', 0), until(or_(not_(_busy()), gt(V('_w'), 30)), wait(0.1), chg('_w', 1)),
+            setv('저장중', add(V('_초'), 1)), dict(_FN['data']), setv('저장중', 0)])
+    return [dict(_FN['quit'])]
 
 
 def tick_blocks():
     """경제 시계(1초마다)에서: 30초마다, 또는 거래·구매 뒤 5초 안에 자동 저장."""
     if 'tick' not in _FN:
         _FN['tick'] = _P.new_function('자동저장틱', [
-            chg('저장틱', 1),
+            chg('저장틱', 1), chg('_초', 1),
             if_(and_(eq(V('저장있음'), 1), gt(V('총자산'), 0)),
                 if_(or_(ge(V('저장틱'), 30), and_(eq(V('저장필요'), 1), ge(V('저장틱'), 5))), *save_blocks()))])
     return [dict(_FN['tick'])]
@@ -215,8 +268,8 @@ def clear_blocks():
         body = [if_(logged_in(), *_search(_slot_key('A'), '저장위치A'), *_search(_slot_key('B'), '저장위치B'),
                     if_(gt(V('저장위치A'), 0), lst_set('저장칸목록', V('저장위치A'), join(_slot_key('A'), '없음'))),
                     if_(gt(V('저장위치B'), 0), lst_set('저장칸목록', V('저장위치B'), join(_slot_key('B'), '없음'))),
-                    *_search(_slot_key('C'), '백업위치', BK),
-                    if_(gt(V('백업위치'), 0), lst_set(BK, V('백업위치'), join(_slot_key('C'), '없음'))))]
+                    *_member_search(),
+                    if_(_chunks_ok(), *[lst_set(nm, V('회원번호'), '') for nm in CHUNKS]))]
         _FN['clear'] = _P.new_function('저장지우기', body)
     return [dict(_FN['clear']), setv('저장있음', 0), setv('저장필요', 0)]
 
