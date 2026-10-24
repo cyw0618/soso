@@ -142,6 +142,8 @@ def build_map(P, ctx, tier, sc, whole, dt, pins, dt_ids, ring, mode_names, ring_
     cnt = [setv('tmp', 0)] + [if_(eq(LGET('지역완료', off + k), 0), chg('tmp', 1)) for k in dt_ids if k not in skip]
     rt.on(on_msg('지도바꿈'), *vis_ring)
     rt.on(on_scene(), *vis_ring, *G.live_write(rt, [*cnt, setv('_mrt', join(ring_label, '\n', V('tmp'), '곳 (클릭)'))], '_mrt', 0.5))
+    PV = '핀상태%d' % tier
+    P.list(PV, [-1] * N)
     for k in range(1, N + 1):
         if k in skip:
             continue
@@ -149,13 +151,14 @@ def build_map(P, ctx, tier, sc, whole, dt, pins, dt_ids, ring, mode_names, ring_
         m_ = 1 if k in dt_ids else 0
         pics = [('on', SP.arrow_marker(k, 'on')), ('hot', SP.arrow_marker(k, 'hot'))]
         o = sprite(P, sc, '화살표%02d' % k, pics, x_, y_, scale=0.9)
-        o.local('_pv', -1)       # 0 숨김 / 1 보통 / 2 마우스 올림 (바뀔 때만 모양·크기를 바꾼다)
+        # 핀 상태(0 숨김 / 1 보통 / 2 마우스 올림)는 리스트 칸에: 지역 변수를 안 쓰면 79개 핀 코드가 함수 하나로 합쳐진다
+        pv = LGET(PV, k)
         vis = and_(eq(LGET('지역완료', off + k), 0), eq(V('지도모드'), m_))
-        o.on(on_scene(), xy(x_, y_), setv('_pv', -1),
-             forever(ifelse(not_(vis), [if_(ne(V('_pv'), 0), setv('_pv', 0), hide()), if_(eq(V('호버지역'), k), setv('호버지역', 0))],
+        o.on(on_scene(), xy(x_, y_), lst_set(PV, k, -1),
+             forever(ifelse(not_(vis), [if_(ne(pv, 0), lst_set(PV, k, 0), hide()), if_(eq(V('호버지역'), k), setv('호버지역', 0))],
                             [ifelse(and_(touch('mouse'), eq(V('개표창'), 0)),
-                                    [if_(ne(V('_pv'), 2), setv('_pv', 2), shape('hot'), o.pct(125), show()), setv('호버지역', k)],
-                                    [if_(ne(V('_pv'), 1), setv('_pv', 1), shape('on'), o.pct(100), show()),
+                                    [if_(ne(pv, 2), lst_set(PV, k, 2), shape('hot'), o.pct(125), show()), setv('호버지역', k)],
+                                    [if_(ne(pv, 1), lst_set(PV, k, 1), shape('on'), o.pct(100), show()),
                                      if_(eq(V('호버지역'), k), setv('호버지역', 0))])]),
                      wait(0.05)))
         games = ctx['S_GAME'] if tier == 1 else ctx['S_GAME%d' % tier]

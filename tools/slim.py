@@ -141,8 +141,11 @@ def apply(P):
             n, g = functionize_params(P)
             print('· 값만 다른 코드 %d묶음을 매개변수 함수로 합침 (전체 블록 약 %d개 줄임)' % (n, g))
             if os.environ.get('NOOUTLINE') != '1':
-                n, g = outline_statements(P)
-                print('· 코드 속 되풀이 덩어리 %d묶음을 함수로 뺌 (전체 블록 약 %d개 줄임)' % (n, g))
+                for rnd_ in range(3):
+                    n, g = outline_statements(P)
+                    print('· 코드 속 되풀이 덩어리 %d묶음을 함수로 뺌 (전체 블록 약 %d개 줄임)' % (n, g))
+                    if n == 0:
+                        break
     else:
         print('· (함수 사용 안 함)')
     after = statement_count(P)
@@ -379,7 +382,17 @@ def _uses_names(b, names):
     return hit[0]
 
 
-def outline_statements(P, min_size=8, max_params=16):
+def _has_param_ref(b):
+    hit = [False]
+
+    def f(x):
+        if isinstance(x, dict) and str(x.get('type', '')).startswith('stringParam_'):
+            hit[0] = True
+    _walk(b, f)
+    return hit[0]
+
+
+def outline_statements(P, min_size=6, max_params=16):
     """스크립트 안의 문장(블록 덩어리) 가운데 모양이 같은 것(숫자·글자 값만 다름)을 모아 매개변수 함수로 뺀다."""
     import copy
     from collections import defaultdict
@@ -400,9 +413,9 @@ def outline_statements(P, min_size=8, max_params=16):
                 continue
             fl = {}
             key = _canon_lit(b, fl)
-            if fl.get('bad'):
+            if fl.get('bad') or _has_param_ref(b):
                 continue
-            if o.locals and _uses_names(b, set(o.locals)):
+            if o is not None and o.locals and _uses_names(b, set(o.locals)):
                 continue
             cands[key].append((stmts, i, b, size))
     for o in P.objects:
@@ -421,9 +434,12 @@ def outline_statements(P, min_size=8, max_params=16):
                     continue
                 fl = {}
                 key = _canon_lit(b, fl)
-                if fl.get('bad') or (o.locals and _uses_names(b, set(o.locals))):
+                if fl.get('bad') or _has_param_ref(b) or (o.locals and _uses_names(b, set(o.locals))):
                     continue
                 cands[key].append((sc, i, b, size))
+    # 함수 몸통도 (지역 변수 없음)
+    for f in list(P.functions):
+        visit(f['body'], None)
     order = []
     for key, items in cands.items():
         if len(items) < 2:
@@ -460,7 +476,7 @@ def outline_statements(P, min_size=8, max_params=16):
         def same(b):
             fl = {}
             k2 = _canon_lit(b, fl)
-            return not fl.get('bad') and k2 == key
+            return not fl.get('bad') and k2 == key and not _has_param_ref(b)
         live = [it for it in items if id(it[2]) not in consumed and not ancestors_consumed(it[2])
                 and it[0][it[1]] is it[2] and same(it[2])]
         if len(live) < 2:

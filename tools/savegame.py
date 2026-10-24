@@ -237,7 +237,7 @@ def _take_body():
 
 
 def load_blocks():
-    """find_blocks 가 남긴 _불러온 을 풀어서 변수/리스트에 넣는다 (반복문으로: 코드 수를 줄이려고. 몇 초 걸린다)."""
+    """find_blocks 가 남긴 _불러온 을 풀어서 변수/리스트에 넣는다 (값 꺼내기는 함수로; 반복문 없이 한 번에)."""
     if 'load' in _FN:
         return [dict(_FN['load'])]
     take = _P.new_function('값꺼내기', _take_body())
@@ -245,17 +245,18 @@ def load_blocks():
     for v in SAVE_VARS:
         b += [dict(take), setv(v, V('_v'))]
     for lst, n in DIGIT_LISTS:
-        b += [dict(take), setv('_dg', V('_v')), setv('_i', 1),
-              rep(n, lst_set(lst, V('_i'), char_at(V('_dg'), V('_i'))), chg('_i', 1))]
+        b += [dict(take), setv('_dg', V('_v'))]
+        b += [lst_set(lst, i, char_at(V('_dg'), i)) for i in range(1, n + 1)]
     for lst, n in SAVE_LISTS:
-        b += [setv('_i', 1), rep(n, dict(take), lst_set(lst, V('_i'), V('_v')), chg('_i', 1))]
+        for i in range(1, n + 1):
+            b += [dict(take), lst_set(lst, i, V('_v'))]
     # 차트 기록과 '전날 가격'은 불러온 가격으로 다시 시작
-    b += [setv('_i', 1), rep(ST.N, lst_set('전주가', V('_i'), LGET('주가', V('_i'))),
-                             lst_set('주가기록', add(mul(sub(V('_i'), 1), ST.HIST), 1), LGET('주가', V('_i'))), chg('_i', 1))]
+    for i in range(1, ST.N + 1):
+        b += [lst_set('전주가', i, LGET('주가', i)), lst_set('주가기록', (i - 1) * ST.HIST + 1, LGET('주가', i))]
     b += [lst_set('주식이름', ST.CTL, LGET('지배이름', V('단계')))]
     import invest as IV
     b += IV.scale_blocks()
-    b += [setv('_i', 1), rep(20, lst_set('회사기록', V('_i'), V('회사가치')), chg('_i', 1))]
+    b += [lst_set('회사기록', i, V('회사가치')) for i in range(1, 21)]
     b += [setv('기록위치', 1), setv('채움', 1), setv('결과처리됨', 1), setv('현재지역', 0), setv('개표창', 0), setv('작전단계', 0),
           setv('재계산', 1),
           # 게임을 꺼 둔 동안은 수입이 쌓이지 않는다: 불러온 시각부터 다시 센다
