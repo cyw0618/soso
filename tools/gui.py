@@ -80,6 +80,21 @@ def button(P, scene, base, label, x, y, w, h, color='royal', icon=None, actions=
     return o
 
 
+def clone_rows(o, n, var, x_expr, y_expr, on_make=(), per=5):
+    """오브젝트 o 를 줄(칸) n개의 '원본'으로: 장면이 시작되면 복제본 n개를 만들고(한 바퀴에 per개),
+    복제본마다 지역 변수 var(1..n)에 자기 줄 번호가 있다. 원본은 숨긴 채 무대 밖에 둔다.
+    on_make: 복제본이 생기자마자 할 블록 (처음 글·모양: 장면 시작 신호를 놓칠 수 있으므로)."""
+    o.local(var, 0)
+    full, rem = divmod(n, per)
+
+    def mk():
+        return [chg(var, 1), clone_self()]
+    o.on(on_scene(), hide(), setv(var, 0), *([rep(full, *[b for _ in range(per) for b in mk()])] if full else []),
+         *[b for _ in range(rem) for b in mk()])
+    o.on(on_clone(), xy(x_expr, y_expr), *flat(on_make))
+    return o
+
+
 def live_write(o, make, var, period=0.2):
     """make 블록으로 변수 var 에 글을 만든 뒤, 글상자의 지금 글과 다를 때만 쓴다 (on_scene 에 붙일 블록 목록)."""
     cur = {'type': 'text_read', 'params': ['self', None]}
@@ -104,9 +119,20 @@ def big_pop(P, scene, base, path, x, y, msg, hold=0.7, fade=True, then=(), pre=(
 
 
 # ------------------------------------------------------------------ 화면 전환
+_FX = {}         # 장면 → {'hub': 소리 담당, 'fader': 화면 전환} (둘을 오브젝트 하나로 합쳐 저장 크기를 줄임)
+
+
 def fader(P, scene, black_path, first_scene=False):
-    """장면 시작 시 검은 화면에서 밝아지고, '페이드아웃' 신호를 받으면 어두워진다."""
-    o = sprite(P, scene, '전환', black_path, 0, 0)
+    """장면 시작 시 검은 화면에서 밝아지고, '페이드아웃' 신호를 받으면 어두워진다.
+    그 장면의 소리 담당이 이미 있으면 그 오브젝트가 검은 화면 모양을 갖고 전환도 맡는다."""
+    fx_ = _FX.setdefault((id(P), scene), {})
+    o = fx_.get('hub')
+    if o is not None:
+        o.pictures = [Picture('기본', black_path, scale=0.5)]
+        o.x, o.y, o.visible = 0, 0, True
+    else:
+        o = sprite(P, scene, '전환', black_path, 0, 0)
+    fx_['fader'] = o
     fade_in = [to_front(), show(), fx('transparency', 0), rep(12, fx_add('transparency', 8.5), wait(0.016)), hide()]
     o.on(on_scene(), *fade_in)
     if first_scene:
@@ -184,37 +210,86 @@ def round1(e):
 
 
 # ------------------------------------------------------------------ 공통 HUD (재산 · 유세 진행 · 지지율)
+def _compose(parts, tag, bbox=None):
+    """움직이지 않는 그림·글자 조각들을 그림 한 장(2배 해상도)으로. parts: ('img', 경로, x, y, 배율) / ('text', 글, x, y, 크기, 색, 폭).
+    돌려주는 값: (경로, 가운데 x, 가운데 y, bbox)"""
+    import hashlib
+    from PIL import Image, ImageDraw
+    from art_common import font, ensure_out
+    R = 2
+    boxes = []
+    for p in parts:
+        if p[0] == 'img':
+            w, h = Image.open(p[1]).size
+            w, h = w * p[4] / R, h * p[4] / R
+        else:
+            w, h = p[6], p[4] * 1.6
+        boxes.append((p[2] - w / 2, p[3] - h / 2, p[2] + w / 2, p[3] + h / 2))
+    if bbox is None:
+        bbox = (min(b[0] for b in boxes), min(b[1] for b in boxes), max(b[2] for b in boxes), max(b[3] for b in boxes))
+    x0, y0, x1, y1 = bbox
+    key = hashlib.md5(json.dumps([tag, bbox, [list(map(str, p)) for p in parts]]).encode()).hexdigest()[:12]
+    out = os.path.join(ensure_out(), 'hudc_%s.png' % key)
+    if not os.path.exists(out):
+        im = Image.new('RGBA', (int(round((x1 - x0) * R)), int(round((y1 - y0) * R))), (0, 0, 0, 0))
+        md = ImageDraw.Draw(im)
+        for p in parts:
+            cx, cy = (p[2] - x0) * R, (y1 - p[3]) * R
+            if p[0] == 'img':
+                q = Image.open(p[1]).convert('RGBA')
+                if p[4] != 1:
+                    q = q.resize((max(1, round(q.width * p[4])), max(1, round(q.height * p[4]))), Image.LANCZOS)
+                im.alpha_composite(q, (int(round(cx - q.width / 2)), int(round(cy - q.height / 2))))
+            else:
+                col = p[5].lstrip('#')
+                md.text((cx - p[6] / 2 * R, cy), p[1], font=font('jalnan', p[4] * R),
+                        fill=tuple(int(col[i:i + 2], 16) for i in (0, 2, 4)) + (255,), anchor='lm')
+        im.save(out, optimize=True)
+    return out, round((x0 + x1) / 2, 2), round((y0 + y1) / 2, 2), bbox
+
+
 def hud(P, scene, portraits, first_scene=False, empire=False, empire_xy=(176, -98), empire_w=124):
-    """portraits: {'me':path,'u1':path,'u2':path} (원형 초상 그림)"""
+    """portraits: {'me':path,'u1':path,'u2':path} (원형 초상 그림)
+    움직이지 않는 판·아이콘·이름은 그림 몇 장으로 합쳐 둔다 (오브젝트 수를 줄여 저장 크기를 줄임)."""
     objs = []
-    # 재산 (왼쪽 위 구석)
-    panel(P, scene, 'HUD재산판', -164, 118, 144, 24, 'glass')
-    sprite(P, scene, 'HUD동전', K.icon_img('coin', 16), -224, 118)
+    rows = [('me', '나', '내지지율', 'royal', C_ACC), ('u1', '첫째', '큰A', 'red', C_RED),
+            ('u2', '둘째', '큰B', 'purple', C_VIOLET)]
+    multi = 'm1' in portraits
+    # 재산 (왼쪽 위 구석) + 유세 진행 (재산 아래): 판·아이콘 한 장
+    lp, lx, ly, _ = _compose([('img', K.panel(144, 24, 'glass'), -164, 118, 1), ('img', K.icon_img('coin', 16), -224, 118, 1),
+                              ('img', K.panel(80, 22, 'glass'), -196, 95, 1), ('img', K.icon_img('ballot', 14), -224, 96, 1)],
+                             'left')
+    sprite(P, scene, 'HUD왼쪽판', [('기본', lp)], lx, ly)
     t = text(P, scene, 'HUD재산', '1억원', -152, 118, 11, C_WHITE, F_NUM, False, 1, w=118, h=18)
     t.on(on_scene(), *live_write(t, fmt_money(V('돈'), '돈표시'), '돈표시', 0.15))
-    # 유세 진행 (재산 아래)
-    panel(P, scene, 'HUD유세판', -196, 95, 80, 22, 'glass')
-    sprite(P, scene, 'HUD투표함', K.icon_img('ballot', 14), -224, 96)
     import data as _D
     t2 = text(P, scene, 'HUD유세', '유세 0/40', -188, 95, 11, '#FFFFFF', F_NUM, False, 1, w=56, h=16)
     t2.on(on_scene(), *live_write(t2, [setv('_hu', join('유세 ', V('유세횟수'), '/', LGET('곳수', V('단계'))))], '_hu', 0.3))
-    # 지지율 (3줄, 합계 100%) + 조치원 지배 자본 지분 (1줄)
-    panel(P, scene, 'HUD지지판', 160, 99, 152, 68, 'glass')
-    rows = [('me', '나', '내지지율', 'royal', C_ACC), ('u1', '첫째', '큰A', 'red', C_RED),
-            ('u2', '둘째', '큰B', 'purple', C_VIOLET)]
+    # 지지율 (3줄, 합계 100%) + 조치원 지배 자본 지분 (1줄): 판·내 얼굴·이름·왕관·'지배' 글자 한 장
+    yy3 = 123 - 3 * 15
+    right = [('img', K.panel(152, 68, 'glass'), 160, 99, 1), ('img', portraits['me'], 96, 123, 0.62),
+             ('text', '나', 116, 123, 9, C_ACC, 26), ('img', K.icon_img('trophy', 13), 96, yy3, 1),
+             ('text', '지배', 116, yy3, 9, '#FFFFFF', 26)]
+    if not multi:
+        right += [('img', portraits[pk], 96, 123 - i * 15, 0.62) for i, (pk, nm, _, _, hexc) in enumerate(rows) if i] + \
+                 [('text', nm, 116, 123 - i * 15, 9, hexc, 26) for i, (pk, nm, _, _, hexc) in enumerate(rows) if i]
+    rp, rx, ry, _ = _compose(right, 'right')
+    sprite(P, scene, 'HUD지지판', [('기본', rp)], rx, ry)
     for i, (pk, nm, var, col, hexc) in enumerate(rows):
         yy = 123 - i * 15
-        if pk != 'me' and 'm1' in portraits:
-            # 군수 선거: 큰아버지 / 시장 선거: 시장 후보 / 대선: 대통령 후보
+        if pk != 'me' and multi:
+            # 군수 선거: 큰아버지 / 시장 선거: 시장 후보 / 대선: 대통령 후보 (얼굴+이름 그림, 단계마다 모양)
             n = pk[1]
-            fo = sprite(P, scene, 'HUD얼굴' + pk, [('1', portraits[pk]), ('2', portraits['m' + n]), ('3', portraits['p' + n])],
-                        96, yy, scale=0.62)
+            names = ['첫째' if n == '1' else '둘째', '%s번' % n, '%s번' % n]
+            vs = [[('img', portraits[k], 96, yy, 0.62), ('text', names[t_], 116, yy, 9, hexc, 26)]
+                  for t_, k in enumerate((pk, 'm' + n, 'p' + n))]
+            bb = None
+            for v in vs:
+                b0 = _compose(v, 'face')[3]
+                bb = b0 if bb is None else (min(bb[0], b0[0]), min(bb[1], b0[1]), max(bb[2], b0[2]), max(bb[3], b0[3]))
+            cs = [_compose(v, 'face', bb) for v in vs]
+            fo = sprite(P, scene, 'HUD얼굴' + pk, [(str(t_ + 1), c[0]) for t_, c in enumerate(cs)], cs[0][1], cs[0][2])
             fo.on(on_scene(), shape(V('단계')))
-            nt = text(P, scene, 'HUD이름' + pk, nm, 116, yy, 9, hexc, F_NUM, False, 1, w=26, h=13)
-            nt.on(on_scene(), write(LGET('상대%s이름' % n, V('단계'))))
-        else:
-            sprite(P, scene, 'HUD얼굴' + pk, portraits[pk], 96, yy, scale=0.62)
-            text(P, scene, 'HUD이름' + pk, nm, 116, yy, 9, hexc, F_NUM, False, 1, w=26, h=13)
         bars = K.bar_set('sup11_' + col, 64, 8, col, steps=11)      # 10% 단위 (그림 수를 줄여 저장 크기를 줄임)
         b = sprite(P, scene, 'HUD막대' + pk, bars, 166, yy)
         b.on(on_scene(), *live_shape(b, add(floor(div(V(var), 10)), 1)))
@@ -222,8 +297,6 @@ def hud(P, scene, portraits, first_scene=False, empire=False, empire_xy=(176, -9
         tv.on(on_scene(), *live_write(tv, [setv('_hv' + pk, join(round1(V(var)), '%'))], '_hv' + pk, 0.15))
     # 지배 자본 (내 지분, 50% 표시)
     yy = 123 - 3 * 15
-    sprite(P, scene, 'HUD왕관', K.icon_img('trophy', 13), 96, yy)
-    text(P, scene, 'HUD지배', '지배', 116, yy, 9, '#FFFFFF', F_NUM, False, 1, w=26, h=13)
     bars = K.bar_set('stake11_royal', 64, 8, 'royal', steps=11)
     b = sprite(P, scene, 'HUD지배막대', bars, 166, yy)
     b.on(on_scene(), *live_shape(b, add(floor(div(LGET('보유', 16), 10000)), 1)))
@@ -233,8 +306,9 @@ def hud(P, scene, portraits, first_scene=False, empire=False, empire_xy=(176, -9
     if empire:
         # 지도: 오른쪽 아래 '재벌 현황' (계열사 수, 유세마다 버는 돈)
         ex, ey = empire_xy
-        panel(P, scene, 'HUD계열사판', ex, ey, empire_w, 34, 'glass')
-        sprite(P, scene, 'HUD계열사아이콘', K.icon_img('shop', 16), ex - empire_w / 2 + 12, ey)
+        ep, epx, epy, _ = _compose([('img', K.panel(empire_w, 34, 'glass'), ex, ey, 1),
+                                    ('img', K.icon_img('shop', 16), ex - empire_w / 2 + 12, ey, 1)], 'empire')
+        sprite(P, scene, 'HUD계열사판', [('기본', ep)], epx, epy)
         t3 = text(P, scene, 'HUD계열사', '', ex + 10, ey, 8 if empire_w < 120 else 9, '#FFFFFF', F_NUM, False, 1,
                   w=empire_w - 26, h=26)
         t3.on(on_scene(), *live_write(t3, [*fmt_money(V('주기수입'), '_m'), setv('_q', V('_m')), *fmt_money(V('계열사수입'), '_m'),
@@ -296,7 +370,13 @@ def sfx(name):
 
 def sound_hub(P, scene, bgm=None, first_scene=False, extra_bgm=()):
     """장면마다 하나: 모든 효과음을 갖고 'snd:이름' 신호에 재생. bgm 이 있으면 장면 시작 때 반복 재생."""
-    o = sprite(P, scene, '소리', _clear_dot(), -300, -300)
+    fx_ = _FX.setdefault((id(P), scene), {})
+    o = fx_.get('fader')
+    if o is not None:
+        o.name = uname(scene, '소리')       # slim 이 '소리_' 이름으로 소리 담당을 찾는다
+    else:
+        o = sprite(P, scene, '소리', _clear_dot(), -300, -300)
+    fx_['hub'] = o
     for k in SFX_NAMES:
         o.add_sound(k, _snd_path(k), SND_META[k])
         o.on(on_msg('snd:' + k), play(k))

@@ -138,25 +138,29 @@ def build_group(P, ctx):
             *fmt_money(V('계열사수입'), '_m'),
             write(join('나 ', V('계열사수'), '개 · 첫째 ', V('첫째계열사'), '개 · 둘째 ', V('둘째계열사'), '개 | 유세마다 +', V('_m'))))
     pics = _owner_card_pics()
-    for i in range(1, NA + 1):
-        c, r = (i - 1) % 5, (i - 1) // 5
-        x, y = -176 + c * 88, 54 - r * 56
-        card = sprite(P, sc, '회사카드%d' % i, pics, x, y)
-        nm = text(P, sc, '회사이름%d' % i, D.AFFILIATES[i - 1][0], x + 2, y + 13, 8, C_WHITE, F_NUM, False, 0, w=80, h=12)
-        inc = text(P, sc, '회사수익%d' % i, '', x + 2, y - 1, 7, C_DIM, F_BODY, True, 0, w=80, h=11)
-        own = text(P, sc, '회사주인%d' % i, '', x + 2, y - 14, 8, C_WHITE, F_NUM, False, 0, w=80, h=12)
-        o = LGET('계열사주인', i)
-        card.on(on_msg('계열사갱신'),
-                ifelse(eq(o, 0), [shape('none')], [ifelse(eq(o, 1), [shape('me')], [ifelse(eq(o, 2), [shape('u1')], [shape('u2')])])]),
-                ifelse(eq(V('선택회사'), i), [card.pct(108)], [card.pct(100)]))
-        inc.on(on_scene(), *fmt_money(LGET('계열사수익', i), '_m'), write(join('수익 +', V('_m'))))
-        own.on(on_msg('계열사갱신'),
-               ifelse(eq(o, 0), [write('주인 없음'), text_color(C_DIM)],
-                      [ifelse(eq(o, 1), [write('내 회사'), text_color(C_ACC)],
-                              [ifelse(eq(o, 2), [write('첫째 큰아버지'), text_color(C_RED)], [write('둘째 큰아버지'), text_color(C_VIOLET)])])]))
-        sel = [setv('선택회사', i), cast('계열사갱신')]
-        for ob in (card, nm, inc, own):
-            ob.on(on_click(), *sel)
+    # 계열사 15칸 × (카드·이름·수익·주인) = 오브젝트 4개 + 복제본 (복제본마다 지역 변수 _ri 에 칸 번호)
+    i = V('_ri')
+    xi = add(-176, mul(mod(sub(i, 1), 5), 88))
+    yi = sub(54, mul(floor(div(sub(i, 1), 5)), 56))
+    card = sprite(P, sc, '회사카드', pics, -300, -300)
+    nm = text(P, sc, '회사이름', '', -300, -300, 8, C_WHITE, F_NUM, False, 0, w=80, h=12)
+    inc = text(P, sc, '회사수익', '', -300, -300, 7, C_DIM, F_BODY, True, 0, w=80, h=11)
+    own = text(P, sc, '회사주인', '', -300, -300, 8, C_WHITE, F_NUM, False, 0, w=80, h=12)
+    o = LGET('계열사주인', i)
+    card_b = [ifelse(eq(o, 0), [shape('none')], [ifelse(eq(o, 1), [shape('me')], [ifelse(eq(o, 2), [shape('u1')], [shape('u2')])])]),
+              ifelse(eq(V('선택회사'), i), [card.pct(108)], [card.pct(100)])]
+    own_b = [ifelse(eq(o, 0), [write('주인 없음'), text_color(C_DIM)],
+                    [ifelse(eq(o, 1), [write('내 회사'), text_color(C_ACC)],
+                            [ifelse(eq(o, 2), [write('첫째 큰아버지'), text_color(C_RED)], [write('둘째 큰아버지'), text_color(C_VIOLET)])])])]
+    G.clone_rows(card, NA, '_ri', xi, yi, card_b + [show()])
+    G.clone_rows(nm, NA, '_ri', add(xi, 2), add(yi, 13), [write(LGET('계열사이름', i)), show()])
+    G.clone_rows(inc, NA, '_ri', add(xi, 2), sub(yi, 1), [*fmt_money(LGET('계열사수익', i), '_m'), write(join('수익 +', V('_m'))), show()])
+    G.clone_rows(own, NA, '_ri', add(xi, 2), sub(yi, 14), own_b + [show()])
+    card.on(on_msg('계열사갱신'), *card_b)
+    own.on(on_msg('계열사갱신'), *own_b)
+    sel = [setv('선택회사', i), cast('계열사갱신')]
+    for ob in (card, nm, inc, own):
+        ob.on(on_click(), *sel)
     # 아래: 선택 회사 정보와 행동
     panel(P, sc, '행동판', 34, -112, 340, 34, 'glass')
     info = text(P, sc, '선택정보', '', -26, -112, 9, C_WHITE, F_BODY, True, 1, w=210, h=26)

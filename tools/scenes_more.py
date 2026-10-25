@@ -557,19 +557,26 @@ def scene_rank(P, ctx):
     N = sub(LLEN('명예이름'), 1)            # 마지막은 표시용 '끝'
     badge_pics = [('1', K.badge('', 40, 16, 'royal')), ('2', K.badge('', 40, 16, 'silver')),
                   ('3', K.badge('', 40, 16, 'purple')), ('n', K.badge('', 40, 16, 'navy'))]
-    for r in range(1, 11):
-        y = 78 - (r - 1) * 18
-        idx = add(V('랭킹쪽'), r - 1)
-        bd = sprite(P, sc, '순위판%d' % r, badge_pics, -126, y)
-        rn = text(P, sc, '순위글%d' % r, '', -126, y + 1, 9, C_WHITE, F_NUM, False, 0, w=40, h=13)
-        nm = text(P, sc, '랭킹이름%d' % r, '', -30, y, 10, C_WHITE, F_BODY, True, 1, w=150, h=15)
-        scr = text(P, sc, '랭킹점수%d' % r, '', 108, y, 10, C_ACC, F_NUM, False, 2, w=110, h=15)
-        bd.on(on_msg('쪽갱신'), ifelse(le(idx, 3), [shape(idx)], [shape('n')]), ifelse(le(idx, N), [show()], [hide()]))
-        rn.on(on_msg('쪽갱신'), ifelse(le(idx, N), [write(join(idx, '위'))], [write('')]))
-        nm.on(on_msg('쪽갱신'), ifelse(le(idx, N), [write(LGET('명예이름', idx))], [write('')]),
-              ifelse(and_(eq(V('내순위'), idx), gt(V('내순위'), 0)), [text_color(C_ACC)], [text_color(C_WHITE)]))
-        scr.on(on_msg('쪽갱신'), ifelse(le(idx, N), [*fmt_comma(LGET('명예점수', idx), '_q'), write(join(V('_q'), '점'))],
-                                       [write('')]))
+    # 순위 10줄 × (메달·순위·이름·점수) = 오브젝트 4개 + 복제본 (복제본마다 지역 변수 _rj 에 줄 번호)
+    r = V('_rj')
+    yr = sub(78, mul(sub(r, 1), 18))
+    idx = add(V('랭킹쪽'), sub(r, 1))
+    bd = sprite(P, sc, '순위판', badge_pics, -300, -300, visible=False)
+    rn = text(P, sc, '순위글', '', -300, -300, 9, C_WHITE, F_NUM, False, 0, w=40, h=13)
+    nm = text(P, sc, '랭킹이름', '', -300, -300, 10, C_WHITE, F_BODY, True, 1, w=150, h=15)
+    scr = text(P, sc, '랭킹점수', '', -300, -300, 10, C_ACC, F_NUM, False, 2, w=110, h=15)
+    bd_b = [ifelse(le(idx, 3), [shape(idx)], [shape('n')]), ifelse(le(idx, N), [show()], [hide()])]
+    rn_b = [ifelse(le(idx, N), [write(join(idx, '위'))], [write('')])]
+    nm_b = [ifelse(le(idx, N), [write(LGET('명예이름', idx))], [write('')]),
+            ifelse(and_(eq(V('내순위'), idx), gt(V('내순위'), 0)), [text_color(C_ACC)], [text_color(C_WHITE)])]
+    scr_b = [ifelse(le(idx, N), [*fmt_comma(LGET('명예점수', idx), '_q'), write(join(V('_q'), '점'))], [write('')])]
+    for o, x0, dy, bb in ((bd, -126, 0, bd_b), (rn, -126, 1, rn_b + [show()]), (nm, -30, 0, nm_b + [show()]),
+                          (scr, 108, 0, scr_b + [show()])):
+        G.clone_rows(o, 10, '_rj', x0, add(yr, dy), bb)
+    bd.on(on_msg('쪽갱신'), *bd_b)
+    rn.on(on_msg('쪽갱신'), *rn_b)
+    nm.on(on_msg('쪽갱신'), *nm_b)
+    scr.on(on_msg('쪽갱신'), *scr_b)
     pg = text(P, sc, '쪽표시', '', 0, -104, 9, C_DIM, F_BODY, True, 0, w=220, h=13)
     pg.on(on_msg('쪽갱신'), ifelse(gt(N, 0), [write(join(V('랭킹쪽'), '~', add(V('랭킹쪽'), 9), '위  ·  지금까지 ', N, '명 기록'))],
                                   [write('')]))

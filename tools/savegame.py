@@ -50,7 +50,7 @@ def setup(P):
     for k, nm in enumerate(CHUNKS, 1):
         P.list(nm, [], cloud='shared', lid='cy%02d' % k)
     for v, d in (('내계정', ''), ('저장위치A', 0), ('저장위치B', 0), ('저장슬롯', 0), ('저장번호', 0), ('저장틱', 0), ('저장필요', 0), ('_okA', 0), ('_okB', 0), ('_nA', 0), ('_nB', 0), ('_t', ''), ('_t2', ''), ('_n0', 0), ('_w', 0), ('회원번호', 0), ('저장중', 0), ('_초', 0), ('_okC', 0), ('_nC', 0), ('_tC', ''), ('_L', 0), ('_bk', 0), ('_bn', 0), ('저장있음', 0), ('저장글', ''), ('_불러온', ''), ('_sp', 0), ('_si', 0),
-                 ('_dg', ''), ('_v', ''), ('_i', 0)):
+                 ('_dg', ''), ('_v', ''), ('_i', 0), ('_ix', 0), ('_iy', 0)):
         P.var(v, d)
 
 
@@ -176,22 +176,35 @@ def _write_backup():
                       lst_set(nm, V('회원번호'), substr(V('_tC'), (k - 1) * CH + 1, k * CH))) for k, nm in enumerate(CHUNKS, 1)])]
 
 
+LOOP_MIN, PER = 30, 10        # 칸이 30개 넘는 리스트는 한 바퀴에 10칸씩 반복 (칸마다 블록을 펼치면 저장 크기가 크다)
+
+
+def _each(n, var, make):
+    """1..n 번 칸마다 make(칸 번호 식) 블록들. 큰 리스트는 반복(바퀴마다 PER 칸, 한 바퀴 = 한 프레임)으로."""
+    if n < LOOP_MIN:
+        return [b for i in range(1, n + 1) for b in make(i)]
+    full, rem = divmod(n, PER)
+    out = [setv(var, 0)]
+    if full:
+        out.append(rep(full, *[b for j in range(1, PER + 1) for b in make(add(V(var), j))], chg(var, PER)))
+    out += [b for j in range(1, rem + 1) for b in make(add(V(var), j))]
+    return out
+
+
 def _save_body():
-    """지금 상태를 저장 (한 프레임 안에 끝나도록 반복 없이 펼쳐서).
+    """지금 상태를 저장 (큰 리스트는 한 바퀴에 10칸씩 반복해서 1초 안쪽으로 끝난다).
     저장 칸을 두 개(A·B) 번갈아 쓴다: 한쪽이 깨지거나 쓰다 끊겨도 직전 저장이 남는다."""
     data = [setv('저장글', VERSION + SEP)]
     for v in SAVE_VARS:
         data.append(setv('저장글', join(V('저장글'), V(v), SEP)))
     for lst, n in DIGIT_LISTS:
-        for i in range(1, n + 1):
-            data.append(setv('저장글', join(V('저장글'), LGET(lst, i))))
+        data += _each(n, '_ix', lambda i, lst=lst: [setv('저장글', join(V('저장글'), LGET(lst, i)))])
         data.append(setv('저장글', join(V('저장글'), SEP)))
     for lst, n in SAVE_LISTS:
-        for i in range(1, n + 1):
-            data.append(setv('저장글', join(V('저장글'), LGET(lst, i), SEP)))
+        data += _each(n, '_ix', lambda i, lst=lst: [setv('저장글', join(V('저장글'), LGET(lst, i), SEP))])
     data.append(setv('저장글', join(V('저장글'), 'E')))
     if 'data' not in _FN:
-        # 저장글 만들기 + 공유 리스트(백업)에 쓰기: 기다리는 블록이 없어 한 번에 끝난다
+        # 저장글 만들기 + 공유 리스트(백업)에 쓰기
         _FN['bk'] = _P.new_function('백업쓰기', _write_backup())
         _FN['data'] = _P.new_function('저장글만들기', [chg('저장번호', 1), *data, dict(_FN['bk'])])
     # 저장은 리스트 조각을 여러 프레임에 걸쳐 쓰므로, 두 저장이 겹치면 조각이 섞인다 → 하나씩만 (10초 넘게 안 끝나면 풀림)
@@ -237,7 +250,7 @@ def _take_body():
 
 
 def load_blocks():
-    """find_blocks 가 남긴 _불러온 을 풀어서 변수/리스트에 넣는다 (값 꺼내기는 함수로; 반복문 없이 한 번에)."""
+    """find_blocks 가 남긴 _불러온 을 풀어서 변수/리스트에 넣는다 (값 꺼내기는 함수로, 큰 리스트는 반복으로)."""
     if 'load' in _FN:
         return [dict(_FN['load'])]
     take = _P.new_function('값꺼내기', _take_body())
@@ -246,13 +259,13 @@ def load_blocks():
         b += [dict(take), setv(v, V('_v'))]
     for lst, n in DIGIT_LISTS:
         b += [dict(take), setv('_dg', V('_v'))]
-        b += [lst_set(lst, i, char_at(V('_dg'), i)) for i in range(1, n + 1)]
+        b += _each(n, '_iy', lambda i, lst=lst: [lst_set(lst, i, char_at(V('_dg'), i))])
     for lst, n in SAVE_LISTS:
-        for i in range(1, n + 1):
-            b += [dict(take), lst_set(lst, i, V('_v'))]
+        b += _each(n, '_iy', lambda i, lst=lst: [dict(take), lst_set(lst, i, V('_v'))])
     # 차트 기록과 '전날 가격'은 불러온 가격으로 다시 시작
-    for i in range(1, ST.N + 1):
-        b += [lst_set('전주가', i, LGET('주가', i)), lst_set('주가기록', (i - 1) * ST.HIST + 1, LGET('주가', i))]
+    b += _each(ST.N, '_iy', lambda i: [lst_set('전주가', i, LGET('주가', i)),
+                                       lst_set('주가기록', add(mul(sub(i, 1), ST.HIST), 1) if not isinstance(i, int)
+                                               else (i - 1) * ST.HIST + 1, LGET('주가', i))])
     b += [lst_set('주식이름', ST.CTL, LGET('지배이름', V('단계')))]
     import invest as IV
     b += IV.scale_blocks()

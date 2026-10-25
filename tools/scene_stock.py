@@ -403,29 +403,37 @@ def build(P, ctx):
 
     # ---- 시세판 (탭에 따라 종목이 바뀜, 최대 15칸)
     tiles = SA.tile_set()
-    for j in range(1, ND + 1):
-        c, r = (j - 1) % 3, (j - 1) // 3
-        x, y = -194 + c * 88, 7 - r * 25
-        idx = add(V('탭기준'), j)
-        on_tab = le(j, V('탭개수'))
-        tile = sprite(P, sc, '시세칸%02d' % j, tiles, x, y)
-        st = [ifelse(on_tab, [show(),
-                              ifelse(eq(V('선택종목'), idx),
-                                     [ifelse(gt(LGET('주가', idx), LGET('전주가', idx)), [shape('us')],
-                                             [ifelse(lt(LGET('주가', idx), LGET('전주가', idx)), [shape('ds')], [shape('fs')])])],
-                                     [ifelse(gt(LGET('주가', idx), LGET('전주가', idx)), [shape('u')],
-                                             [ifelse(lt(LGET('주가', idx), LGET('전주가', idx)), [shape('d')], [shape('f')])])])],
-                     [hide()])]
-        for m in ('시세갱신', '선택변경', '탭변경'):
-            tile.on(on_msg(m), *st)
-        nm = text(P, sc, '종목명%02d' % j, '', x - 1, y + 5, 8, C_WHITE, F_BODY, True, 1, w=70, h=12)
-        pr = text(P, sc, '종목가%02d' % j, '', x - 12, y - 6, 8, C_WHITE, F_NUM, False, 1, w=48, h=12)
-        ch = text(P, sc, '종목등락%02d' % j, '', x + 18, y - 6, 8, C_DIM, F_NUM, False, 2, w=40, h=12)
-        nm.on(on_msg('탭변경'), ifelse(on_tab, [write(LGET('주식이름', idx)), show()], [hide()]))
-        pr.on(on_msg('시세갱신'), ifelse(on_tab, [*fmt_price(LGET('주가', idx), '_pt', short=True), write(V('_pt')), show()], [hide()]))
-        ch.on(on_msg('시세갱신'), ifelse(on_tab, [*change_blocks(idx), show()], [hide()]))
-        for o in (tile, nm, pr, ch):
-            o.on(on_click(), if_(on_tab, *select_actions(idx)))
+    # 시세판 15칸 × (칸 그림·이름·가격·등락) = 오브젝트 4개 + 복제본 (복제본마다 지역 변수 _rj 에 칸 번호)
+    j = V('_rj')
+    xj = add(-194, mul(mod(sub(j, 1), 3), 88))
+    yj = sub(7, mul(floor(div(sub(j, 1), 3)), 25))
+    idx = add(V('탭기준'), j)
+    on_tab = le(j, V('탭개수'))
+    tile = sprite(P, sc, '시세칸', tiles, -300, -300, visible=False)
+    st = [ifelse(on_tab, [show(),
+                          ifelse(eq(V('선택종목'), idx),
+                                 [ifelse(gt(LGET('주가', idx), LGET('전주가', idx)), [shape('us')],
+                                         [ifelse(lt(LGET('주가', idx), LGET('전주가', idx)), [shape('ds')], [shape('fs')])])],
+                                 [ifelse(gt(LGET('주가', idx), LGET('전주가', idx)), [shape('u')],
+                                         [ifelse(lt(LGET('주가', idx), LGET('전주가', idx)), [shape('d')], [shape('f')])])])],
+                 [hide()])]
+    G.clone_rows(tile, ND, '_rj', xj, yj, st)
+    for m in ('시세갱신', '선택변경', '탭변경'):
+        tile.on(on_msg(m), *st)
+    nm = text(P, sc, '종목명', '', -300, -300, 8, C_WHITE, F_BODY, True, 1, w=70, h=12, visible=False)
+    pr = text(P, sc, '종목가', '', -300, -300, 8, C_WHITE, F_NUM, False, 1, w=48, h=12, visible=False)
+    ch = text(P, sc, '종목등락', '', -300, -300, 8, C_DIM, F_NUM, False, 2, w=40, h=12, visible=False)
+    nm_b = [ifelse(on_tab, [write(LGET('주식이름', idx)), show()], [hide()])]
+    pr_b = [ifelse(on_tab, [*fmt_price(LGET('주가', idx), '_pt', short=True), write(V('_pt')), show()], [hide()])]
+    ch_b = [ifelse(on_tab, [*change_blocks(idx), show()], [hide()])]
+    G.clone_rows(nm, ND, '_rj', sub(xj, 1), add(yj, 5), nm_b)
+    G.clone_rows(pr, ND, '_rj', sub(xj, 12), sub(yj, 6), pr_b)
+    G.clone_rows(ch, ND, '_rj', add(xj, 18), sub(yj, 6), ch_b)
+    nm.on(on_msg('탭변경'), *nm_b)
+    pr.on(on_msg('시세갱신'), *pr_b)
+    ch.on(on_msg('시세갱신'), *ch_b)
+    for o in (tile, nm, pr, ch):
+        o.on(on_click(), if_(on_tab, *select_actions(idx)))
 
     # ---- 오른쪽: 선택 종목 상세
     px = 133

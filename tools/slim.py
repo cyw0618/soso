@@ -125,6 +125,10 @@ def apply(P):
             for b in sc:
                 _walk(b, g)
         o.sounds = [s for s in o.sounds if s.name in refs]
+    if os.environ.get('NOBAKE') != '1':
+        print('· 배경 바로 위의 움직이지 않는 그림 %d개를 배경 그림에 합침' % bake_static(P))
+    if os.environ.get('NOHALF') != '1':
+        print('· 41칸 막대 그림 %d개를 21칸으로' % halve_bars(P))
     # 2) 아무도 보내지 않는 신호 처리 지우기
     print('· 쓰이지 않는 신호 처리 %d개 삭제' % drop_dead_handlers(P))
     # 3) 경제 시계는 필요한 화면에만
@@ -135,6 +139,8 @@ def apply(P):
     # 4) 모양·소리를 id 대신 이름(글자)으로: 엔트리는 이름으로도 찾는다 → 오브젝트가 달라도 같은 코드가 되어 함수로 합칠 수 있다
     if os.environ.get('NONAMEREF') != '1':
         print('· 모양·소리 이름으로 바꾼 곳 %d개' % names_as_text(P))
+    if os.environ.get('NOLOC') != '1':
+        print('· 같은 모양 오브젝트 묶음의 지역 변수를 리스트 칸으로 바꿈 (오브젝트 %d개)' % locals_to_lists(P))
     groups = analyze(P)
     if os.environ.get('SKEL') == '1':
         analyze_skeleton(P)
@@ -160,11 +166,260 @@ def apply(P):
                             break
     else:
         print('· (함수 사용 안 함)')
+    if os.environ.get('NOFUNC') != '1' and os.environ.get('NOINLINE') != '1':
+        n, g = inline_functions(P)
+        print('· 한두 번만 부르는 작은 함수 %d개를 부르는 자리에 풀어 넣음 (전체 블록 약 %d개 줄임)' % (n, g))
     if os.environ.get('NOFUNC') != '1' and os.environ.get('NOROWS') != '1':
         n, g = args_to_lists(P)
         print('· 함수 입력값 %d개 함수를 리스트(행 번호)로 (전체 블록 약 %d개 줄임)' % (n, g))
     after = statement_count(P)
     print('· 블록 정리: %d → %d' % (before, after))
+
+
+# ---------------------------------------------------------------- 그림 정리
+def _obj_refs(P):
+    refs = set()
+
+    def f(b):
+        if isinstance(b, dict):
+            for p in b.get('params', []):
+                if isinstance(p, Ref) and p[0] == 'obj':
+                    refs.add(p[1])
+    for o in P.objects:
+        for sc in o.scripts:
+            for b in sc:
+                _walk(b, f)
+    for fn in P.functions:
+        for b in fn['body']:
+            _walk(b, f)
+    return refs
+
+
+def bake_static(P):
+    """장면에서 배경 바로 위에 차례로 쌓인 그림 오브젝트 가운데 코드가 없고 다른 코드가 가리키지도 않는 것은
+    배경 그림에 미리 그려 넣고 오브젝트를 없앤다 (보이는 모습은 같고, 오브젝트 하나마다 저장 데이터가 줄어든다)."""
+    import hashlib
+    from collections import defaultdict
+    from PIL import Image
+    from entrygen import Picture
+    from art_common import ensure_out
+    refs = _obj_refs(P)
+    by_scene = defaultdict(list)
+    for o in P.objects:
+        by_scene[o.scene].append(o)
+    gone = set()
+    for sc, objs in by_scene.items():
+        bg = objs[0]
+        if bg.kind != 'sprite' or not bg.pictures or len(bg.pictures) > 3 or bg.x != 0 or bg.y != 0 or bg.scale != 1:
+            continue
+        if any(abs(p.w * p.scale - 480) > 2 for p in bg.pictures):
+            continue
+        run = []
+        for o in objs[1:]:
+            if (o.kind == 'sprite' and not o.scripts and o.visible and o.name not in refs and len(o.pictures) == 1
+                    and not o.locals and not o.sounds):
+                run.append(o)
+            else:
+                break
+        if not run:
+            continue
+        pics = []
+        for bp in bg.pictures:
+            key = hashlib.md5((bp.path + '|'.join('%s,%s,%s,%s' % (o.pictures[0].path, o.x, o.y, o.scale) for o in run)).encode()).hexdigest()[:14]
+            out = os.path.join(ensure_out(), 'bake_%s.png' % key)
+            src = Image.open(bp.path)
+            s0 = bp.scale * bp.w / float(src.width)            # 원래 그림의 배율 (줄이기 전)
+            if not os.path.exists(out):
+                im = src.convert('RGBA')
+                f = im.width / 480.0
+                for o in run:
+                    pic = o.pictures[0]
+                    dw, dh = pic.w * pic.scale * o.scale * f, pic.h * pic.scale * o.scale * f
+                    q = Image.open(pic.path).convert('RGBA').resize((max(1, round(dw)), max(1, round(dh))), Image.LANCZOS)
+                    im.alpha_composite(q, (int(round((240 + o.x) * f - q.width / 2)), int(round((135 - o.y) * f - q.height / 2))))
+                im.convert('RGB').save(out, optimize=True)
+            pics.append(Picture(bp.name, out, scale=s0))
+        bg.pictures = pics
+        gone.update(id(o) for o in run)
+    P.objects = [o for o in P.objects if id(o) not in gone]
+    return len(gone)
+
+
+def _halve_index(x):
+    """모양 번호 식 x(1~41)를 1~21 로 바꾼다. 바꿀 수 없는 모양이면 False.
+    - 숫자 n → (n-1)//2+1,  - add(floor(E), 1) → E 의 곱하기/나누기 수를 반으로 (안 되면 E/2)"""
+    from entrygen import div, fmt_num
+    if not isinstance(x, dict):
+        return False
+    ps = x.get('params', [])
+    if x.get('type') == 'number':
+        try:
+            n = float(ps[0])
+        except (TypeError, ValueError):
+            return False
+        ps[0] = fmt_num(int((n - 1) // 2 + 1))
+        return True
+    if x.get('type') == 'calc_basic' and len(ps) >= 3 and ps[1] == 'PLUS' and isinstance(ps[2], dict) \
+            and ps[2].get('type') == 'number' and str(ps[2]['params'][0]) == '1' \
+            and isinstance(ps[0], dict) and ps[0].get('type') == 'calc_operation' and 'floor' in ps[0].get('params', []):
+        fp = ps[0]['params']
+        E = fp[1]
+        if isinstance(E, dict) and E.get('type') == 'calc_basic' and len(E['params']) >= 3 and isinstance(E['params'][2], dict) \
+                and E['params'][2].get('type') == 'number' and E['params'][1] in ('MULTI', 'DIVIDE'):
+            try:
+                v = float(E['params'][2]['params'][0])
+            except (TypeError, ValueError):
+                v = None
+            if v:
+                E['params'][2]['params'][0] = fmt_num(v / 2 if E['params'][1] == 'MULTI' else v * 2)
+                return True
+        fp[1] = div(E, 2)
+        return True
+    return False
+
+
+def halve_bars(P):
+    """0~40 (41칸) 막대 그림을 짝수 칸만 남겨 21칸으로 (모양 번호 식도 같이 바꾼다).
+    식 모양을 알 수 없거나 함수 안에서 모양을 바꾸는 막대는 그대로 둔다."""
+    import copy
+    names41 = ['%02d' % i for i in range(41)]
+    fbody = {f['id']: f for f in P.functions}
+    n = 0
+    for o in P.objects:
+        if o.kind != 'sprite' or [p.name for p in o.pictures] != names41:
+            continue
+        sites, bools, ok = [], [], [True]
+
+        def find(b):
+            if isinstance(b, dict):
+                t = str(b.get('type', ''))
+                if t == 'change_to_some_shape':
+                    sites.append(b)
+                elif t == 'boolean_basic_operator' and any(isinstance(p, dict) and p.get('type') == 'coordinate_object'
+                                                           and 'picture_index' in p.get('params', []) for p in b.get('params', [])):
+                    bools.append(b)
+                elif t.startswith('func_') and t[5:] in fbody:
+                    hit = []
+                    _walk(fbody[t[5:]]['body'], lambda x: hit.append(1) if isinstance(x, dict) and x.get('type') == 'change_to_some_shape' else None)
+                    if hit:
+                        ok[0] = False
+                elif t == 'coordinate_object' and 'picture_index' in b.get('params', []):
+                    pidx.append(b)
+        pidx = []
+        for sc in o.scripts:
+            for b in sc:
+                _walk(b, find)
+        if not ok[0] or not sites:
+            continue
+        # 모양 번호를 비교 말고 다른 데(계산 등)에 쓰면 건너뜀
+        in_bool = sum(1 for b in bools for p in b['params'] if isinstance(p, dict) and p.get('type') == 'coordinate_object')
+        if len(pidx) != in_bool:
+            continue
+        # 먼저 복사본으로 모두 바꿀 수 있는지 본다
+        if not all(_halve_index(copy.deepcopy(s_['params'][0])) for s_ in sites):
+            continue
+        done = set()
+        for s_ in sites:
+            if id(s_['params'][0]) not in done:
+                done.add(id(s_['params'][0]))
+                _halve_index(s_['params'][0])
+        for b in bools:
+            for i, p in enumerate(b['params']):
+                if isinstance(p, dict) and p.get('type') not in ('coordinate_object',) and id(p) not in done:
+                    if isinstance(p, dict) and p.get('type') in ('calc_basic', 'number'):
+                        done.add(id(p))
+                        _halve_index(p)
+        o.pictures = o.pictures[::2]
+        n += 1
+    return n
+
+
+# ---------------------------------------------------------------- 지역 변수 → 리스트 칸
+CLONE_TYPES = {'create_clone', 'when_clone_start', 'delete_clone', 'remove_all_clones'}
+
+
+def locals_to_lists(P):
+    """이름만 번호로 다른 오브젝트 묶음(같은 장면, 같은 지역 변수들)은 지역 변수 때문에 코드를 함수로 합칠 수 없다.
+    지역 변수 x 를 리스트 '_칸x'의 (묶음 안 번호) 칸으로 바꾸면 코드가 숫자만 다르게 되어 함수 하나로 합쳐진다.
+    복제본을 쓰는 오브젝트는 (복제본마다 지역 변수가 따로라서) 바꾸지 않는다."""
+    import re
+    from collections import defaultdict
+    from entrygen import LGET, lst_set, add, new_id
+    cloned = set()
+
+    def find_clone_targets(b):
+        if isinstance(b, dict) and b.get('type') == 'create_clone':
+            for p in b.get('params', []):
+                if isinstance(p, Ref) and p[0] == 'obj':
+                    cloned.add(p[1])
+    for o in P.objects:
+        for sc in o.scripts:
+            for b in sc:
+                _walk(b, find_clone_targets)
+
+    def uses_clone(o):
+        hit = [False]
+
+        def f(b):
+            if isinstance(b, dict) and b.get('type') in CLONE_TYPES:
+                hit[0] = True
+        for sc in o.scripts:
+            for b in sc:
+                _walk(b, f)
+        return hit[0]
+    fams = defaultdict(list)
+    for o in P.objects:
+        if not o.locals or o.name in cloned or uses_clone(o):
+            continue
+        fams[(o.scene, re.sub(r'\d+', '#', o.name), tuple(sorted(o.locals)))].append(o)
+    done = 0
+    for (scn, base, names), objs in fams.items():
+        if len(objs) < 2:
+            continue
+        # 지역 변수가 get/set/change 말고 다른 블록에 쓰이면 건너뜀
+        ok = [True]
+        nset = set(names)
+
+        def check(b):
+            if isinstance(b, dict):
+                for i, p in enumerate(b.get('params', [])):
+                    if isinstance(p, Ref) and p[0] == 'var' and p[1] in nset:
+                        if not (i == 0 and b.get('type') in ('get_variable', 'set_variable', 'change_variable')):
+                            ok[0] = False
+        for o in objs:
+            for sc in o.scripts:
+                for b in sc:
+                    _walk(b, check)
+        if not ok[0]:
+            continue
+        lists = {}
+        for nm in names:
+            lname = '_칸%s_%s' % (nm, new_id())
+            P.list(lname, [o.locals[nm] for o in objs])
+            lists[nm] = lname
+        for k, o in enumerate(objs, 1):
+            def rw(b):
+                if not isinstance(b, dict):
+                    return b
+                t = b.get('type')
+                ps = b.get('params', [])
+                if t in ('get_variable', 'set_variable', 'change_variable') and ps and isinstance(ps[0], Ref) \
+                        and ps[0][0] == 'var' and ps[0][1] in lists:
+                    ln = lists[ps[0][1]]
+                    if t == 'get_variable':
+                        return LGET(ln, k)
+                    v = rw(ps[1])
+                    if t == 'set_variable':
+                        return lst_set(ln, k, v)
+                    return lst_set(ln, k, add(LGET(ln, k), v))
+                b['params'] = [rw(p) for p in ps]
+                if b.get('statements'):
+                    b['statements'] = [[rw(x) for x in st] for st in b['statements']]
+                return b
+            o.scripts = [[rw(b) for b in sc] for sc in o.scripts]
+            o.locals = {}
+        done += len(objs)
+    return done
 
 
 # ---------------------------------------------------------------- 같은 코드 묶음을 엔트리 '함수'로 한 번만 정의
@@ -202,25 +457,26 @@ def _canon(b, flags):
     return repr(b)
 
 
-def analyze(P, min_blocks=6):
+def analyze(P, min_blocks=3):
     from collections import defaultdict
     groups = defaultdict(list)
     for o in P.objects:
-        if o.locals:
-            # 지역 변수를 쓸 수 있는 오브젝트는 함수 밖에서 이름이 달라질 수 있어 제외
-            continue
+        locs = set(o.locals)
         for sc in o.scripts:
             if len(sc) < 2:
+                continue
+            if len(sc) == 2 and str(sc[1].get('type', '')).startswith('func_') and len(sc[1].get('params') or []) <= 1:
+                continue            # 이미 함수 부르기 한 칸
+            # 지역 변수를 쓰는 코드는 함수 밖에서 이름이 달라질 수 있어 제외
+            if locs and any(_uses_names(b, locs) for b in sc[1:]):
                 continue
             fl = {}
             key = '|'.join(_canon(b, fl) for b in sc[1:])
             if fl.get('bad'):
                 continue
-            n = [0]
-            for b in sc[1:]:
-                _walk_stmt(b, lambda x: n.__setitem__(0, n[0] + 1))
-            if n[0] >= min_blocks:
-                groups[key].append((o, sc, n[0]))
+            n = sum(_all_count(b) for b in sc[1:])
+            if n >= min_blocks:
+                groups[key].append((o, sc, n))
     saved = 0
     rows = []
     for key, items in groups.items():
@@ -240,7 +496,7 @@ def functionize(P, groups, min_gain=3):
     made = 0
     for key, items in groups.items():
         n = items[0][2]
-        gain = (len(items) - 1) * n - len(items)
+        gain = (len(items) - 1) * n - len(items) - 3      # 함수 정의(머리·이름표) 몫 3
         if len(items) < 2 or gain < min_gain:
             continue
         made += 1
@@ -262,7 +518,7 @@ def _canon_lit(b, flags):
         return 'R?'
     if isinstance(b, dict):
         t = b.get('type')
-        if t in UNSAFE_TYPES or (t or '').startswith('func_'):
+        if t in UNSAFE_TYPES or (t or '').startswith('func_') and os.environ.get('FUNCSEQ') == '0':
             flags['bad'] = True
         if t in ('number', 'text'):
             return '{%s|#}' % t
@@ -341,10 +597,13 @@ def functionize_params(P, max_params=60, min_gain=8):
     from entrygen import new_id
     groups = defaultdict(list)
     for o in P.objects:
-        if o.locals:
-            continue
+        locs = set(o.locals)
         for sc in o.scripts:
             if len(sc) < 2:
+                continue
+            if len(sc) == 2 and str(sc[1].get('type', '')).startswith('func_'):
+                continue
+            if locs and any(_uses_names(b, locs) for b in sc[1:]):
                 continue
             fl = {}
             key = '|'.join(_canon_lit(b, fl) for b in sc[1:])
@@ -776,6 +1035,82 @@ def outline_exprs(P, max_params=12):
             _walk(p, f)
             ps[i] = {'type': 'func_' + fid, 'params': args, 'statements': []}
         total += g2
+    return made, total
+
+
+def _is_lit(a):
+    return isinstance(a, dict) and a.get('type') in ('number', 'text') and len(a.get('params', [])) == 1 \
+        and not isinstance(a['params'][0], (dict, Ref))
+
+
+def inline_functions(P, max_rounds=8):
+    """부르는 곳이 적고 몸통이 작은 함수는 함수로 두는 것(정의 머리·이름표·부르기 블록)이 더 비싸다 → 부르는 자리에 몸통을 넣는다.
+    입력값이 숫자·글자일 때만 (식이면 계산 시점이 달라질 수 있음)."""
+    import copy
+    made, total = 0, 0
+    for _ in range(max_rounds):
+        funcs = {f['id']: f for f in P.functions if f.get('value') is None}
+        sites = {fid: [] for fid in funcs}
+
+        def scan(stmts, owner):
+            for b in stmts:
+                if isinstance(b, dict):
+                    t = str(b.get('type', ''))
+                    if t.startswith('func_') and t[5:] in sites:
+                        sites[t[5:]].append((stmts, b, owner))
+                    for st in b.get('statements', []):
+                        scan(st, owner)
+        for o in P.objects:
+            for sc in o.scripts:
+                scan(sc, None)
+        for f in P.functions:
+            scan(f['body'], f['id'])
+        removed, touched = set(), set()
+        n_round = 0
+        for fid, f in funcs.items():
+            cs = sites[fid]
+            if not cs or fid in touched:
+                continue
+            m = len(f.get('params') or [])
+            if any(owner == fid for _, _, owner in cs):
+                continue                    # 자기 자신을 부름
+            if any(owner in removed for _, _, owner in cs):
+                continue
+            if any(not all(_is_lit(a) for a in c['params'][:m]) or len(c['params']) < m for _, c, _ in cs):
+                continue
+            body_n = sum(_all_count(b) for b in f['body'])
+            c = len(cs)
+            if c * body_n >= (3 + m) + body_n + c * (1 + m):
+                continue
+            idx = {pt: j for j, pt in enumerate(f.get('params') or [])}
+            for stmts, call, owner in cs:
+                args = call['params'][:m]
+                body = copy.deepcopy(f['body'])
+
+                def sub(x):
+                    if isinstance(x, dict):
+                        ps = x.get('params', [])
+                        for i, p in enumerate(ps):
+                            if isinstance(p, dict) and p.get('type') in idx:
+                                ps[i] = copy.deepcopy(args[idx[p['type']]])
+                            else:
+                                sub(p)
+                        for st in x.get('statements', []):
+                            for y in st:
+                                sub(y)
+                for b in body:
+                    sub(b)
+                i0 = next(i for i, x in enumerate(stmts) if x is call)
+                stmts[i0:i0 + 1] = body
+                touched.add(owner)
+            total += (3 + m) + body_n + c * (1 + m) - c * body_n
+            removed.add(fid)
+            touched.add(fid)
+            n_round += 1
+        if not n_round:
+            break
+        P.functions = [f for f in P.functions if f['id'] not in removed]
+        made += n_round
     return made, total
 
 

@@ -144,26 +144,40 @@ def build_map(P, ctx, tier, sc, whole, dt, pins, dt_ids, ring, mode_names, ring_
     rt.on(on_scene(), *vis_ring, *G.live_write(rt, [*cnt, setv('_mrt', join(ring_label, '\n', V('tmp'), '곳 (클릭)'))], '_mrt', 0.5))
     PV = '핀상태%d' % tier
     P.list(PV, [-1] * N)
-    for k in range(1, N + 1):
-        if k in skip:
-            continue
-        x_, y_ = pins[k]
-        m_ = 1 if k in dt_ids else 0
-        pics = [('on', SP.arrow_marker(k, 'on')), ('hot', SP.arrow_marker(k, 'hot'))]
-        o = sprite(P, sc, '화살표%02d' % k, pics, x_, y_, scale=0.9)
-        # 핀 상태(0 숨김 / 1 보통 / 2 마우스 올림)는 리스트 칸에: 지역 변수를 안 쓰면 79개 핀 코드가 함수 하나로 합쳐진다
-        pv = LGET(PV, k)
-        vis = and_(eq(LGET('지역완료', off + k), 0), eq(V('지도모드'), m_))
-        o.on(on_scene(), xy(x_, y_), lst_set(PV, k, -1),
-             forever(ifelse(not_(vis), [if_(ne(pv, 0), lst_set(PV, k, 0), hide()), if_(eq(V('호버지역'), k), setv('호버지역', 0))],
-                            [ifelse(and_(touch('mouse'), eq(V('개표창'), 0)),
-                                    [if_(ne(pv, 2), lst_set(PV, k, 2), shape('hot'), o.pct(125), show()), setv('호버지역', k)],
-                                    [if_(ne(pv, 1), lst_set(PV, k, 1), shape('on'), o.pct(100), show()),
-                                     if_(eq(V('호버지역'), k), setv('호버지역', 0))])]),
-                     wait(0.05)))
-        games = ctx['S_GAME'] if tier == 1 else ctx['S_GAME%d' % tier]
-        o.on(on_click(), if_(and_(vis, eq(V('개표창'), 0)), setv('현재지역', k), setv('지역번호', off + k),
-                             *go(games[k - 1])))
+    # 화살표(핀): 오브젝트 하나 + 복제본 (복제본마다 지역 변수 _pk 에 유세지 번호). 모양은 'on번호'/'hot번호'
+    ks = [k for k in range(1, N + 1) if k not in skip]
+    P.list('핀번호%d' % tier, ks)
+    P.list('핀모드%d' % tier, [1 if k in dt_ids else 0 for k in range(1, N + 1)])
+    pics = []
+    for k in ks:
+        pics += [('on%d' % k, SP.arrow_marker(k, 'on')), ('hot%d' % k, SP.arrow_marker(k, 'hot'))]
+    o = sprite(P, sc, '화살표', pics, -300, -300, scale=0.9, visible=False)
+    o.local('_pj', 0)
+    o.local('_pk', 0)
+    pk = V('_pk')
+    pv = LGET(PV, pk)
+    vis = and_(eq(LGET('지역완료', add(off, pk)), 0), eq(V('지도모드'), LGET('핀모드%d' % tier, pk)))
+
+    def make():
+        return [chg('_pj', 1), setv('_pk', LGET('핀번호%d' % tier, V('_pj'))), clone_self()]
+    full, rem = divmod(len(ks), 5)
+    o.on(on_scene(), hide(), setv('_pj', 0), *([rep(full, *[b for _ in range(5) for b in make()])] if full else []),
+         *[b for _ in range(rem) for b in make()])
+    o.on(on_clone(), xy(LGET('핀X%d' % tier, pk), LGET('핀Y%d' % tier, pk)), lst_set(PV, pk, -1),
+         forever(ifelse(not_(vis), [if_(ne(pv, 0), lst_set(PV, pk, 0), hide()), if_(eq(V('호버지역'), pk), setv('호버지역', 0))],
+                        [ifelse(and_(touch('mouse'), eq(V('개표창'), 0)),
+                                [if_(ne(pv, 2), lst_set(PV, pk, 2), shape(join('hot', pk)), o.pct(125), show()), setv('호버지역', pk)],
+                                [if_(ne(pv, 1), lst_set(PV, pk, 1), shape(join('on', pk)), o.pct(100), show()),
+                                 if_(eq(V('호버지역'), pk), setv('호버지역', 0))])]),
+                 wait(0.05)))
+    games = ctx['S_GAME'] if tier == 1 else ctx['S_GAME%d' % tier]
+    if '_가자' not in P.vars:
+        P.var('_가자', 0)
+    go_fn = P.new_function('지역가기%d' % tier, [if_(eq(V('현재지역'), k), goto_scene(games[k - 1])) for k in ks])
+    o.on(on_click(), setv('_가자', 0),
+         if_(and_(vis, eq(V('개표창'), 0)), setv('_가자', 1), setv('현재지역', pk), setv('지역번호', add(off, pk)),
+             cast('페이드아웃'), wait(0.2)),
+         if_(eq(V('_가자'), 1), dict(go_fn)))
     tip = panel(P, sc, '툴팁판', 0, 0, 150, 52, 'card', visible=False)
     tip_t = text(P, sc, '툴팁제목', '', 0, 0, 10, C_ACC, F_NUM, False, 0, w=144, h=16, visible=False)
     tip_d = text(P, sc, '툴팁설명', '', 0, 0, 8, '#FFFFFF', F_BODY, True, 0, w=140, h=26, visible=False)
@@ -238,7 +252,7 @@ def build_map(P, ctx, tier, sc, whole, dt, pins, dt_ids, ring, mode_names, ring_
     E.majority_pop(P, sc)
     if tier > 1:
         G.big_pop(P, sc, '출정팝', K.big_text('%s 선거 시작!' % D2.TIER_SHORT[tier - 1], 40, 'royal'), 0, 30, '출정', hold=1.6)
-        st_t = text(P, sc, '출정설명', '%s 40곳을 돌며 후보 셋 중 지지율 1등을 노려라!' % ('세종시' if tier == 2 else '전국'),
+        st_t = text(P, sc, '출정설명', '%s %d곳을 돌며 후보 셋 중 지지율 1등을 노려라!' % ('세종시' if tier == 2 else '전국', D2.PLACE_COUNT[tier - 1]),
                     0, -6, 11, C_WHITE, F_BODY, True, 0, w=380, h=18, visible=False, bg=C_BOX)
         st_t.on(on_msg('출정'), to_front(), show(), wait(2.6), hide())
     sv = text(P, sc, '자동저장', '', -300, -300, 8, visible=False)
@@ -352,7 +366,7 @@ def build_office(P, ctx):
                                                    EC.contract_go(ctx, 6, tgt, 0, '후보자 등록 신청서',
                                                                   join('1. 을은 ', LGET('출마목표말', add(V('직위'), 1)), ' 선거에 「',
                                                                        V('정당이름'), '」 공천 후보로 등록한다.\n'
-                                                                       '2. 을은 선거법을 지키며 40곳을 돌며 유세한다.\n'
+                                                                       '2. 을은 선거법을 지키며 유세지를 돌며 유세한다.\n'
                                                                        '3. 후보 셋 가운데 지지율 1등이 당선된다.'),
                                                                   '중앙선거관리위원회'),
                                                    [setv('경제알림', '총자산과 정당 공천이 모두 필요해요!'), cast('경제알림'), G.sfx('bad')])])])])

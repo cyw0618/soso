@@ -951,7 +951,7 @@ class Project:
             od = dict(id=o.id, name=o.name, script=self._script_json(o), objectType=o.kind,
                       rotateMethod='free', scene=sid_of[o.scene],
                       sprite=dict(pictures=pictures, sounds=sounds),
-                      selectedPictureId=(o.pictures[0].id if o.pictures else None),
+                      selectedPictureId=(o.pictures[getattr(o, 'sel', 0)].id if o.pictures else None),
                       lock=False, entity=self._entity(o))
             if o.kind == 'textBox':
                 od['text'] = o.text

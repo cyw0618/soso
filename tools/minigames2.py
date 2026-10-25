@@ -12,7 +12,7 @@ from gui import C_WHITE, C_ACC, C_DIM, C_RED, C_BLUE, C_VIOLET, C_BOX
 import data as D
 import mg_art as A
 import mg_art2 as A2
-from minigames import MG, clamp_blocks
+from minigames import MG, clamp_blocks, clone_grid
 
 
 def _vars(P, *names):
@@ -352,18 +352,16 @@ def g36(P, ctx):
     P.list('짝카드', [k for k in range(1, 9) for _ in range(2)])
     P.list('짝열림', [0] * 16)
     panel(P, m.sc, '짝판', 0, -16, 252, 236, 'glass')
-    for k in range(1, 17):
-        r, c = (k - 1) // 4, (k - 1) % 4
-        x, y = -87 + c * 58, 72 - r * 58
-        cd = m.S('짝카드%d' % k, pics, x, y)
-        cd.on(on_scene(), shape('back'))
-        cd.on(on_msg('카드갱신'),
-              ifelse(eq(LGET('짝열림', k), 0), [shape('back')],
-                     [ifelse(eq(LGET('짝열림', k), 1), [shape(add(1, LGET('짝카드', k)))], [shape(add(9, LGET('짝카드', k)))])]))
-        cd.on(on_click(), if_(and_(and_(eq(V('게임중'), 1), eq(V('잠김'), 0)), eq(LGET('짝열림', k), 0)),
-                              lst_set('짝열림', k, 1), cast('카드갱신'), cast('카드뒤집기'),
-                              ifelse(eq(V('첫카드'), 0), [setv('첫카드', k)], [setv('둘카드', k), setv('잠김', 1), cast('짝판정')])))
-        cd.on(on_click(), if_(eq(V('게임중'), 1), cd.pct(90), wait(0.06), cd.pct(100)))
+    k = V('_ci')
+    cd = clone_grid(m, '짝카드', pics, 16, add(-87, mul(mod(sub(k, 1), 4), 58)), sub(72, mul(floor(div(sub(k, 1), 4)), 58)),
+                    [shape('back')])
+    cd.on(on_msg('카드갱신'),
+          ifelse(eq(LGET('짝열림', k), 0), [shape('back')],
+                 [ifelse(eq(LGET('짝열림', k), 1), [shape(add(1, LGET('짝카드', k)))], [shape(add(9, LGET('짝카드', k)))])]))
+    cd.on(on_click(), if_(and_(and_(eq(V('게임중'), 1), eq(V('잠김'), 0)), eq(LGET('짝열림', k), 0)),
+                          lst_set('짝열림', k, 1), cast('카드갱신'), cast('카드뒤집기'),
+                          ifelse(eq(V('첫카드'), 0), [setv('첫카드', k)], [setv('둘카드', k), setv('잠김', 1), cast('짝판정')])))
+    cd.on(on_click(), if_(eq(V('게임중'), 1), cd.pct(90), wait(0.06), cd.pct(100)))
     mgr = hidden(m, '짝담당')
     a, b = LGET('짝카드', V('첫카드')), LGET('짝카드', V('둘카드'))
     mgr.on(on_msg('짝판정'),
@@ -632,14 +630,15 @@ def g18(P, ctx):
     turn_t.on(on_msg('삼목갱신'), ifelse(eq(V('삼목차례'), 1), [write('내 차례! 빈 칸을 누르세요')], [write('이장님이 생각 중...')]))
     pics = [('e', A2.go_stone('e')), ('b', A2.go_stone('b')), ('w', A2.go_stone('w')), ('bw', A2.go_stone('bw')),
             ('ww', A2.go_stone('ww'))]
-    for k in range(1, 10):
-        r, c = (k - 1) // 3, (k - 1) % 3
-        o = m.S('삼목칸%d' % k, pics, -58 + c * 58, 48 - r * 58)
-        o.on(on_msg('삼목갱신'), shape(add(LGET('삼목판', k), 1)))
-        o.on(on_msg('삼목놓음'), if_(eq(V('삼목수'), k), o.pct(130), rep(5, o.grow_pct(-6), wait(0.016))))
-        o.on(on_click(), if_(and_(and_(eq(V('게임중'), 1), eq(V('삼목차례'), 1)), eq(LGET('삼목판', k), 0)),
-                             lst_set('삼목판', k, 1), setv('삼목수', k), setv('삼목차례', 0), cast('삼목갱신'), cast('삼목놓음'),
-                             cast('삼목검사')))
+    # 9칸 = 오브젝트 하나 + 복제본 (지역 변수 _ci = 칸 번호)
+    k = V('_ci')
+    o = clone_grid(m, '삼목칸', pics, 9, add(-58, mul(mod(sub(k, 1), 3), 58)), sub(48, mul(floor(div(sub(k, 1), 3)), 58)),
+                   [shape(add(LGET('삼목판', k), 1))])
+    o.on(on_msg('삼목갱신'), shape(add(LGET('삼목판', k), 1)))
+    o.on(on_msg('삼목놓음'), if_(eq(V('삼목수'), k), o.pct(130), rep(5, o.grow_pct(-6), wait(0.016))))
+    o.on(on_click(), if_(and_(and_(eq(V('게임중'), 1), eq(V('삼목차례'), 1)), eq(LGET('삼목판', k), 0)),
+                         lst_set('삼목판', k, 1), setv('삼목수', k), setv('삼목차례', 0), cast('삼목갱신'), cast('삼목놓음'),
+                         cast('삼목검사')))
     res = m.S('삼목결과', [('w', K.big_text('이겼다!', 30, 'royal')), ('l', K.big_text('졌다...', 28, 'red')),
                           ('d', K.big_text('무승부', 28, 'white'))], 0, -10, visible=False)
     res.on(on_msg('판끝'), ifelse(eq(V('삼목승자'), 1), [shape('w')], [ifelse(eq(V('삼목승자'), 2), [shape('l')], [shape('d')])]),
@@ -1286,13 +1285,14 @@ def g29(P, ctx):
     src.on(on_msg('물단계시작'), ly(sub(Y0, mul(V('물시작줄'), CL))))
     dst.on(on_msg('물단계시작'), ly(sub(Y0, mul(V('물끝줄'), CL))))
     pics = [('p%d_%d_%d' % (k, r, w), A2.pipe_tile(k, r, bool(w))) for k in (1, 2) for r in range(4) for w in (0, 1)]
-    for i in range(1, N + 1):
-        c, r = (i - 1) % PIPE_C, (i - 1) // PIPE_C
-        t = m.S('관%d' % i, pics, X0 + c * CL, Y0 - r * CL)
-        t.on(on_msg('물길갱신'), shape(add(add(mul(sub(LGET('관종류', i), 1), 8), mul(LGET('관회전', i), 2)), add(LGET('관물', i), 1))))
-        t.on(on_click(), if_(and_(eq(V('게임중'), 1), eq(V('대기'), 1)),
-                             lst_set('관회전', i, mod(add(LGET('관회전', i), 1), 4)), cast('물길갱신'), cast('관돌림'), cast('물흐름')))
-        t.on(on_msg('관돌림'), if_(eq(V('_wk'), i), t.pct(88), wait(0.05), t.pct(100)))
+    ci = V('_ci')
+    look = shape(add(add(mul(sub(LGET('관종류', ci), 1), 8), mul(LGET('관회전', ci), 2)), add(LGET('관물', ci), 1)))
+    t = clone_grid(m, '관', pics, N, add(X0, mul(mod(sub(ci, 1), PIPE_C), CL)), sub(Y0, mul(floor(div(sub(ci, 1), PIPE_C)), CL)),
+                   [look])
+    t.on(on_msg('물길갱신'), look)
+    t.on(on_click(), if_(and_(eq(V('게임중'), 1), eq(V('대기'), 1)), setv('_wk', ci),
+                         lst_set('관회전', ci, mod(add(LGET('관회전', ci), 1), 4)), cast('물길갱신'), cast('관돌림'), cast('물흐름')))
+    t.on(on_msg('관돌림'), if_(eq(V('_wk'), ci), t.pct(88), wait(0.05), t.pct(100)))
     trace = [*[lst_set('관물', i, 0) for i in range(1, N + 1)],
              setv('_wc', 0), setv('_wr', V('물시작줄')), setv('_we', 3), setv('물성공', 0), setv('_mk', 0),
              until(or_(eq(V('_mk'), 1), eq(V('물성공'), 1)),
@@ -1405,10 +1405,11 @@ def g33(P, ctx):
     panel(P, m.sc, '징검판넬', X0 + (C - 1) * CL / 2, Y0 - (R - 1) * CL / 2, C * CL + 14, R * CL + 14, 'glass')
     kinds = ['land', 'water', 'stone', 'rock', 'goal', 'step', 'stone']
     pics = [('k%d' % i, A2.stone_cell(k)) for i, k in enumerate(kinds)]
-    for i in range(1, N + 1):
-        c, r = (i - 1) % C, (i - 1) // C
-        t = m.S('징검칸%d' % i, pics, X0 + c * CL, Y0 - r * CL)
-        t.on(on_msg('징검갱신'), shape(add(LGET('징검판', i), 1)))
+    # 칸 N개 = 오브젝트 하나 + 복제본 (복제본마다 지역 변수 _ci 에 칸 번호): 오브젝트·그림 정보가 줄어 저장 크기가 작다
+    ci = V('_ci')
+    t = clone_grid(m, '징검칸', pics, N, add(X0, mul(mod(sub(ci, 1), C), CL)), sub(Y0, mul(floor(div(sub(ci, 1), C)), CL)),
+                   [shape(add(LGET('징검판', ci), 1))])
+    t.on(on_msg('징검갱신'), shape(add(LGET('징검판', ci), 1)))
     me = m.S('징검나', ctx['PORT']['me'], 0, 0, scale=0.5)
     me.on(on_msg('징검갱신'), xy(add(X0, mul(mod(sub(V('징검나'), 1), C), CL)), sub(Y0, mul(floor(div(sub(V('징검나'), 1), C)), CL))))
     load = [*[lst_set('징검판', i, LGET('징검원본', add(mul(sub(V('징검단계'), 1), N), i))) for i in range(1, N + 1)],

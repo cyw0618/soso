@@ -544,24 +544,27 @@ def build_ma(P, ctx):
     cnt = LGET('기업탭개수', V('기업탭'))
     cards = [('n', K.panel(116, 28, 'card')), ('own', K.panel(116, 28, 'card', header='royal')),
              ('sel', K.panel(116, 28, 'glass', header='purple'))]
-    for j in range(1, 11):
-        c, r = (j - 1) % 2, (j - 1) // 2
-        x, y = -172 + c * 120, 56 - r * 31
-        idx = add(base, j)
-        on = le(add(mul(sub(V('기업쪽'), 1), 10), j), cnt)
-        cd = sprite(P, sc, '기업칸%d' % j, cards, x, y)
-        n1 = text(P, sc, '기업칸이름%d' % j, '', x, y + 6, 8, C_WHITE, F_NUM, False, 0, w=110, h=12)
-        n2 = text(P, sc, '기업칸값%d' % j, '', x, y - 6, 7, C_DIM, F_BODY, True, 0, w=110, h=11)
-        cd.on(on_msg('기업갱신'), ifelse(on, [show(), ifelse(eq(V('선택기업'), idx), [shape('sel')],
-                                                                [ifelse(gt(LGET('인수레벨', idx), 0), [shape('own')], [shape('n')])])],
-                                          [hide()]))
-        n1.on(on_msg('기업갱신'), ifelse(on, [write(LGET('기업이름', idx)), show()], [hide()]))
-        n2.on(on_msg('기업갱신'), ifelse(on, [ifelse(gt(LGET('인수레벨', idx), 0),
-                                                     [write(join('보유 Lv', LGET('인수레벨', idx), ' · ', LGET('기업업종', idx))), text_color(C_ACC)],
-                                                     [*fmt_money(LGET('기업가격', idx), '_m'), write(join(V('_m'), ' · ', LGET('기업업종', idx))),
-                                                      text_color(C_DIM)])], [hide()]))
-        for o in (cd, n1, n2):
-            o.on(on_click(), if_(on, setv('선택기업', idx), cast('기업갱신')))
+    # 기업 목록 10칸 × (칸·이름·값) = 오브젝트 3개 + 복제본 (복제본마다 지역 변수 _rj 에 칸 번호)
+    j = V('_rj')
+    xj = add(-172, mul(mod(sub(j, 1), 2), 120))
+    yj = sub(56, mul(floor(div(sub(j, 1), 2)), 31))
+    idx = add(base, j)
+    on = le(add(mul(sub(V('기업쪽'), 1), 10), j), cnt)
+    cd = sprite(P, sc, '기업칸', cards, -300, -300, visible=False)
+    n1 = text(P, sc, '기업칸이름', '', -300, -300, 8, C_WHITE, F_NUM, False, 0, w=110, h=12, visible=False)
+    n2 = text(P, sc, '기업칸값', '', -300, -300, 7, C_DIM, F_BODY, True, 0, w=110, h=11, visible=False)
+    cd_b = [ifelse(on, [show(), ifelse(eq(V('선택기업'), idx), [shape('sel')],
+                                       [ifelse(gt(LGET('인수레벨', idx), 0), [shape('own')], [shape('n')])])],
+                   [hide()])]
+    n1_b = [ifelse(on, [write(LGET('기업이름', idx)), show()], [hide()])]
+    n2_b = [ifelse(on, [ifelse(gt(LGET('인수레벨', idx), 0),
+                               [write(join('보유 Lv', LGET('인수레벨', idx), ' · ', LGET('기업업종', idx))), text_color(C_ACC)],
+                               [*fmt_money(LGET('기업가격', idx), '_m'), write(join(V('_m'), ' · ', LGET('기업업종', idx))),
+                                text_color(C_DIM)]), show()], [hide()])]
+    for o, dx, dy, bb in ((cd, 0, 0, cd_b), (n1, 0, 6, n1_b), (n2, 0, -6, n2_b)):
+        G.clone_rows(o, 10, '_rj', add(xj, dx), add(yj, dy), bb)
+        o.on(on_msg('기업갱신'), *bb)
+        o.on(on_click(), if_(on, setv('선택기업', idx), cast('기업갱신')))
     pg = text(P, sc, '기업쪽글', '', -112, -102, 9, C_WHITE, F_NUM, False, 0, w=80, h=14)
     pg.on(on_msg('기업갱신'), write(join(V('기업쪽'), ' / ', ceil_(div(cnt, 10)), '쪽')))
     button(P, sc, '기업이전', '◀', -172, -102, 34, 20, 'navy', actions=[if_(gt(V('기업쪽'), 1), chg('기업쪽', -1), cast('기업갱신'))])
@@ -978,19 +981,25 @@ def build_hire(P, ctx):
     # ---- 왼쪽: 직급 목록
     panel(P, sc, '직급판', -128, -10, 204, 196, 'glass', header='royal')
     rows = [('n', K.panel(196, 18, 'card')), ('s', K.panel(196, 18, 'card', header='royal'))]
-    for i, pos in enumerate(D2.POSITIONS, 1):
-        y = 72 - (i - 1) * 20
-        rc = sprite(P, sc, '직급칸%d' % i, rows, -128, y)
-        rc.on(on_msg('인사갱신'), ifelse(eq(V('선택직급'), i), [shape('s')], [shape('n')]))
-        t1 = text(P, sc, '직급명%d' % i, pos[0], -186, y, 9, C_WHITE, F_NUM, False, 1, w=70, h=13)
-        t2 = text(P, sc, '직급현황%d' % i, '', -80, y, 8, C_DIM, F_BODY, True, 2, w=100, h=12)
-        t2.on(on_msg('인사갱신'),
-              ifelse(gt(LGET('직원수', i), 0),
-                     [write(join(LGET('직원수', i), '/', pos[1], '명 · 평균 ', rounded(div(LGET('직원능력합', i), LGET('직원수', i)))))],
-                     [write(join('0/', pos[1], '명'))]))
-        sel = [setv('선택직급', i), setv('후보직급', i), *new_candidate(), cast('인사갱신')]
-        for o in (rc, t1, t2):
-            o.on(on_click(), *sel)
+    # 직급 목록 = 오브젝트 3개(칸·이름·현황) + 복제본 (복제본마다 지역 변수 _rj 에 직급 번호)
+    NP = len(D2.POSITIONS)
+    i = V('_rj')
+    yi = sub(72, mul(sub(i, 1), 20))
+    rc = sprite(P, sc, '직급칸', rows, -300, -300, visible=False)
+    t1 = text(P, sc, '직급명', '', -300, -300, 9, C_WHITE, F_NUM, False, 1, w=70, h=13, visible=False)
+    t2 = text(P, sc, '직급현황', '', -300, -300, 8, C_DIM, F_BODY, True, 2, w=100, h=12, visible=False)
+    rc_b = [ifelse(eq(V('선택직급'), i), [shape('s')], [shape('n')])]
+    t2_b = [ifelse(gt(LGET('직원수', i), 0),
+                   [write(join(LGET('직원수', i), '/', LGET('직급정원', i), '명 · 평균 ', rounded(div(LGET('직원능력합', i), LGET('직원수', i)))))],
+                   [write(join('0/', LGET('직급정원', i), '명'))])]
+    G.clone_rows(rc, NP, '_rj', -128, yi, rc_b + [show()])
+    G.clone_rows(t1, NP, '_rj', -186, yi, [write(LGET('직급이름', i)), show()])
+    G.clone_rows(t2, NP, '_rj', -80, yi, t2_b + [show()])
+    rc.on(on_msg('인사갱신'), *rc_b)
+    t2.on(on_msg('인사갱신'), *t2_b)
+    sel = [setv('선택직급', i), setv('후보직급', i), *new_candidate(), cast('인사갱신')]
+    for o in (rc, t1, t2):
+        o.on(on_click(), *sel)
     fire = button(P, sc, '해고', '한 명 해고', -128, -110, 90, 20, 'gray',
                   actions=[if_(gt(LGET('직원수', V('선택직급')), 0),
                                lst_set('직원능력합', V('선택직급'), sub(LGET('직원능력합', V('선택직급')),

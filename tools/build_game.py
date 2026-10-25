@@ -27,11 +27,15 @@ P = Project('군수집 막내아들')
 # ------------------------------------------------------------------ 장면 이름
 S_INTRO = '인트로'
 S_TITLE, S_STORY, S_HOWTO, S_MAP = '타이틀', '이야기', '게임 방법', '조치원 지도'
-S_GAME = ['%02d %s' % (p['id'], p['short']) for p in D.PLACES]
 import data2 as D2
-# 시장·대통령 선거 전용 게임 장면 (퀴즈 7번은 군수 장면을 같이 쓰고 문제만 단계마다 다름)
-S_GAME2 = [S_GAME[k - 1] if k == 7 else '시장%02d %s' % (k, D2.SEJONG[k - 1][1]) for k in range(1, 41)]
-S_GAME3 = [S_GAME[k - 1] if k == 7 else '대선%02d %s' % (k, D2.KOREA[k - 1][1]) for k in range(1, 41)]
+# 군수 게임 장면 (시장·대선으로 옮긴 10개는 그 단계 유세지 이름으로)
+S_GAME = [('%s%02d %s' % ('시장' if D2.MOVED[p['id']][0] == 2 else '대선', D2.MOVED[p['id']][1], p['game']))
+          if p['id'] in D2.MOVED else '%02d %s' % (p['id'], p['short']) for p in D.PLACES]
+# 시장·대통령 선거 전용 게임 장면 (퀴즈 7번은 군수 장면을 같이 쓰고 문제만 단계마다 다름, 옮겨 온 군수 게임 자리는 그 장면)
+S_GAME2 = [S_GAME[k - 1] if k == 7 else S_GAME[D2.MOVED_AT[(2, k)] - 1] if (2, k) in D2.MOVED_AT
+           else '시장%02d %s' % (k, D2.SEJONG[k - 1][1]) for k in range(1, 41)]
+S_GAME3 = [S_GAME[k - 1] if k == 7 else S_GAME[D2.MOVED_AT[(3, k)] - 1] if (3, k) in D2.MOVED_AT
+           else '대선%02d %s' % (k, D2.KOREA[k - 1][1]) for k in range(1, 41)]
 NEW_GAMES = [s_ for k_, s_ in enumerate(S_GAME2, 1) if s_ not in S_GAME and k_ not in D2.REMOVED[2]] + \
             [s_ for k_, s_ in enumerate(S_GAME3, 1) if s_ not in S_GAME and k_ not in D2.REMOVED[3]]
 S_RESULT, S_EVENT, S_SHOP, S_STOCK = '유세 결과', '돌발상황', '작전 본부', '주식'
@@ -78,9 +82,22 @@ P.list('지역완료', [0] * N_ALL)
 P.list('곳수', D2.PLACE_COUNT)       # 단계별 유세지 수 (군수 40 · 시장/대통령은 일부 뺌)
 P.list('지역점수', [0] * N_ALL)
 P.list('지역이름', [p['name'] for p in D.PLACES] + [x[0] for x in D2.SEJONG] + [x[0] for x in D2.KOREA])
-P.list('지역게임', [p['game'] for p in D.PLACES] + [x[1] for x in D2.SEJONG] + [x[1] for x in D2.KOREA])
-P.list('지역설명', [p['help'] for p in D.PLACES] + [x[2] for x in D2.SEJONG] + [x[2] for x in D2.KOREA])
-P.list('지역비중', [p['weight'] for p in D.PLACES] * 3)
+
+
+def _region_info(t, k, src):
+    """(게임 이름, 설명): 군수 게임을 옮겨 온 유세지는 그 군수 게임 것."""
+    j = D2.MOVED_AT.get((t, k))
+    return (D.PLACES[j - 1]['game'], D.PLACES[j - 1]['help']) if j else (src[k - 1][1], src[k - 1][2])
+
+
+_RI = [(p['game'], p['help']) for p in D.PLACES] + [_region_info(2, k, D2.SEJONG) for k in range(1, 41)] + \
+      [_region_info(3, k, D2.KOREA) for k in range(1, 41)]
+P.list('지역게임', [x[0] for x in _RI])
+P.list('지역설명', [x[1] for x in _RI])
+# 군수 유세지가 30곳으로 줄어도 다 돌면 얻을 수 있는 지지율 합은 그대로 (남은 곳 비중을 조금씩 올림)
+_W = [p['weight'] for p in D.PLACES]
+_wf = sum(_W) / sum(w for i, w in enumerate(_W, 1) if i not in D2.REMOVED[1])
+P.list('지역비중', [round(w * _wf, 2) for w in _W] + _W * 2)
 P.list('이야기', D.INTRO_STORY)
 # 랭킹: 공유 리스트(작품을 공유하면 모든 플레이어의 기록이 계속 쌓임). 처음에는 비어 있고 끝에 표시용 항목('끝', -1)만 있다.
 P.list('명예이름', ['끝'], cloud=True, lid='hn7q')
@@ -136,7 +153,8 @@ def scene_title():
     # 초기화 담당 (보이지 않는 오브젝트)
     mgr = text(P, sc, '초기화담당', '', -300, -300, 8, visible=False)
     init = [setv(k_, v_) for k_, v_ in VARS.items() if k_ not in ('돈표시', '_p3', '_m3', '표시글', '플레이어이름', '_q', '_m')]
-    init += [lst_set('지역완료', k_, 0) for k_ in range(1, N_ALL + 1)]
+    # 지역완료 120칸 지우기: 한 바퀴에 10칸씩 12바퀴 (칸마다 블록을 따로 두면 저장 크기가 크다)
+    init += [setv('_n', 0), rep(N_ALL // 10, *[lst_set('지역완료', add(V('_n'), j_), 0) for j_ in range(1, 11)], chg('_n', 10))]
     init += STOCK_RESET
     init += E.reset_blocks()
     init += IV.reset_blocks()
@@ -228,7 +246,7 @@ def scene_howto():
     G.bg(P, sc, ART('story_bg'))
     panel(P, sc, '방법판', 0, -6, 440, 228, 'glass', header='royal')
     sprite(P, sc, '방법제목', K.banner('게임 방법', 180, 34, 'royal'), 0, 112)
-    rows = [('map', '지도의 화살표 40곳을 눌러 선거유세! 지역마다 다른 미니게임'),
+    rows = [('map', '지도의 화살표 %d곳을 눌러 선거유세! 지역마다 다른 미니게임' % D2.PLACE_COUNT[0]),
             ('bolt', '돌발상황 64종! 셋 중 하나는 반드시 안전 (어느 것인지는 몰라요)'),
             ('chart', '10억으로 시작. 주식·코인·내 회사로 불리세요. 재산 0원이면 파산!'),
             ('trophy', '군수: 지지율 과반 + 「조치원 지배 자본」 과반이면 당선'),
@@ -409,6 +427,11 @@ def build(dev_dir=None, out=None):
     CR.build_ending(P, globals())
     EC.build_contract(P, globals())
     import slim
+    if os.environ.get('SLIMDUMP'):         # 코드 줄이기 시험용: 줄이기 전 프로젝트를 저장해 둔다
+        import pickle
+        sys.setrecursionlimit(100000)
+        with open(os.environ['SLIMDUMP'], 'wb') as f:
+            pickle.dump(P, f)
     slim.apply(P)
     out = out or os.path.join(HERE, '..', '군수집_막내아들.ent')
     proj = P.write_ent(out, dev_dir=dev_dir, fast=os.environ.get('FAST') == '1')
