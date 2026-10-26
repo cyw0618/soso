@@ -38,6 +38,12 @@ SECTORS = [s[3] for s in ALL]
 KIND = [1] * ND + [0] + [2] * len(D.FOREIGN) + [3] * len(D.COINS) + [4] * len(D2.SPECIALS)
 # 1 국내, 0 지배, 2 해외, 3 코인, 4 특별
 CTL_FLOOR = 40                  # 바닥 가격은 지배 자본에만 (주식·코인은 바닥 없이 얼마든지 떨어진다)
+TICK_SEC = 0.5                  # 시세가 움직이는 간격(초): 짧을수록 빠르게 출렁인다
+NEWS_PCT, NEWS_GOOD = 10, 45    # 한 번 움직일 때 뉴스가 뜰 확률 %, 그중 호재 % (악재가 더 잦다)
+CRASH_PCT, CRASH_MULT = 15, (1, 2)   # 악재의 15% 는 (1 + 1~2)배로 커진다 (폭락)
+FLASH_PCT, FLASH_DROP = 2, (10, 35)  # 한 번 움직일 때 2% 확률로 아무 주식·코인 하나가 순간 10~35% 급락
+N_PICK = SPEC0 - 1              # 뉴스·급락이 고르는 종목 수 (지배 자본·특별주 빼고)
+N_COIN = SPEC0 - COIN0
 COIN_IDX = [i for i in range(1, N + 1) if KIND[i - 1] == 3]
 TABS = [('국내', 0, ND), ('해외', FOR0, len(D.FOREIGN)), ('코인', COIN0, len(D.COINS)), ('특별주', SPEC0, len(D2.SPECIALS))]
 BTC = COIN0 + 1                 # 비트코인
@@ -45,7 +51,7 @@ BTC = COIN0 + 1                 # 비트코인
 STOCK_VARS = dict(장시간=D.MARKET_START, 기록위치=1, 채움=1, 첫째주=D.CONTROL_UNCLES[0], 둘째주=D.CONTROL_UNCLES[1],
                   유통주=0, 평가금=0, 지배달성=0, 주문방향=1, 주문수량=1, 매매수량=0, 이번차단=0,
                   뉴스글='', 뉴스종목=0, 뉴스호재=1, 뉴스루머=3, 뉴스진짜=1, 뉴스세기=0, 변동률=0, 탭=1, 탭기준=0, 탭개수=ND,
-                  체결성공=0, _po=0, _rd=0, _rf=0, _rb=1, _lr=0, _lf=1, _pv=0, _ph=0, _pl=0, _pc='', _pt='', _s=1, _p=0, _b=0, _k0=0, _mn=0, _mx=0, _v=0, _rg=1, _c=0, _q='', _m='', _a=0, _bb=0, 체결글='', _ml='')
+                  체결성공=0, _po=0, _rd=0, _rf=0, _rb=1, _lr=0, _lf=1, _pv=0, _ph=0, _pl=0, _pc='', _pt='', _s=1, _p=0, _b=0, _k0=0, _mn=0, _mx=0, _v=0, _rg=1, _c=0, _q='', _m='', _a=0, _bb=0, 체결글='', _ml='', _fx=1, _fy=0)
 
 
 def round2(x):
@@ -53,27 +59,60 @@ def round2(x):
     return div(rounded(mul(x, 10000)), 10000)
 
 
-def _flat(lo, hi, scale, jump=None):
-    """rnd(lo+s, hi+s)/1000*scale 만큼 곱해 갈 때 (로그) 평균이 0 이 되는 정수 s.
+def _elog(A, B):
+    """x 가 [A, B] 에서 고르게 나올 때 ln(1+x) 의 평균."""
+    F = lambda x: (1 + x) * math.log(1 + x) - x
+    return (F(B) - F(A)) / (B - A)
+
+
+def _flat(lo, hi, scale, jump=None, need=0.0):
+    """rnd(lo+s, hi+s) × scale 만큼 곱해 갈 때 ln 평균이 need 가 되는 정수 s.
     그냥 ±같은 폭으로 곱하면 값이 저절로 0 쪽으로 녹는다 (-10% 뒤 +10% 는 99%). 바닥이 없으니 그만큼 범위를 위로 옮긴다.
+    need: 급락·악재로 한 걸음마다 평균적으로 잃는 양 → 평소엔 조금씩 올라 길게 보면 제자리 (언제 떨어질지 모른다).
     jump=(확률, 배): 가끔 변동이 몇 배로 커지는 경우까지 넣어서 계산."""
     def e(sh):
-        tot = 0.0
-        for u in range(lo + sh, hi + sh + 1):
-            x = u / 1000.0 * scale
-            v = math.log(1 + x)
-            if jump:
-                v = (1 - jump[0]) * v + jump[0] * math.log(1 + x * jump[1])
-            tot += v
-        return tot / (hi - lo + 1)
-    a, b = 0, max(1, hi)
-    while b - a > 1:
-        m = (a + b) // 2
-        if e(m) < 0:
+        A, B = (lo + sh) * scale, (hi + sh) * scale
+        v = _elog(A, B)
+        if jump:
+            v = (1 - jump[0]) * v + jump[0] * _elog(A * jump[1], B * jump[1])
+        return v
+    a, b = 0.0, float(max(1, hi))
+    for _ in range(60):
+        m = (a + b) / 2
+        if e(m) < need:
             a = m
         else:
             b = m
-    return a if abs(e(a)) <= abs(e(b)) else b
+    return int(round(a))
+
+
+def _news_move(coin):
+    """뉴스 한 번이 그 종목 값에 주는 ln 변화의 평균 (악재가 더 잦고 가끔 커지니 음수)."""
+    tot, n = 0.0, 0
+    mults = list(range(CRASH_MULT[0], CRASH_MULT[1] + 1))
+    for s10 in range(30, 96):
+        st = s10 / 10.0 * (0.25 if coin else 1)
+        n += 1
+        for good in (1, -1):
+            pg = NEWS_GOOD / 100.0 if good == 1 else 1 - NEWS_GOOD / 100.0
+            amps = [(1.0, 1)] if good == 1 else [(1 - CRASH_PCT / 100.0, 1)] + [(CRASH_PCT / 100.0 / len(mults), 1 + m) for m in mults]
+            for pa, m in amps:
+                for rumor, pr in ((1, 0.3), (0, 0.7)):
+                    ptrue = 0.5 if rumor else 0.85
+                    s2 = st * m * (0.4 if rumor else 1)
+                    for true, pt in ((1, ptrue), (0, 1 - ptrue)):
+                        tr = s2 * good * (1 if true else -0.6)
+                        for dur in range(4, 9):
+                            tot += pg * pa * pr * pt / 5.0 * dur * math.log(1 + tr / 100.0)
+    return tot / n
+
+
+def _jump_loss(i, coin_mode):
+    """종목 i 가 한 걸음마다 뉴스·급락으로 평균적으로 잃는 ln 양 (양수)."""
+    coin = KIND[i - 1] == 3
+    flash = sum(math.log(1 - y / 100.0) for y in range(FLASH_DROP[0], FLASH_DROP[1] + 1)) / (FLASH_DROP[1] - FLASH_DROP[0] + 1)
+    pick = (1.0 / N_COIN) if coin_mode else (0.92 / N_PICK)
+    return -(NEWS_PCT / 100.0 * pick * _news_move(coin) + FLASH_PCT / 100.0 * (1.0 / N_COIN if coin_mode else 1.0 / N_PICK) * flash)
 
 
 def _set_free(i):
@@ -184,14 +223,14 @@ def _news_blocks(coins_only=False):
         pick = [ifelse(le(rnd(1, 100), 8), [setv('뉴스종목', CTL)],
                        [setv('뉴스종목', rnd(1, SPEC0 - 1)), if_(ge(V('뉴스종목'), CTL), chg('뉴스종목', 1))])]
     return [
-        if_(le(rnd(1, 100), 16),
+        if_(le(rnd(1, 100), NEWS_PCT),
             *pick,
-            ifelse(le(rnd(1, 100), 52), [setv('뉴스호재', 1)], [setv('뉴스호재', -1)]),
+            ifelse(le(rnd(1, 100), NEWS_GOOD), [setv('뉴스호재', 1)], [setv('뉴스호재', -1)]),
             ifelse(le(rnd(1, 100), 30), [setv('뉴스루머', 1)], [setv('뉴스루머', 0)]),
             setv('뉴스세기', div(rnd(30, 95), 10)),
             if_(gt(s, COIN0), chg('뉴스세기', mul(V('뉴스세기'), 0.25))),
             # 가끔 악재가 몇 배로 커진다 (폭락: 얼마나 떨어질지 모른다)
-            if_(and_(lt(V('뉴스호재'), 0), le(rnd(1, 100), 8)), chg('뉴스세기', mul(V('뉴스세기'), rnd(1, 3)))),
+            if_(and_(lt(V('뉴스호재'), 0), le(rnd(1, 100), CRASH_PCT)), chg('뉴스세기', mul(V('뉴스세기'), rnd(*CRASH_MULT)))),
             ifelse(eq(V('뉴스루머'), 1),
                    [chg('뉴스세기', mul(V('뉴스세기'), 0.4)),
                     ifelse(le(rnd(1, 100), 50), [setv('뉴스진짜', 1)], [setv('뉴스진짜', 0)])],
@@ -218,7 +257,17 @@ def _news_blocks(coins_only=False):
     ]
 
 
-def _move(i, mult):
+def _flash_blocks(coins_only=False):
+    """가끔 아무 주식·코인 하나가 예고 없이 순간 급락 (10~35%)."""
+    x = V('_fx')
+    pick = ([setv('_fx', rnd(COIN0 + 1, SPEC0))] if coins_only else
+            [setv('_fx', rnd(1, N_PICK)), if_(ge(x, CTL), chg('_fx', 1))])
+    return [if_(le(rnd(1, 100), FLASH_PCT), *pick, setv('_fy', rnd(*FLASH_DROP)),
+                lst_set('주가', x, div(rounded(add(mul(mul(LGET('주가', x), sub(1, div(V('_fy'), 100))), 1000000), 0.6)), 1000000)),
+                setv('뉴스루머', 0), setv('뉴스글', join('[급락] ', LGET('주식이름', x), ' 갑자기 -', V('_fy'), '%!')), cast('뉴스'))]
+
+
+def _move(i, mult, coin_mode=False):
     v10 = VOLS[i - 1] * 10
     trend = [if_(gt(LGET('추세남은', i), 0), chg('변동률', div(LGET('추세', i), 100)),
                  lst_set('추세남은', i, sub(LGET('추세남은', i), 1)))]
@@ -226,8 +275,9 @@ def _move(i, mult):
         return [setv('변동률', mul(div(rnd(-v10, v10), 1000), mult)), *trend,
                 lst_set('주가', i, round2(mul(LGET('주가', i), add(1, V('변동률'))))),
                 if_(lt(LGET('주가', i), CTL_FLOOR), lst_set('주가', i, CTL_FLOOR))]
-    sh = _flat(-v10, v10, mult)
-    return [setv('변동률', mul(div(rnd(-v10 + sh, v10 + sh), 1000), mult)), *trend, _set_free(i)]
+    w = v10 * 10                    # 0.01% 단위로 촘촘하게 (보정 폭이 작은 종목도 정확히)
+    sh = _flat(-w, w, mult / 10000.0, need=_jump_loss(i, coin_mode))
+    return [setv('변동률', mul(div(rnd(-w + sh, w + sh), 10000), mult)), *trend, _set_free(i)]
 
 
 def _track(i, acc, moves):
@@ -255,7 +305,7 @@ def special_blocks():
 def tick_blocks():
     """장중 1초마다: 모든 종목 시세 + 기록 + 뉴스 + 작전 세력."""
     import economy as EC
-    b = [chg('장시간', -1), *_index_reset(), setv('_rd', 0), setv('_rf', 0)]
+    b = [chg('장시간', -TICK_SEC), *_index_reset(), setv('_rd', 0), setv('_rf', 0)]
     for i in range(1, SPEC0 + 1):
         k = KIND[i - 1]
         if k == 1:
@@ -270,6 +320,7 @@ def tick_blocks():
     b += EC.ops_tick_blocks()
     b += _record_blocks()
     b += _news_blocks()
+    b += _flash_blocks()
     b += [if_(eq(V('장시간'), 0), setv('뉴스루머', 2), setv('뉴스글', '주식 장이 마감됐어요. 코인은 24시간 움직입니다!'),
               cast('뉴스'))]
     b += assets_blocks()
@@ -281,12 +332,13 @@ def coin_tick_blocks():
     b = [*_index_reset()]
     for i in COIN_IDX:
         if i == BTC:
-            b += [setv('_rb', 0)] + _track(i, '_rb', _move(i, D.STOCK_TICK))
+            b += [setv('_rb', 0)] + _track(i, '_rb', _move(i, D.STOCK_TICK, True))
         else:
-            b += _move(i, D.STOCK_TICK)
+            b += _move(i, D.STOCK_TICK, True)
     b += special_blocks()
     b += _record_blocks()
     b += _news_blocks(coins_only=True)
+    b += _flash_blocks(coins_only=True)
     b += assets_blocks()
     return b
 
@@ -307,11 +359,11 @@ def overnight_blocks():
                   if_(lt(LGET('주가', i), CTL_FLOOR), lst_set('주가', i, CTL_FLOOR))]
         elif k == 3:
             lo, hi = int(-v10 * 0.6), int(v10 * 0.66)
-            sh = _flat(lo, hi, 1)
+            sh = _flat(lo, hi, 1 / 1000.0)
             b += [setv('변동률', div(rnd(lo + sh, hi + sh), 1000)), _set_free(i)]
         else:
             lo, hi = -v10, int(v10 * 1.1)
-            sh = _flat(lo, hi, 1, (0.06, 2.5))
+            sh = _flat(lo, hi, 1 / 1000.0, (0.06, 2.5))
             b += [setv('변동률', div(rnd(lo + sh, hi + sh), 1000)),
                   if_(le(rnd(1, 100), 6), setv('변동률', mul(V('변동률'), 2.5))), _set_free(i)]
         acc = '_rd' if k == 1 else ('_rf' if k == 2 else ('_rb' if i == BTC else None))
@@ -372,7 +424,7 @@ def build(P, ctx):
     panel(P, sc, '장시간판', 170, 118, 130, 24, 'glass')
     sprite(P, sc, '시계', K.icon_img('clock', 15), 118, 118)
     t = text(P, sc, '장시간', '', 178, 118, 10, C_WHITE, F_NUM, False, 1, w=96, h=15)
-    t.on(on_scene(), forever(ifelse(gt(V('장시간'), 0), [write(join('장 마감까지 ', V('장시간'), '초')), text_color(C_WHITE)],
+    t.on(on_scene(), forever(ifelse(gt(V('장시간'), 0), [write(join('장 마감까지 ', ceil_(V('장시간')), '초')), text_color(C_WHITE)],
                                     [write('주식 마감 · 코인만 거래'), text_color(C_RED)]), wait(0.2)))
 
     # ---- 뉴스 띠
@@ -628,7 +680,7 @@ def build(P, ctx):
            setv('탭', 1), setv('탭기준', 0), setv('탭개수', ND),
            if_(gt(V('선택종목'), ND), setv('선택종목', 1)),
            cast('탭변경'), cast('시세갱신'), cast('선택변경'),
-           forever(wait(1), ifelse(gt(V('장시간'), 0), [*tick_blocks()], [*coin_tick_blocks()]), cast('시세갱신')))
+           forever(wait(TICK_SEC), ifelse(gt(V('장시간'), 0), [*tick_blocks()], [*coin_tick_blocks()]), cast('시세갱신')))
     E.majority_pop(P, sc)
     import economy as EC
     EC.ticker(P, sc)
