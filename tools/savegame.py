@@ -355,11 +355,11 @@ def save_button(P, sc, x, y):
                            cast('경제알림')])
 
 
-def quit_button(P, sc, x, y):
+def quit_button(P, sc, x, y, w=82, h=22):
     """'저장하고 끝내기': 저장한 뒤 작품을 정지한다. 정지할 때 공유 리스트(백업)가 서버에 올라가므로,
     실시간 연결이 끊겼더라도 이 버튼으로 끝내면 기록이 남는다."""
     from gui import button
-    return button(P, sc, '저장끝내기', '저장·끝내기', x, y, 82, 22, 'red', icon='back',
+    return button(P, sc, '저장끝내기', '저장·끝내기', x, y, w, h, 'red', icon='back',
                   actions=[ifelse(logged_in(),
                                   # 실시간 리스트는 서버 응답을 기다리므로 건너뛰고, 정지할 때 서버로 가는 백업만 확실히 쓴다
                                   [*backup_blocks(), setv('경제알림', '저장했어요! 작품을 정지합니다'), cast('경제알림'), wait(0.8),

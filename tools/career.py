@@ -228,6 +228,9 @@ def build_map(P, ctx, tier, sc, whole, dt, pins, dt_ids, ring, mode_names, ring_
     button(P, sc, '개표버튼', '개표하기', 186, -56, 96, 26, 'red', icon='ballot',
            actions=[if_(eq(V('개표창'), 0), setv('개표창', 1), cast('개표묻기'))])
     hud(P, sc, ctx['PORT'], empire=True, empire_xy=(186, -98), empire_w=104)
+    # 공유 리스트 저장은 작품을 '정지'할 때만 서버에 올라간다: 창을 그냥 닫거나 컴퓨터를 끄면 마지막 저장이 사라질 수 있어
+    # 지도마다 '저장·끝내기' 를 둔다
+    SG.quit_button(P, sc, 186, -125, 96, 18)
     # 개표 확인 창
     dim_ = sprite(P, sc, '개표어둡게', ctx['DIM'], 0, 0, visible=False)
     box_ = panel(P, sc, '개표판', 0, 0, 280, 150, 'glass', header='red', visible=False)

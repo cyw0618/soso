@@ -165,7 +165,16 @@ def scene_title():
     P.var('_시작중', 0)
     P.var('_초기칸', 0)
     once = lambda *blocks: [if_(eq(V('_시작중'), 0), setv('_시작중', 1), *blocks)]
-    for lbl, yy, col, ic, act in [('게임 시작', 34, 'royal', 'star', once(cast_wait('초기화'), *go(S_STORY))),
+    # 새 게임은 첫 자동 저장 때 예전 저장을 덮어쓴다: 저장이 있거나 아직 찾는 중이면 한 번 더 눌러야 새로 시작
+    P.var('_새확인', 0)
+    new_game = [ifelse(and_(eq(V('_새확인'), 0), and_(SG.logged_in(), or_(eq(V('저장있음'), 1), lt(V('_찾기'), 99)))),
+                       [setv('_새확인', 1), cast('새게임경고')],
+                       once(cast_wait('초기화'), *go(S_STORY)))]
+    warn = text(P, sc, '새게임경고', '', 170, 112, 8, C_RED, F_BODY, True, 0, w=170, h=24, visible=False, bg=C_BOX)
+    warn.on(on_msg('새게임경고'), ifelse(eq(V('저장있음'), 1), [write('저장된 게임이 있어요! 새로 시작하면 지워져요.\n새로 하려면 한 번 더 누르세요')],
+                                         [write('아직 저장을 찾는 중이에요. 잠시 기다리거나\n새로 하려면 한 번 더 누르세요')]),
+            to_front(), show(), wait(4), hide(), setv('_새확인', 0))
+    for lbl, yy, col, ic, act in [('게임 시작', 34, 'royal', 'star', new_game),
                                   ('게임 방법', -6, 'blue', 'map', go(S_HOWTO)),
                                   ('랭킹', -46, 'purple', 'trophy', go(S_RANK))]:
         button(P, sc, '버튼' + lbl, lbl, 170, yy, 120, 32, col, icon=ic, actions=act, first_scene=True)
@@ -196,13 +205,13 @@ def scene_title():
                    wait(1), chg('_찾기', 1), *SG.find_blocks(), cast('저장확인')),
              if_(eq(V('저장있음'), 0), setv('_찾기', 99), cast('저장확인'))]
     chk_o = text(P, sc, '저장확인담당', '', -300, -300, 8, visible=False)
-    chk_o.on(on_run(), setv('_시작중', 0), *check)
-    chk_o.on(on_scene(), setv('_시작중', 0), *check)
+    chk_o.on(on_run(), setv('_시작중', 0), setv('_새확인', 0), *check)
+    chk_o.on(on_scene(), setv('_시작중', 0), setv('_새확인', 0), *check)
     cont.on(on_scene(), hide())
     cont.on(on_run(), hide())
     cont.on(on_msg('저장확인'), if_(eq(V('저장있음'), 1), show()))
     save_t.on(on_msg('저장확인'),
-              ifelse(eq(V('저장있음'), 1), [write(join('하던 게임이 저장돼 있어요.\n계정 ', V('내계정'), ' · 저장 번호 ', V('저장번호')))],
+              ifelse(eq(V('저장있음'), 1), [write(join('하던 게임이 저장돼 있어요. 계정 ', V('내계정'), '\n끝낼 땐 꼭 [저장·끝내기]!'))],
                      [ifelse(SG.logged_in(), [ifelse(lt(V('_찾기'), 99),
                                                      [write(join('서버에서 저장을 찾는 중... ', V('_찾기'), '초\n서버 저장 ', LLEN('저장칸목록'), '칸 · 랭킹 ', sub(LLEN('명예이름'), 1), '명'))],
                                                      [write(join('저장된 게임이 없어요. 계정 ', V('내계정'), '\n서버 저장 ', LLEN('저장칸목록'), '칸 · 랭킹 ', sub(LLEN('명예이름'), 1), '명'))])],
