@@ -168,6 +168,19 @@ def scene_title():
     cont = button(P, sc, '버튼이어하기', '이어하기', 170, 74, 120, 32, 'red', icon='back', visible=False, first_scene=True,
                   actions=[if_(eq(V('저장있음'), 1), cast_wait('초기화'), *SG.load_blocks(), *GO_HOME())])
     save_t = text(P, sc, '저장안내', '', 170, -76, 8, C_DIM, F_BODY, True, 0, w=150, h=24)
+    # 서버 점검: 실시간 리스트(짧은 글 · 긴 글 2000자)와 공유 리스트에 한 칸씩 써 본다.
+    # 작품을 다시 열었을 때 칸 수가 남아 있으면 그 방식은 서버에 저장되는 것 (저장 문제 원인 찾기용)
+    P.list('점검실시간', [], cloud='realtime', lid='rtck')
+    P.list('점검실시간긴', [], cloud='realtime', lid='rtcl')
+    P.list('점검공유', [], cloud='shared', lid='shck')
+    P.var('_점검', '')
+    diag = text(P, sc, '서버점검글', '', -142, -114, 8, C_DIM, F_BODY, True, 1, w=176, h=24)
+    diag.on(on_run(), *G.live_write(diag, [setv('_점검', join('점검 실시간 ', LLEN('점검실시간'), '칸 · 긴 글 ', LLEN('점검실시간긴'),
+                                                                 '칸\n공유 ', LLEN('점검공유'), '칸 (누르고 ■ → 다시 열기)'))], '_점검', 0.5))
+    diag.on(on_scene(), *G.live_write(diag, [setv('_점검', join('점검 실시간 ', LLEN('점검실시간'), '칸 · 긴 글 ', LLEN('점검실시간긴'),
+                                                                   '칸\n공유 ', LLEN('점검공유'), '칸 (누르고 ■ → 다시 열기)'))], '_점검', 0.5))
+    button(P, sc, '버튼서버점검', '서버 점검 +1', -194, -92, 74, 18, 'navy', first_scene=True,
+           actions=[lst_add('점검실시간', join(user_id(), ' 점검')), lst_add('점검실시간긴', 'X' * 2000), lst_add('점검공유', 'b')])
     # 실시간 리스트는 서버에서 늦게 도착할 수 있어서, 저장이 안 보이면 두 번 더 찾아본다 (0.3초 · 2초 · 5초 뒤)
     P.var('타이틀중', 0)
     P.var('_찾기', 0)
