@@ -243,10 +243,14 @@ def tick_blocks():
 
 
 def _take_body():
-    """_불러온 앞에서 값 하나를 꺼내 _v 에 (빈 값이면 '')."""
-    return [setv('_sp', str_index(V('_불러온'), SEP)),
-            ifelse(eq(V('_sp'), 1), [setv('_v', '')], [setv('_v', substr(V('_불러온'), 1, sub(V('_sp'), 1)))]),
-            setv('_불러온', substr(V('_불러온'), add(V('_sp'), 1), slen(V('_불러온'))))]
+    """_불러온 앞에서 값 하나를 꺼내 _v 에 (빈 값이면 ''). 구분자가 없거나 글이 다 떨어져도 멈추지 않게
+    (엔트리의 '글자 자르기'는 범위를 벗어나면 빨간 블록 오류로 작품이 멈춘다)."""
+    rest = V('_불러온')
+    return [setv('_sp', str_index(rest, SEP)),
+            ifelse(lt(V('_sp'), 1), [setv('_v', rest), setv('_불러온', '')],
+                   [ifelse(eq(V('_sp'), 1), [setv('_v', '')], [setv('_v', substr(rest, 1, sub(V('_sp'), 1)))]),
+                    ifelse(lt(V('_sp'), slen(rest)), [setv('_불러온', substr(rest, add(V('_sp'), 1), slen(rest)))],
+                           [setv('_불러온', '')])])]
 
 
 def load_blocks():
@@ -254,12 +258,15 @@ def load_blocks():
     if 'load' in _FN:
         return [dict(_FN['load'])]
     take = _P.new_function('값꺼내기', _take_body())
-    b = [setv('_불러온', substr(V('_불러온'), len(VERSION) + 2, slen(V('_불러온'))))]
+    b = [ifelse(gt(slen(V('_불러온')), len(VERSION) + 1),
+                [setv('_불러온', substr(V('_불러온'), len(VERSION) + 2, slen(V('_불러온'))))], [setv('_불러온', '')])]
     for v in SAVE_VARS:
         b += [dict(take), setv(v, V('_v'))]
     for lst, n in DIGIT_LISTS:
         b += [dict(take), setv('_dg', V('_v'))]
-        b += _each(n, '_iy', lambda i, lst=lst: [lst_set(lst, i, char_at(V('_dg'), i))])
+        # 숫자 한 자리씩: 글이 짧으면(손상) 그 칸은 0 (범위 밖 '글자 꺼내기'는 오류로 멈춘다)
+        b += _each(n, '_iy', lambda i, lst=lst: [ifelse(le(i, slen(V('_dg'))), [lst_set(lst, i, char_at(V('_dg'), i))],
+                                                        [lst_set(lst, i, 0)])])
     for lst, n in SAVE_LISTS:
         b += _each(n, '_iy', lambda i, lst=lst: [dict(take), lst_set(lst, i, V('_v'))])
     # 차트 기록과 '전날 가격'은 불러온 가격으로 다시 시작

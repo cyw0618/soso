@@ -154,19 +154,25 @@ def scene_title():
     mgr = text(P, sc, '초기화담당', '', -300, -300, 8, visible=False)
     init = [setv(k_, v_) for k_, v_ in VARS.items() if k_ not in ('돈표시', '_p3', '_m3', '표시글', '플레이어이름', '_q', '_m')]
     # 지역완료 120칸 지우기: 한 바퀴에 10칸씩 12바퀴 (칸마다 블록을 따로 두면 저장 크기가 크다)
-    init += [setv('_n', 0), rep(N_ALL // 10, *[lst_set('지역완료', add(V('_n'), j_), 0) for j_ in range(1, 11)], chg('_n', 10))]
+    init += [setv('_초기칸', 0), rep(N_ALL // 10, *[lst_set('지역완료', add(V('_초기칸'), j_), 0) for j_ in range(1, 11)],
+                                  chg('_초기칸', 10))]
     init += STOCK_RESET
     init += E.reset_blocks()
     init += IV.reset_blocks()
     init += EC.reset_blocks()
     mgr.on(on_msg('초기화'), setv('타이틀중', 0), *init)
-    for lbl, yy, col, ic, act in [('게임 시작', 34, 'royal', 'star', [cast_wait('초기화')] + go(S_STORY)),
+    # 게임 시작·이어하기는 한 번만: 초기화·불러오기가 몇 프레임 걸리는 동안 또 누르면 둘이 겹쳐 리스트 칸 번호가 넘친다
+    P.var('_시작중', 0)
+    P.var('_초기칸', 0)
+    once = lambda *blocks: [if_(eq(V('_시작중'), 0), setv('_시작중', 1), *blocks)]
+    for lbl, yy, col, ic, act in [('게임 시작', 34, 'royal', 'star', once(cast_wait('초기화'), *go(S_STORY))),
                                   ('게임 방법', -6, 'blue', 'map', go(S_HOWTO)),
                                   ('랭킹', -46, 'purple', 'trophy', go(S_RANK))]:
         button(P, sc, '버튼' + lbl, lbl, 170, yy, 120, 32, col, icon=ic, actions=act, first_scene=True)
     # 이어하기: 같은 계정으로 하던 게임이 저장돼 있으면 보인다 (게임을 끝내기 전까지 자동 저장)
     cont = button(P, sc, '버튼이어하기', '이어하기', 170, 74, 120, 32, 'red', icon='back', visible=False, first_scene=True,
-                  actions=[if_(eq(V('저장있음'), 1), cast_wait('초기화'), *SG.load_blocks(), *GO_HOME())])
+                  actions=[if_(and_(eq(V('저장있음'), 1), eq(V('_시작중'), 0)), setv('_시작중', 1), hide(),
+                               cast_wait('초기화'), *SG.load_blocks(), *GO_HOME())])
     save_t = text(P, sc, '저장안내', '', 170, -76, 8, C_DIM, F_BODY, True, 0, w=150, h=24)
     # 서버 점검: 실시간 리스트(짧은 글 · 긴 글 2000자)와 공유 리스트에 한 칸씩 써 본다.
     # 작품을 다시 열었을 때 칸 수가 남아 있으면 그 방식은 서버에 저장되는 것 (저장 문제 원인 찾기용)
@@ -190,8 +196,8 @@ def scene_title():
                    wait(1), chg('_찾기', 1), *SG.find_blocks(), cast('저장확인')),
              if_(eq(V('저장있음'), 0), setv('_찾기', 99), cast('저장확인'))]
     chk_o = text(P, sc, '저장확인담당', '', -300, -300, 8, visible=False)
-    chk_o.on(on_run(), *check)
-    chk_o.on(on_scene(), *check)
+    chk_o.on(on_run(), setv('_시작중', 0), *check)
+    chk_o.on(on_scene(), setv('_시작중', 0), *check)
     cont.on(on_scene(), hide())
     cont.on(on_run(), hide())
     cont.on(on_msg('저장확인'), if_(eq(V('저장있음'), 1), show()))
