@@ -419,7 +419,7 @@ def build_party(P, ctx):
              ifelse(lt(V('돈'), D2.PARTY_COST),
                     [setv('경제알림', '현금 10억이 필요해요!'), cast('경제알림'), G.sfx('bad')],
                     [ask('정당 이름을 입력하세요 (예: 조치원미래당)'),
-                     setv('정당이름', str_replace(str_replace(answer(), '[|§]', ''), ' ', '')),
+                     setv('정당이름', G.clean_name(answer())),
                      if_(eq(slen(V('정당이름')), 0), setv('정당이름', '조치원미래당')),
                      if_(gt(slen(V('정당이름')), 10), setv('정당이름', substr(V('정당이름'), 1, 10))),
                      *EC.contract_go(ctx, 4, 0, D2.PARTY_COST, '정당 창당 신고서',

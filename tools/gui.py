@@ -80,6 +80,13 @@ def button(P, scene, base, label, x, y, w, h, color='royal', icon=None, actions=
     return o
 
 
+def clean_name(expr, chars='|§,/~^# '):
+    """입력 이름에서 저장 글의 칸 나누는 글자와 띄어쓰기를 뺀 식 (엔트리 '바꾸기'는 글자 그대로 바꾼다)."""
+    for ch in chars:
+        expr = str_replace(expr, ch, '')
+    return expr
+
+
 def clone_rows(o, n, var, x_expr, y_expr, on_make=(), per=5):
     """오브젝트 o 를 줄(칸) n개의 '원본'으로: 장면이 시작되면 복제본 n개를 만들고(한 바퀴에 per개),
     복제본마다 지역 변수 var(1..n)에 자기 줄 번호가 있다. 원본은 숨긴 채 무대 밖에 둔다.

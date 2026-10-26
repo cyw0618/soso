@@ -24,6 +24,7 @@ LAND_TAB = [0, 5, 10]
 
 ECON_VARS = dict(마지막시각=0, 주기수입=0, 투자자산=0, 이번수입=0, 인수가치=0, 땅가치합=0, _ci2=0, _li=0, _lp=0,
                  회사상태=0, 회사이름='', 회사업종=1, 회사가치=0, 회사투자=0, 회사부스트=0, 회사소식='', 회사배당=0, 설립업종=1,
+                 선택회사번호=1, 회사가치합=0, 설립모드=0, 새회사이름='', _ck=0, _cr=0,
                  인수수=0, 인수수입=0, 땅수입=0, 기업탭=1, 기업쪽=1, 선택기업=1, 땅탭=1, 선택땅=1, 정보글='',
                  경제알림='', 작전종목=1, 작전단계=0, 작전틱=0, 작전비용=0, 작전결과='', 작전대상=1, 작전폭=0, 작전위험=0, 작전변호=0,
                  세력비용합=0, 세력힘합=0, 세력위험합=0,
@@ -60,6 +61,8 @@ def setup(P):
     P.list('회사호재', D2.MYCO_NEWS_GOOD)
     P.list('회사악재', D2.MYCO_NEWS_BAD)
     P.list('회사기록', [0] * 20)
+    for nm in CL:                     # 내 회사들 (몇 개든): 이름·업종·가치·투자·부스트
+        P.list(nm, [])
     P.list('정보꾼이름', [b[0] for b in D2.BROKERS])
     P.list('정보꾼값', [b[1] * 10000 for b in D2.BROKERS])
     P.list('정보꾼확률', [b[2] for b in D2.BROKERS])
@@ -96,6 +99,7 @@ def reset_blocks():
     for i in range(1, NL + 1):
         b += [lst_set('땅보유', i, 0), lst_set('땅가격', i, D2.LANDS[i - 1][2] * 10000), lst_set('땅예정', i, 0), lst_set('땅배율', i, 1)]
     b += [lst_set('회사기록', i, 0) for i in range(1, 21)]
+    b += clear_companies()
     b += [lst_set('매수남은', i, 0) for i in range(1, len(D2.AGENCIES) + 1)]
     b += staff_reset()
     return b
@@ -119,6 +123,36 @@ def staff_calc():
     return b + [setv('경영력', round1(V('경영력')))]
 
 
+# ------------------------------------------------------------------ 내 회사들 (리스트)
+CL = ('회사들이름', '회사들업종', '회사들가치', '회사들투자', '회사들부스트')
+
+
+def co_count():
+    return LLEN(CL[0])
+
+
+def clear_companies():
+    return [until(eq(co_count(), 0), *[lst_del(nm, 1) for nm in CL])]
+
+
+def sync_sel():
+    """고른 회사(선택회사번호)를 화면용 변수(회사이름·업종·가치·투자·부스트)로 옮긴다."""
+    s = V('선택회사번호')
+    return [if_(gt(s, co_count()), setv('선택회사번호', co_count())), if_(lt(s, 1), setv('선택회사번호', 1)),
+            if_(gt(co_count(), 0), setv('회사이름', LGET(CL[0], s)), setv('회사업종', LGET(CL[1], s)),
+                setv('회사가치', LGET(CL[2], s)), setv('회사투자', LGET(CL[3], s)), setv('회사부스트', LGET(CL[4], s)))]
+
+
+def fill_chart():
+    """그래프 기록 20칸을 고른 회사의 지금 가치로 (회사를 바꾸거나 새로 세웠을 때)."""
+    return [setv('_cr', 1), rep(20, lst_set('회사기록', V('_cr'), V('회사가치')), chg('_cr', 1))]
+
+
+def company_sum_loop():
+    return [setv('회사가치합', 0), setv('_ck', 1),
+            until(gt(V('_ck'), co_count()), chg('회사가치합', LGET(CL[2], V('_ck'))), chg('_ck', 1))]
+
+
 # ------------------------------------------------------------------ 계산
 def company_value(i):
     L = LGET('인수레벨', i)
@@ -134,7 +168,7 @@ def income_sum():
     """10초마다 들어올 돈(주기수입)과 투자자산(인수 기업 장부가 + 땅값) 계산. 합계는 거래할 때마다 갱신해 둔 값을 쓴다."""
     return [setv('투자자산', add(V('인수가치'), V('땅가치합'))),
             setv('회사배당', 0),
-            if_(eq(V('회사상태'), 1), setv('회사배당', rounded(div(mul(V('회사가치'), D2.MYCO_PAYOUT), 1000)))),
+            if_(eq(V('회사상태'), 1), setv('회사배당', rounded(div(mul(V('회사가치합'), D2.MYCO_PAYOUT), 1000)))),
             setv('주기수입', sub(add(add(V('인수수입'), V('땅수입')), V('회사배당')), V('직원급여합'))),
             if_(gt(V('직위'), 0), chg('주기수입', mul(LGET('급여', add(V('직위'), 1)), add(0.5, div(V('평판'), 100))))),
             if_(eq(V('창당'), 1), chg('주기수입', mul(V('당원'), D2.PARTY_FEE))),
@@ -150,7 +184,7 @@ def recalc_loop():
     return [setv('인수가치', 0), setv('인수수', 0), setv('인수수입', 0), setv('_ci2', 1),
             rep(NC, if_(le(V('_ci2'), NC), if_(gt(LGET('인수레벨', V('_ci2')), 0), chg('인수가치', company_value(V('_ci2'))),
                                                 chg('인수수', 1), chg('인수수입', company_income(V('_ci2'))))), chg('_ci2', 1)),
-            *land_totals_loop(), *staff_calc(), *income_sum()]
+            *land_totals_loop(), *company_sum_loop(), *staff_calc(), *income_sum()]
 
 
 def land_totals_loop():
@@ -166,22 +200,30 @@ def control_dividend():
 
 
 def company_step():
-    t = V('회사업종')
+    """내 회사마다 한 걸음 (성장·대박·위기·부도). 부도난 회사는 목록에서 빠진다."""
+    k = V('_ck')
+    t = LGET(CL[1], k)
+    nm = LGET(CL[0], k)
+    body = [setv('_eg', div(add(rnd(mul(LGET('업종흔들림', t), -1), LGET('업종흔들림', t)), LGET('업종성장', t)), 1000)),
+            if_(gt(LGET(CL[4], k), 0), chg('_eg', 0.012), lst_set(CL[4], k, sub(LGET(CL[4], k), 1))),
+            chg('_eg', mul(V('경영력'), 0.0004)),
+            setv('_ek', rnd(1, 100)),
+            ifelse(le(V('_ek'), add(LGET('업종대박', t), div(V('경영력'), 40))),
+                   [chg('_eg', div(rnd(30, 80), 100)), setv('회사소식', join(nm, ': ', LGET('회사호재', rnd(1, len(D2.MYCO_NEWS_GOOD)))))],
+                   [if_(gt(V('_ek'), sub(100, sub(LGET('업종위기', t), div(V('경영력'), 15)))),
+                        chg('_eg', div(rnd(-45, -25), 100)),
+                        setv('회사소식', join(nm, ': ', LGET('회사악재', rnd(1, len(D2.MYCO_NEWS_BAD))))))]),
+            lst_set(CL[2], k, rounded(mul(LGET(CL[2], k), add(1, V('_eg'))))),
+            ifelse(lt(LGET(CL[2], k), mul(LGET(CL[3], k), 0.15)),
+                   [setv('경제알림', join(nm, ' 부도!')), setv('회사소식', join(nm, ' 부도... 투자금을 모두 잃었다')),
+                    if_(lt(k, V('선택회사번호')), chg('선택회사번호', -1)),
+                    *[lst_del(n_, k) for n_ in CL], cast('경제알림')],
+                   [chg('회사가치합', LGET(CL[2], k)), chg('_ck', 1)])]
     return [if_(eq(V('회사상태'), 1),
-                setv('_eg', div(add(rnd(mul(LGET('업종흔들림', t), -1), LGET('업종흔들림', t)), LGET('업종성장', t)), 1000)),
-                if_(gt(V('회사부스트'), 0), chg('_eg', 0.012), chg('회사부스트', -1)),
-                chg('_eg', mul(V('경영력'), 0.0004)),
-                setv('_ek', rnd(1, 100)),
-                ifelse(le(V('_ek'), add(LGET('업종대박', t), div(V('경영력'), 40))),
-                       [chg('_eg', div(rnd(30, 80), 100)), setv('회사소식', LGET('회사호재', rnd(1, len(D2.MYCO_NEWS_GOOD))))],
-                       [if_(gt(V('_ek'), sub(100, sub(LGET('업종위기', t), div(V('경영력'), 15)))),
-                            chg('_eg', div(rnd(-45, -25), 100)), setv('회사소식', LGET('회사악재', rnd(1, len(D2.MYCO_NEWS_BAD)))))]),
-                setv('회사가치', rounded(mul(V('회사가치'), add(1, V('_eg'))))),
-                lst_del('회사기록', 1), lst_add('회사기록', V('회사가치')),
-                if_(lt(V('회사가치'), mul(V('회사투자'), 0.15)),
-                    setv('회사상태', 2), setv('회사가치', 0), setv('회사소식', '회사가 부도났다... 투자금을 모두 잃었다'),
-                    *staff_reset(),
-                    setv('경제알림', join(V('회사이름'), ' 부도!')), cast('경제알림')))]
+                setv('회사가치합', 0), setv('_ck', 1),
+                until(gt(V('_ck'), co_count()), *body),
+                ifelse(gt(co_count(), 0), [*sync_sel(), lst_del('회사기록', 1), lst_add('회사기록', V('회사가치'))],
+                       [setv('회사상태', 2), setv('회사가치', 0), *staff_reset()]))]
 
 
 def land_step():
@@ -404,11 +446,12 @@ def build_company(P, ctx):
     sprite(P, sc, '어둡게', ctx['DIM'], 0, 0)
     sprite(P, sc, '제목', K.banner('내 회사', 120, 30, 'royal'), 0, 116)
     alive = eq(V('회사상태'), 1)
-    # ---- 설립 화면
+    show_run = and_(alive, eq(V('설립모드'), 0))      # 회사가 있고 '새 회사 설립' 중이 아니면 운영 화면
+    # ---- 설립 화면 (회사는 몇 개든 세울 수 있다)
     found = []
     found.append(panel(P, sc, '설립판', 0, -12, 450, 190, 'glass', header='royal'))
-    found.append(text(P, sc, '설립설명', '초기 자금 10억으로 회사를 세워요. 업종마다 성장 속도와 위험이 달라요.\n'
-                                       '회사는 크게 성장할 수도, 망할 수도 있어요. 10초마다 가치의 1.2%를 배당받아요.',
+    found.append(text(P, sc, '설립설명', '초기 자금 10억으로 회사를 세워요. 회사는 몇 개든 세울 수 있어요.\n'
+                                       '업종마다 성장 속도와 위험이 달라요. 10초마다 회사 가치의 1.2%를 배당받아요.',
                       0, 52, 9, C_WHITE, F_BODY, True, 0, w=420, h=30))
     dead = text(P, sc, '부도안내', '지난 회사는 부도났어요... 다시 도전해 보세요!', 0, 74, 9, C_RED, F_NUM, False, 0, w=400, h=14,
                 visible=False)
@@ -434,11 +477,12 @@ def build_company(P, ctx):
              ifelse(lt(V('돈'), D2.MYCO_START),
                     [setv('경제알림', '현금 10억이 필요해요!'), cast('경제알림'), G.sfx('bad')],
                     [ask('회사 이름을 입력하세요 (예: 막내전자)'),
-                     setv('회사이름', str_replace(str_replace(answer(), '[|§]', ''), ' ', '')),
-                     if_(eq(slen(V('회사이름')), 0), setv('회사이름', '막내전자')),
-                     if_(gt(slen(V('회사이름')), 10), setv('회사이름', substr(V('회사이름'), 1, 10))),
+                     # 저장 글에서 칸을 나누는 글자( | § , / ~ ^ # )와 띄어쓰기는 뺀다
+                     setv('새회사이름', G.clean_name(answer())),
+                     if_(eq(slen(V('새회사이름')), 0), setv('새회사이름', join('막내전자', add(co_count(), 1)))),
+                     if_(gt(slen(V('새회사이름')), 10), setv('새회사이름', substr(V('새회사이름'), 1, 10))),
                      *contract_go(ctx, 1, V('설립업종'), D2.MYCO_START, '회사 설립 계약서',
-                                  join('1. 을은 「', V('회사이름'), '」(업종: ', LGET('업종이름', V('설립업종')),
+                                  join('1. 을은 「', V('새회사이름'), '」(업종: ', LGET('업종이름', V('설립업종')),
                                        ')을 설립하고 자본금 10억 원을 납입한다.\n2. 회사의 성장과 손실은 모두 을이 책임진다.\n'
                                        '3. 회사 가치의 1.2%를 10초마다 배당받는다.'),
                                   '조치원 법무사 사무소')]))
@@ -451,7 +495,8 @@ def build_company(P, ctx):
     stage_b = []
     for th, lbl in D2.MYCO_STAGES:        # 큰 기준이 바깥쪽에 오도록 작은 것부터 감싼다
         stage_b = [ifelse(ge(V('회사가치'), th), [setv('_q', lbl)], stage_b or [setv('_q', '스타트업')])]
-    st.on(on_msg('회사갱신'), *stage_b, write(join(LGET('업종이름', V('회사업종')), ' · ', V('_q'))))
+    st.on(on_msg('회사갱신'), *stage_b, write(join(LGET('업종이름', V('회사업종')), ' · ', V('_q'), ' · ',
+                                                   V('선택회사번호'), '/', co_count(), '번째 회사')))
     val = text(P, sc, '회사가치', '', -112, 34, 16, C_WHITE, F_NUM, False, 0, w=220, h=22)
     val.on(on_msg('회사갱신'), *fmt_money(V('회사가치'), '_m'), write(join('가치 ', V('_m'))))
     inv = text(P, sc, '회사투자', '', -112, 14, 9, C_DIM, F_BODY, True, 0, w=220, h=13)
@@ -486,17 +531,26 @@ def build_company(P, ctx):
         b = button(P, sc, '투자버튼%d' % j, '현금의 %d%% 투자' % pct, 126, 20 - j * 30, 150, 24, 'royal', icon='coin',
                    actions=[if_(eq(V('회사상태'), 1),
                                 ifelse(gt(amount, 0),
-                                       [setv('_ev', amount), chg('돈', mul(V('_ev'), -1)), chg('회사가치', V('_ev')),
-                                        chg('회사투자', V('_ev')), chg('회사부스트', 6),
+                                       [setv('_ev', amount), chg('돈', mul(V('_ev'), -1)), *sync_sel(),
+                                        lst_set(CL[2], V('선택회사번호'), add(LGET(CL[2], V('선택회사번호')), V('_ev'))),
+                                        lst_set(CL[3], V('선택회사번호'), add(LGET(CL[3], V('선택회사번호')), V('_ev'))),
+                                        lst_set(CL[4], V('선택회사번호'), add(LGET(CL[4], V('선택회사번호')), 6)),
+                                        chg('회사가치합', V('_ev')), *sync_sel(),
                                         *fmt_money(V('_ev'), '_m'), setv('경제알림', join(V('_m'), ' 투자 완료! 한동안 빠르게 성장해요')),
                                         cast('경제알림'), G.sfx('cash'), *income_blocks(), cast('회사갱신')],
                                        [setv('경제알림', '현금이 없어요!'), cast('경제알림')]))])
         run.append(b)
-    sell = button(P, sc, '매각버튼', '회사 매각 (가치의 90%)', 126, -76, 170, 24, 'gray', icon='coin',
-                  actions=[if_(eq(V('회사상태'), 1), chg('돈', rounded(mul(V('회사가치'), 0.9))), setv('회사상태', 0),
-                               setv('회사가치', 0), setv('회사투자', 0), *staff_reset(), setv('경제알림', '회사를 매각했어요! 직원들도 함께 넘어갔어요'),
-                               cast('경제알림'),
-                               G.sfx('cash'), *income_blocks(), cast('회사화면'))])
+    # 매각: 고른 회사만 판다 (마지막 회사를 팔면 직원들도 함께 넘어간다)
+    sell = button(P, sc, '매각버튼', '이 회사 매각 (가치의 90%)', 126, -76, 170, 24, 'gray', icon='coin',
+                  actions=[if_(eq(V('회사상태'), 1), *sync_sel(),
+                               chg('돈', rounded(mul(V('회사가치'), 0.9))), chg('회사가치합', mul(V('회사가치'), -1)),
+                               setv('경제알림', join(V('회사이름'), ' 매각 완료!')),
+                               *[lst_del(n_, V('선택회사번호')) for n_ in CL],
+                               ifelse(eq(co_count(), 0),
+                                      [setv('회사상태', 0), setv('회사가치', 0), setv('회사투자', 0), setv('회사가치합', 0), *staff_reset(),
+                                       setv('경제알림', '마지막 회사를 매각했어요! 직원들도 함께 넘어갔어요')],
+                                      [*sync_sel(), *fill_chart()]),
+                               cast('경제알림'), G.sfx('cash'), *income_blocks(), cast('회사화면'))])
     run.append(sell)
     hire_b = button(P, sc, '면접버튼', '직원 면접·채용', 126, -100, 150, 22, 'purple', icon='person', actions=go(ctx['S_HIRE']))
     run.append(hire_b)
@@ -504,24 +558,41 @@ def build_company(P, ctx):
     staff_t.on(on_msg('회사갱신'), *fmt_money(V('직원급여합'), '_m'),
                write(join('직원 ', V('직원총수'), '명 · 경영력 ', V('경영력'), ' · 급여 -', V('_m'), '/10초')))
     run.append(staff_t)
+    # 회사 고르기 ◀ ▶ (회사가 여러 개일 때)
+    pick = lambda d: [if_(eq(V('회사상태'), 1), chg('선택회사번호', d),
+                          if_(gt(V('선택회사번호'), co_count()), setv('선택회사번호', 1)),
+                          if_(lt(V('선택회사번호'), 1), setv('선택회사번호', co_count())),
+                          *sync_sel(), *fill_chart(), cast('회사갱신'))]
+    run.append(button(P, sc, '회사이전', '◀', -208, 76, 24, 20, 'navy', actions=pick(-1)))
+    run.append(button(P, sc, '회사다음', '▶', -16, 76, 24, 20, 'navy', actions=pick(1)))
+    # 새 회사 설립 (회사가 있어도 언제든) / 설립 화면에서 돌아가기
+    new_b = button(P, sc, '새회사버튼', '+ 새 회사 설립', -100, -121, 96, 22, 'royal', icon='shop',
+                   actions=[setv('설립모드', 1), cast('회사화면')])
+    run.append(new_b)
+    cancel = button(P, sc, '설립취소', '취소', 110, -80, 60, 24, 'gray', actions=[setv('설립모드', 0), cast('회사화면')])
     for o in found:
-        o.on(on_msg('회사화면'), ifelse(alive, [hide()], [show()]))
+        o.on(on_msg('회사화면'), ifelse(show_run, [hide()], [show()]))
     for o in run:
-        o.on(on_msg('회사화면'), ifelse(alive, [show()], [hide()]))
-    dead.on(on_msg('회사화면'), ifelse(eq(V('회사상태'), 2), [show()], [hide()]))
+        o.on(on_msg('회사화면'), ifelse(show_run, [show()], [hide()]))
+    cancel.on(on_msg('회사화면'), ifelse(and_(alive, eq(V('설립모드'), 1)), [show()], [hide()]))
+    dead.on(on_msg('회사화면'), ifelse(and_(eq(V('회사상태'), 2), not_(show_run)), [show()], [hide()]))
     chart.on(on_msg('회사화면'), cast('회사갱신'))
     mgr = text(P, sc, '회사담당', '', -300, -300, 8, visible=False)
-    mgr.on(on_scene(), cast('회사화면'), cast('설립갱신'), cast('회사갱신'))
-    mgr.on(on_msg('경제갱신'), cast('회사갱신'), if_(eq(V('회사상태'), 2), cast('회사화면')))
+    mgr.on(on_scene(), setv('설립모드', 0), *sync_sel(), cast('회사화면'), cast('설립갱신'), cast('회사갱신'))
+    mgr.on(on_msg('경제갱신'), cast('회사갱신'), if_(ne(V('회사상태'), 1), cast('회사화면')))
     button(P, sc, '돌아가기', '돌아가기', -196, -121, 76, 22, 'navy', icon='back', actions=ctx['GO_HOME']())
     G.hud(P, sc, ctx['PORT'])
     G.sound_hub(P, sc, 'bgm_map')
     G.fader(P, sc, ctx['BLACK'])
     # 계약 적용: 설립
-    CONTRACT_KINDS[1] = ([if_(ge(V('돈'), D2.MYCO_START), chg('돈', -D2.MYCO_START), setv('회사상태', 1),
-                              setv('회사업종', V('계약대상')), setv('회사가치', D2.MYCO_START), setv('회사투자', D2.MYCO_START),
-                              setv('회사부스트', 0), setv('회사소식', '회사를 세웠다! 이제 직원을 뽑아 보자.'), *staff_reset(),
-                              *[lst_set('회사기록', i, D2.MYCO_START) for i in range(1, 21)])],
+    # 계약 적용: 설립 (목록 끝에 새 회사를 붙이고 그 회사를 고른다. 첫 회사일 때만 직원을 새로 시작)
+    CONTRACT_KINDS[1] = ([if_(ge(V('돈'), D2.MYCO_START), chg('돈', -D2.MYCO_START),
+                              if_(ne(V('회사상태'), 1), *staff_reset(), setv('회사가치합', 0)),
+                              lst_add(CL[0], V('새회사이름')), lst_add(CL[1], V('계약대상')), lst_add(CL[2], D2.MYCO_START),
+                              lst_add(CL[3], D2.MYCO_START), lst_add(CL[4], 0),
+                              setv('회사상태', 1), setv('설립모드', 0), setv('선택회사번호', co_count()),
+                              chg('회사가치합', D2.MYCO_START), *sync_sel(), *fill_chart(),
+                              setv('회사소식', join(V('새회사이름'), ' 설립! 직원을 뽑으면 더 빨리 커요.')))],
                          go(sc))
 
 

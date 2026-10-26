@@ -105,7 +105,7 @@ def _assets_body():
     # 해외 투자자에게 갚아야 할 돈은 빚이라 총자산에서 뺀다
     debt = add(add(LGET('투자부채', 1), LGET('투자부채', 2)), LGET('투자부채', 3))
     b.append(setv('총자산', add(sub(add(V('돈'), V('평가금')), debt), V('투자자산'))))
-    b.append(if_(eq(V('회사상태'), 1), chg('총자산', V('회사가치'))))
+    b.append(if_(eq(V('회사상태'), 1), chg('총자산', V('회사가치합'))))      # 내 회사들 가치 합
     return b
 
 

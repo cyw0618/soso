@@ -108,7 +108,7 @@ def name_asker(P, sc, x=200, y=-64):
     o = sprite(P, sc, '이름입력', p, x, y)
     o.on(on_msg('이름입력'),
          ifelse(gt(slen(V('등록이름')), 0), [setv('플레이어이름', V('등록이름'))],
-                [ask('랭킹에 올릴 이름을 입력!'), setv('플레이어이름', str_replace(answer(), '[|§]', ''))]),
+                [ask('랭킹에 올릴 이름을 입력!'), setv('플레이어이름', G.clean_name(answer(), '|§'))]),
          if_(eq(slen(V('플레이어이름')), 0), setv('플레이어이름', '막내')),
          if_(gt(slen(V('플레이어이름')), 12), setv('플레이어이름', substr(V('플레이어이름'), 1, 12))),
          # 이전 내 기록 지우기
@@ -327,12 +327,26 @@ SHOP_ALL = SHOP + D2.SHOP_T2 + D2.SHOP_T3
 SHOP_TABS = [(0, 8), (8, 4), (12, 4)]
 
 
+SHOP_BASE = D.START_MONEY        # 이 자산(× 단계 배율)까지는 기본 가격, 넘으면 자산에 비례해서 비싸진다
+
+
+def shop_inflation():
+    """작전 본부 물가 = 내 총자산 ÷ (10억 × 단계 배율), 최소 1배. 부자가 될수록 같은 비율로 비싸진다."""
+    base = mul(SHOP_BASE, LGET('상점배율', V('단계')))
+    return [*ST.assets_blocks(), setv('상점물가', 1), if_(gt(V('총자산'), base), setv('상점물가', div(V('총자산'), base)))]
+
+
+def shop_price(idx):
+    return rounded(mul(mul(LGET('상품가격', idx), LGET('상점배율', V('단계'))), V('상점물가')))
+
+
 def scene_shop(P, ctx):
     sc = ctx['S_SHOP']
     P.var('상점알림', '')
     P.var('빼오기가', 0)
     P.var('상점탭', 1)
     P.var('_si2', 0)
+    P.var('상점물가', 1)
     P.list('상품이름', [x[0] for x in SHOP_ALL])
     P.list('상품설명', [x[2] for x in SHOP_ALL])
     P.list('상품가격', [x[3] for x in SHOP_ALL])
@@ -345,7 +359,7 @@ def scene_shop(P, ctx):
     sprite(P, sc, '상점제목', K.banner('작전 본부', 150, 32, 'purple'), 0, 116)
     st = text(P, sc, '작전상태', '', 0, 94, 9, C_DIM, F_BODY, True, 0, w=300, h=13)
     st.on(on_scene(), forever(write(join('위기관리팀 ', V('방어권'), '회  ·  정보 차단 ', V('차단턴'), '턴  ·  가격 ×',
-                                         LGET('상점배율', V('단계')))), wait(0.2)))
+                                         round1(mul(LGET('상점배율', V('단계')), V('상점물가'))), ' (내 자산 비례)')), wait(0.2)))
     note = text(P, sc, '상점알림', '', 128, -121, 9, C_WHITE, F_NUM, False, 0, w=200, h=16, visible=False, bg=C_BOX)
     note.on(on_msg('상점알림'), write(V('상점알림')), to_front(), show(), wait(2.0), hide())
     # 탭
@@ -374,7 +388,7 @@ def scene_shop(P, ctx):
         nm = text(P, sc, '상품이름%d' % j, '', x + 10, y + 26, 10, C_WHITE, F_NUM, False, 1, w=70, h=14)
         ds = text(P, sc, '상품설명%d' % j, '', x, y + 1, 7, C_DIM, F_BODY, True, 0, w=100, h=30)
         pt = text(P, sc, '상품가격%d' % j, '', x, y - 21, 9, C_ACC, F_NUM, False, 0, w=100, h=13)
-        price = mul(LGET('상품가격', idx), LGET('상점배율', V('단계')))
+        price = shop_price(idx)
         bt = button(P, sc, '구매버튼%d' % j, '실행', x, y - 36, 64, 18, 'royal', actions=[setv('_si2', idx), cast('상품구매')])
         for o in (card, bt):
             o.on(on_msg('상점갱신'), ifelse(on, [show()], [hide()]))
@@ -384,16 +398,16 @@ def scene_shop(P, ctx):
         pt.on(on_msg('상점갱신'), ifelse(on, [*fmt_money(price, '_m'), write(V('_m')), show()], [hide()]))
     mgr = text(P, sc, '상점담당', '', -300, -300, 8, visible=False)
     S_ = V('_si2')
-    price = mul(LGET('상품가격', S_), LGET('상점배율', V('단계')))
+    price = shop_price(S_)
     chain = []
     for i, item in enumerate(SHOP_ALL, 1):
         chain.append(if_(eq(S_, i), *effects[item[4]]))
-    mgr.on(on_msg('상품구매'),
+    mgr.on(on_msg('상품구매'), *shop_inflation(),
            ifelse(ge(V('돈'), price),
                   [chg('돈', mul(price, -1)), *chain, setv('상점알림', CR.rival_text(LGET('상품알림', S_))), cast('구매반짝'), G.sfx('coin')],
                   [setv('상점알림', '재화가 부족해요!'), G.sfx('bad')]),
-           cast('상점알림'))
-    mgr.on(on_scene(), if_(gt(V('상점탭'), V('단계')), setv('상점탭', 1)), cast('상점갱신'))
+           cast('상점알림'), *shop_inflation(), cast('상점갱신'))
+    mgr.on(on_scene(), if_(gt(V('상점탭'), V('단계')), setv('상점탭', 1)), *shop_inflation(), cast('상점갱신'))
     G.sparkles(P, sc, '구매반짝', ctx['SPARK'], 40, -121, 12, 40)
     button(P, sc, '지도로', '돌아가기', -196, -121, 76, 22, 'navy', icon='back', actions=ctx['GO_HOME']())
     button(P, sc, '주식으로', '주식', -112, -121, 70, 22, 'blue', icon='chart', actions=go(ctx['S_STOCK']))

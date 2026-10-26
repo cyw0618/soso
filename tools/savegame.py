@@ -50,7 +50,9 @@ def setup(P):
     for k, nm in enumerate(CHUNKS, 1):
         P.list(nm, [], cloud='shared', lid='cy%02d' % k)
     for v, d in (('내계정', ''), ('저장위치A', 0), ('저장위치B', 0), ('저장슬롯', 0), ('저장번호', 0), ('저장틱', 0), ('저장필요', 0), ('_okA', 0), ('_okB', 0), ('_nA', 0), ('_nB', 0), ('_t', ''), ('_t2', ''), ('_n0', 0), ('_w', 0), ('회원번호', 0), ('저장중', 0), ('_초', 0), ('_okC', 0), ('_nC', 0), ('_tC', ''), ('_L', 0), ('_bk', 0), ('_bn', 0), ('저장있음', 0), ('저장글', ''), ('_불러온', ''), ('_sp', 0), ('_si', 0),
-                 ('_dg', ''), ('_v', ''), ('_i', 0), ('_ix', 0), ('_iy', 0)):
+                 ('_dg', ''), ('_v', ''), ('_i', 0), ('_ix', 0), ('_iy', 0),
+                 ('_회사묶음', ''), ('_rec', ''), ('_f', ''), ('_sp2', 0), ('_sk', 0),
+                 ('_c1', ''), ('_c2', ''), ('_c3', ''), ('_c4', ''), ('_c5', '')):
         P.var(v, d)
 
 
@@ -176,6 +178,51 @@ def _write_backup():
                       lst_set(nm, V('회원번호'), substr(V('_tC'), (k - 1) * CH + 1, k * CH))) for k, nm in enumerate(CHUNKS, 1)])]
 
 
+# '회사이름' 칸에는 내 회사 목록 전체를 담는다: '#이름,업종,가치,투자,부스트/이름,…/'
+# (칸 수가 그대로라 예전 저장도 읽힌다: '#' 으로 시작하지 않으면 예전처럼 회사 하나)
+FIELD_SRC = {'회사이름': '_회사묶음'}
+CO_LISTS = ('회사들이름', '회사들업종', '회사들가치', '회사들투자', '회사들부스트')
+
+
+def _encode_companies():
+    k = V('_sk')
+    rec = join(LGET(CO_LISTS[0], k), ',', LGET(CO_LISTS[1], k), ',', rounded(LGET(CO_LISTS[2], k)), ',',
+               rounded(LGET(CO_LISTS[3], k)), ',', LGET(CO_LISTS[4], k), '/')
+    return [setv('_회사묶음', '#'), setv('_sk', 1),
+            until(gt(V('_sk'), LLEN(CO_LISTS[0])), setv('_회사묶음', join(V('_회사묶음'), rec)), chg('_sk', 1))]
+
+
+def _cut(src, sep, out):
+    """글 src 앞에서 sep 까지를 out 에, src 는 그 뒤로 (sep 이 없으면 전부). 범위 밖 자르기가 없게."""
+    s_ = V(src)
+    return [setv('_sp2', str_index(s_, sep)),
+            ifelse(lt(V('_sp2'), 1), [setv(out, s_), setv(src, '')],
+                   [ifelse(eq(V('_sp2'), 1), [setv(out, '')], [setv(out, substr(s_, 1, sub(V('_sp2'), 1)))]),
+                    ifelse(lt(V('_sp2'), slen(s_)), [setv(src, substr(s_, add(V('_sp2'), 1), slen(s_)))], [setv(src, '')])])]
+
+
+def _decode_companies():
+    """불러온 회사 목록(_회사묶음)을 리스트로. 예전 저장(회사 하나)은 회사상태·회사업종… 값으로 한 개를 만든다."""
+    import economy as EC
+    cut = _P.new_function('쉼표꺼내기', _cut('_rec', ',', '_f'))
+    fields = []
+    for c in ('_c1', '_c2', '_c3', '_c4', '_c5'):
+        fields += [dict(cut), setv(c, V('_f'))]
+    return [*EC.clear_companies(),
+            ifelse(eq(str_index(V('_회사묶음'), '#'), 1),
+                   [ifelse(gt(slen(V('_회사묶음')), 1), [setv('_회사묶음', substr(V('_회사묶음'), 2, slen(V('_회사묶음'))))],
+                           [setv('_회사묶음', '')]),
+                    until(eq(slen(V('_회사묶음')), 0), *_cut('_회사묶음', '/', '_rec'),
+                          if_(gt(slen(V('_rec')), 0), *fields,
+                              lst_add(CO_LISTS[0], V('_c1')), lst_add(CO_LISTS[1], V('_c2')), lst_add(CO_LISTS[2], V('_c3')),
+                              lst_add(CO_LISTS[3], V('_c4')), lst_add(CO_LISTS[4], V('_c5'))))],
+                   [if_(eq(V('회사상태'), 1),
+                        lst_add(CO_LISTS[0], V('_회사묶음')), lst_add(CO_LISTS[1], V('회사업종')), lst_add(CO_LISTS[2], V('회사가치')),
+                        lst_add(CO_LISTS[3], V('회사투자')), lst_add(CO_LISTS[4], V('회사부스트')))]),
+            ifelse(gt(LLEN(CO_LISTS[0]), 0), [setv('회사상태', 1)], [if_(eq(V('회사상태'), 1), setv('회사상태', 0))]),
+            setv('선택회사번호', 1), *EC.sync_sel(), *EC.company_sum_loop()]
+
+
 LOOP_MIN, PER = 30, 10        # 칸이 30개 넘는 리스트는 한 바퀴에 10칸씩 반복 (칸마다 블록을 펼치면 저장 크기가 크다)
 
 
@@ -194,9 +241,9 @@ def _each(n, var, make):
 def _save_body():
     """지금 상태를 저장 (큰 리스트는 한 바퀴에 10칸씩 반복해서 1초 안쪽으로 끝난다).
     저장 칸을 두 개(A·B) 번갈아 쓴다: 한쪽이 깨지거나 쓰다 끊겨도 직전 저장이 남는다."""
-    data = [setv('저장글', VERSION + SEP)]
+    data = [*_encode_companies(), setv('저장글', VERSION + SEP)]
     for v in SAVE_VARS:
-        data.append(setv('저장글', join(V('저장글'), V(v), SEP)))
+        data.append(setv('저장글', join(V('저장글'), V(FIELD_SRC.get(v, v)), SEP)))
     for lst, n in DIGIT_LISTS:
         data += _each(n, '_ix', lambda i, lst=lst: [setv('저장글', join(V('저장글'), LGET(lst, i)))])
         data.append(setv('저장글', join(V('저장글'), SEP)))
@@ -261,7 +308,7 @@ def load_blocks():
     b = [ifelse(gt(slen(V('_불러온')), len(VERSION) + 1),
                 [setv('_불러온', substr(V('_불러온'), len(VERSION) + 2, slen(V('_불러온'))))], [setv('_불러온', '')])]
     for v in SAVE_VARS:
-        b += [dict(take), setv(v, V('_v'))]
+        b += [dict(take), setv(FIELD_SRC.get(v, v), V('_v'))]
     for lst, n in DIGIT_LISTS:
         b += [dict(take), setv('_dg', V('_v'))]
         # 숫자 한 자리씩: 글이 짧으면(손상) 그 칸은 0 (범위 밖 '글자 꺼내기'는 오류로 멈춘다)
@@ -269,6 +316,7 @@ def load_blocks():
                                                         [lst_set(lst, i, 0)])])
     for lst, n in SAVE_LISTS:
         b += _each(n, '_iy', lambda i, lst=lst: [dict(take), lst_set(lst, i, V('_v'))])
+    b += _decode_companies()
     # 차트 기록과 '전날 가격'은 불러온 가격으로 다시 시작
     b += _each(ST.N, '_iy', lambda i: [lst_set('전주가', i, LGET('주가', i)),
                                        lst_set('주가기록', add(mul(sub(i, 1), ST.HIST), 1) if not isinstance(i, int)
