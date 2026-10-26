@@ -39,9 +39,14 @@ KIND = [1] * ND + [0] + [2] * len(D.FOREIGN) + [3] * len(D.COINS) + [4] * len(D2
 # 1 국내, 0 지배, 2 해외, 3 코인, 4 특별
 CTL_FLOOR = 40                  # 바닥 가격은 지배 자본에만 (주식·코인은 바닥 없이 얼마든지 떨어진다)
 TICK_SEC = 0.5                  # 시세가 움직이는 간격(초): 짧을수록 빠르게 출렁인다
-NEWS_PCT, NEWS_GOOD = 10, 45    # 한 번 움직일 때 뉴스가 뜰 확률 %, 그중 호재 % (악재가 더 잦다)
-CRASH_PCT, CRASH_MULT = 15, (1, 2)   # 악재의 15% 는 (1 + 1~2)배로 커진다 (폭락)
-FLASH_PCT, FLASH_DROP = 2, (10, 35)  # 한 번 움직일 때 2% 확률로 아무 주식·코인 하나가 순간 10~35% 급락
+TICK_AMP = D.STOCK_TICK / math.sqrt(2)   # 0.5초마다 움직이니 한 번 폭은 줄여 1초 출렁임은 예전 1초 간격 때와 같게
+NEWS_PCT, NEWS_GOOD = 10, 50    # 한 번 움직일 때 뉴스가 뜰 확률 %, 그중 호재 %
+CRASH_PCT, SURGE_PCT, NEWS_MULT = 8, 12, (1, 1)   # 악재의 8% 는 폭락, 호재의 12% 는 폭등 (2배로 커진다)
+FLASH_PCT, FLASH_SIZE = 3, (8, 25)   # 한 번 움직일 때 3% 확률로 종목 하나를 골라 기세에 따라 순간 8~25% 급등·급락
+# 기세(보이지 않는 매수·매도세): 종목마다 천천히 바뀌며 한동안 한쪽으로 기울게 민다 (변동 폭의 최대 ±15%).
+# 화면에 따로 표시하지 않는다: 차트 흐름을 읽으면 느낌만 온다
+MOOD_MAX, MOOD_KEEP, MOOD_STEP = 0.15, 0.97, 0.15
+MOOD_WEAK, MOOD_STRONG = -0.25, 0.1   # 기세가 아주 약하면 급락, 조금만 세도 급등 → 급등이 급락보다 잦다
 N_PICK = SPEC0 - 1              # 뉴스·급락이 고르는 종목 수 (지배 자본·특별주 빼고)
 N_COIN = SPEC0 - COIN0
 COIN_IDX = [i for i in range(1, N + 1) if KIND[i - 1] == 3]
@@ -51,7 +56,7 @@ BTC = COIN0 + 1                 # 비트코인
 STOCK_VARS = dict(장시간=D.MARKET_START, 기록위치=1, 채움=1, 첫째주=D.CONTROL_UNCLES[0], 둘째주=D.CONTROL_UNCLES[1],
                   유통주=0, 평가금=0, 지배달성=0, 주문방향=1, 주문수량=1, 매매수량=0, 이번차단=0,
                   뉴스글='', 뉴스종목=0, 뉴스호재=1, 뉴스루머=3, 뉴스진짜=1, 뉴스세기=0, 변동률=0, 탭=1, 탭기준=0, 탭개수=ND,
-                  체결성공=0, _po=0, _rd=0, _rf=0, _rb=1, _lr=0, _lf=1, _pv=0, _ph=0, _pl=0, _pc='', _pt='', _s=1, _p=0, _b=0, _k0=0, _mn=0, _mx=0, _v=0, _rg=1, _c=0, _q='', _m='', _a=0, _bb=0, 체결글='', _ml='', _fx=1, _fy=0)
+                  체결성공=0, _po=0, _rd=0, _rf=0, _rb=1, _lr=0, _lf=1, _pv=0, _ph=0, _pl=0, _pc='', _pt='', _s=1, _p=0, _b=0, _k0=0, _mn=0, _mx=0, _v=0, _rg=1, _c=0, _q='', _m='', _a=0, _bb=0, 체결글='', _ml='', _fx=1, _fy=0, _gi=0)
 
 
 def round2(x):
@@ -89,13 +94,14 @@ def _flat(lo, hi, scale, jump=None, need=0.0):
 def _news_move(coin):
     """뉴스 한 번이 그 종목 값에 주는 ln 변화의 평균 (악재가 더 잦고 가끔 커지니 음수)."""
     tot, n = 0.0, 0
-    mults = list(range(CRASH_MULT[0], CRASH_MULT[1] + 1))
+    mults = list(range(NEWS_MULT[0], NEWS_MULT[1] + 1))
     for s10 in range(30, 96):
         st = s10 / 10.0 * (0.25 if coin else 1)
         n += 1
         for good in (1, -1):
             pg = NEWS_GOOD / 100.0 if good == 1 else 1 - NEWS_GOOD / 100.0
-            amps = [(1.0, 1)] if good == 1 else [(1 - CRASH_PCT / 100.0, 1)] + [(CRASH_PCT / 100.0 / len(mults), 1 + m) for m in mults]
+            big = (SURGE_PCT if good == 1 else CRASH_PCT) / 100.0
+            amps = [(1 - big, 1)] + [(big / len(mults), 1 + m) for m in mults]
             for pa, m in amps:
                 for rumor, pr in ((1, 0.3), (0, 0.7)):
                     ptrue = 0.5 if rumor else 0.85
@@ -110,9 +116,16 @@ def _news_move(coin):
 def _jump_loss(i, coin_mode):
     """종목 i 가 한 걸음마다 뉴스·급락으로 평균적으로 잃는 ln 양 (양수)."""
     coin = KIND[i - 1] == 3
-    flash = sum(math.log(1 - y / 100.0) for y in range(FLASH_DROP[0], FLASH_DROP[1] + 1)) / (FLASH_DROP[1] - FLASH_DROP[0] + 1)
+    ys = range(FLASH_SIZE[0], FLASH_SIZE[1] + 1)
+    drop = sum(math.log(1 - y / 100.0) for y in ys) / len(ys)
+    rise = sum(math.log(1 + y / 100.0) for y in ys) / len(ys)
     pick = (1.0 / N_COIN) if coin_mode else (0.92 / N_PICK)
-    return -(NEWS_PCT / 100.0 * pick * _news_move(coin) + FLASH_PCT / 100.0 * (1.0 / N_COIN if coin_mode else 1.0 / N_PICK) * flash)
+    # 기세가 MOOD_WEAK 아래 / MOOD_STRONG 위일 확률 (기세 ≈ 정규분포, 표준편차 = 한 걸음 흔들림 / √(1 - 유지율²))
+    sd = MOOD_STEP / math.sqrt(3) / math.sqrt(1 - MOOD_KEEP ** 2)
+    cdf = lambda z: 0.5 * (1 + math.erf(z / sd / math.sqrt(2)))
+    flash = cdf(MOOD_WEAK) * drop + (1 - cdf(MOOD_STRONG)) * rise
+    return -(NEWS_PCT / 100.0 * pick * _news_move(coin) +
+             FLASH_PCT / 100.0 * (1.0 / N_COIN if coin_mode else 1.0 / N_PICK) * flash)
 
 
 def _set_free(i):
@@ -137,6 +150,8 @@ def setup(P):
     P.list('배수', [1] * N)          # 종목별 주문 모드: 1 일반, -1 인버스, 2·5·10 레버리지(코인·특별주), -2·-5·-10 인버스 레버리지
     P.list('상품가', PRICES)
     P.list('특별X', [0] * len(D2.SPECIALS))
+    P.list('기세', [0] * N)
+    P.list('기세폭', [int(v * 100 * MOOD_MAX) if k in (1, 2, 3) else 0 for v, k in zip(VOLS, KIND)])
     P.list('특별기준', [p for _, p, _ in D2.SPECIALS])
     P.list('지수표', [round(math.exp(k / 10.0), 6) for k in range(-EXP_K, EXP_K + 1)])
     P.list('호재뉴스', D.NEWS_GOOD)
@@ -229,8 +244,9 @@ def _news_blocks(coins_only=False):
             ifelse(le(rnd(1, 100), 30), [setv('뉴스루머', 1)], [setv('뉴스루머', 0)]),
             setv('뉴스세기', div(rnd(30, 95), 10)),
             if_(gt(s, COIN0), chg('뉴스세기', mul(V('뉴스세기'), 0.25))),
-            # 가끔 악재가 몇 배로 커진다 (폭락: 얼마나 떨어질지 모른다)
-            if_(and_(lt(V('뉴스호재'), 0), le(rnd(1, 100), CRASH_PCT)), chg('뉴스세기', mul(V('뉴스세기'), rnd(*CRASH_MULT)))),
+            # 가끔 뉴스가 2배로 커진다 (폭락·폭등: 호재 쪽이 더 잦다)
+            ifelse(lt(V('뉴스호재'), 0), [if_(le(rnd(1, 100), CRASH_PCT), chg('뉴스세기', mul(V('뉴스세기'), rnd(*NEWS_MULT))))],
+                   [if_(le(rnd(1, 100), SURGE_PCT), chg('뉴스세기', mul(V('뉴스세기'), rnd(*NEWS_MULT))))]),
             ifelse(eq(V('뉴스루머'), 1),
                    [chg('뉴스세기', mul(V('뉴스세기'), 0.4)),
                     ifelse(le(rnd(1, 100), 50), [setv('뉴스진짜', 1)], [setv('뉴스진짜', 0)])],
@@ -258,13 +274,17 @@ def _news_blocks(coins_only=False):
 
 
 def _flash_blocks(coins_only=False):
-    """가끔 아무 주식·코인 하나가 예고 없이 순간 급락 (10~35%)."""
+    """가끔 아무 주식·코인 하나가 예고 없이 순간 급등·급락 (8~25%). 기세가 세면 급등, 아주 약하면 급락 (급등이 더 잦다)."""
     x = V('_fx')
     pick = ([setv('_fx', rnd(COIN0 + 1, SPEC0))] if coins_only else
             [setv('_fx', rnd(1, N_PICK)), if_(ge(x, CTL), chg('_fx', 1))])
-    return [if_(le(rnd(1, 100), FLASH_PCT), *pick, setv('_fy', rnd(*FLASH_DROP)),
-                lst_set('주가', x, div(rounded(add(mul(mul(LGET('주가', x), sub(1, div(V('_fy'), 100))), 1000000), 0.6)), 1000000)),
-                setv('뉴스루머', 0), setv('뉴스글', join('[급락] ', LGET('주식이름', x), ' 갑자기 -', V('_fy'), '%!')), cast('뉴스'))]
+    jump = lambda sign, tag, mark: [
+        setv('_fy', rnd(*FLASH_SIZE)),
+        lst_set('주가', x, div(rounded(add(mul(mul(LGET('주가', x), add(1, div(V('_fy'), 100 * sign))), 1000000), 0.6)), 1000000)),
+        setv('뉴스루머', 0), setv('뉴스글', join(tag, LGET('주식이름', x), mark, V('_fy'), '%!')), cast('뉴스')]
+    return [if_(le(rnd(1, 100), FLASH_PCT), *pick,
+                ifelse(lt(LGET('기세', x), mul(LGET('기세폭', x), MOOD_WEAK)), jump(-1, '[급락] ', ' 갑자기 -'),
+                       [if_(gt(LGET('기세', x), mul(LGET('기세폭', x), MOOD_STRONG)), *jump(1, '[급등] ', ' 갑자기 +'))]))]
 
 
 def _move(i, mult, coin_mode=False):
@@ -277,7 +297,7 @@ def _move(i, mult, coin_mode=False):
                 if_(lt(LGET('주가', i), CTL_FLOOR), lst_set('주가', i, CTL_FLOOR))]
     w = v10 * 10                    # 0.01% 단위로 촘촘하게 (보정 폭이 작은 종목도 정확히)
     sh = _flat(-w, w, mult / 10000.0, need=_jump_loss(i, coin_mode))
-    return [setv('변동률', mul(div(rnd(-w + sh, w + sh), 10000), mult)), *trend, _set_free(i)]
+    return [setv('변동률', mul(div(add(rnd(-w + sh, w + sh), LGET('기세', i)), 10000), mult)), *trend, _set_free(i)]
 
 
 def _track(i, acc, moves):
@@ -309,13 +329,13 @@ def tick_blocks():
     for i in range(1, SPEC0 + 1):
         k = KIND[i - 1]
         if k == 1:
-            b += _track(i, '_rd', _move(i, D.STOCK_TICK))
+            b += _track(i, '_rd', _move(i, TICK_AMP))
         elif k == 2:
-            b += _track(i, '_rf', _move(i, D.STOCK_TICK))
+            b += _track(i, '_rf', _move(i, TICK_AMP))
         elif i == BTC:
-            b += [setv('_rb', 0)] + _track(i, '_rb', _move(i, D.STOCK_TICK))
+            b += [setv('_rb', 0)] + _track(i, '_rb', _move(i, TICK_AMP))
         else:
-            b += _move(i, D.STOCK_TICK)
+            b += _move(i, TICK_AMP)
     b += special_blocks()
     b += EC.ops_tick_blocks()
     b += _record_blocks()
@@ -332,9 +352,9 @@ def coin_tick_blocks():
     b = [*_index_reset()]
     for i in COIN_IDX:
         if i == BTC:
-            b += [setv('_rb', 0)] + _track(i, '_rb', _move(i, D.STOCK_TICK, True))
+            b += [setv('_rb', 0)] + _track(i, '_rb', _move(i, TICK_AMP, True))
         else:
-            b += _move(i, D.STOCK_TICK, True)
+            b += _move(i, TICK_AMP, True)
     b += special_blocks()
     b += _record_blocks()
     b += _news_blocks(coins_only=True)
@@ -568,6 +588,14 @@ def build(P, ctx):
                          [*mode_lbl, write(join('아직 없어요 · 주문 모드: ', V('_ml'))), text_color(C_DIM)])])]
     info2.on(on_msg('시세갱신'), *i2)
     info2.on(on_msg('선택변경'), *i2)
+    # 기세 담당: 한 프레임에 한 종목씩 돌아가며 기세를 조금씩 바꾼다 (천천히 바뀌어 한동안 이어진다)
+    g_, w_ = LGET('기세', V('_gi')), LGET('기세폭', V('_gi'))
+    mood_o = text(P, sc, '기세담당', '', -300, -300, 8, visible=False)
+    mood_o.on(on_scene(), setv('_gi', 0),
+              forever(chg('_gi', 1), if_(gt(V('_gi'), SPEC0), setv('_gi', 1)),
+                      lst_set('기세', V('_gi'), add(mul(g_, MOOD_KEEP), mul(w_, div(rnd(-100, 100), 100 / MOOD_STEP)))),
+                      if_(gt(g_, w_), lst_set('기세', V('_gi'), w_)),
+                      if_(lt(g_, mul(w_, -1)), lst_set('기세', V('_gi'), mul(w_, -1)))))
     P.list('단위', ['주', '주', '주', '개'])     # ifelse_kind: 1 국내/지배, 2 해외, 3 국내, 4 코인
 
     # 차트 (붓): 최근 30칸, 오래된 것 → 최신
