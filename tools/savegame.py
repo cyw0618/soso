@@ -318,7 +318,7 @@ def load_blocks():
         b += _each(n, '_iy', lambda i, lst=lst: [dict(take), lst_set(lst, i, V('_v'))])
     b += _decode_companies()
     # 차트 기록과 '전날 가격'은 불러온 가격으로 다시 시작
-    b += _each(ST.N, '_iy', lambda i: [lst_set('전주가', i, LGET('주가', i)),
+    b += _each(ST.N, '_iy', lambda i: [lst_set('전주가', i, LGET('주가', i)), lst_set('기준', i, 0),
                                        lst_set('주가기록', add(mul(sub(i, 1), ST.HIST), 1) if not isinstance(i, int)
                                                else (i - 1) * ST.HIST + 1, LGET('주가', i))])
     b += [lst_set('주식이름', ST.CTL, LGET('지배이름', V('단계')))]
@@ -345,10 +345,10 @@ def clear_blocks():
     return [dict(_FN['clear']), setv('저장있음', 0), setv('저장필요', 0)]
 
 
-def save_button(P, sc, x, y):
-    """'저장' 버튼: 누르면 바로 저장하고 결과를 알려 준다 (경제알림 글상자 사용)."""
+def save_button(P, sc, x, y, pic=None, hover=True):
+    """'저장' 버튼: 누르면 바로 저장하고 결과를 알려 준다 (경제알림 글상자 사용). pic: 버튼 그림을 바꿀 때."""
     from gui import button
-    return button(P, sc, '지금저장', '지금 저장', x, y, 78, 22, 'green', icon='star',
+    return button(P, sc, '지금저장', '지금 저장', x, y, 78, 22, 'green', icon='star', pic=pic, hover=hover,
                   actions=[ifelse(logged_in(),
                                   [*save_blocks(), setv('경제알림', join('저장 완료! 저장 번호 ', V('저장번호'), ' · 서버 저장 ', LLEN('저장칸목록'), '칸'))],
                                   [setv('경제알림', '엔트리에 로그인해야 저장돼요')]),

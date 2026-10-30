@@ -70,8 +70,9 @@ def hover_scripts(o, big=108, normal=100, first_scene=False):
 
 
 def button(P, scene, base, label, x, y, w, h, color='royal', icon=None, actions=(), hover=True, visible=True,
-           first_scene=False):
-    o = sprite(P, scene, base, K.button(label, w, h, color, icon=icon), x, y, visible=visible)
+           first_scene=False, pic=None):
+    """pic: 버튼 그림을 직접 줄 때 (예: 거래소의 평평한 업비트 스타일 버튼)."""
+    o = sprite(P, scene, base, pic or K.button(label, w, h, color, icon=icon), x, y, visible=visible)
     if hover:
         hover_scripts(o, first_scene=first_scene)
     # 누름 효과와 동작을 따로 (빠르게 여러 번 눌러도 동작은 매번 실행)

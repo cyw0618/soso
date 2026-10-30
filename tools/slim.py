@@ -1100,7 +1100,9 @@ def inline_functions(P, max_rounds=8):
                                 sub(y)
                 for b in body:
                     sub(b)
-                i0 = next(i for i, x in enumerate(stmts) if x is call)
+                i0 = next((i for i, x in enumerate(stmts) if x is call), None)
+                if i0 is None:      # 같은 블록 목록이 두 대본에 함께 쓰여 이미 바꿈
+                    continue
                 stmts[i0:i0 + 1] = body
                 touched.add(owner)
             total += (3 + m) + body_n + c * (1 + m) - c * body_n
