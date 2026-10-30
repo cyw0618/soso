@@ -148,6 +148,8 @@ def _text_layer(size, xy, text, f, fill_top, fill_bottom, outline, ow, anchor='m
 
 # ------------------------------------------------------------------ 패널
 def panel(w, h, kind='glass', r=12, header=None):
+    if _up():
+        return _u_panel(w, h, kind, r, header)
     path = _path('ui_panel2', w, h, kind, r, header)
     if os.path.exists(path):
         return path
@@ -218,6 +220,8 @@ def panel(w, h, kind='glass', r=12, header=None):
 
 # ------------------------------------------------------------------ 버튼
 def button(text, w, h, color='royal', fsize=None, icon=None, disabled=False):
+    if _up():
+        return _u_button(text, w, h, color, fsize, icon, disabled)
     path = _path('ui_btn2', text, w, h, color, fsize, icon, disabled)
     if os.path.exists(path):
         return path
@@ -269,6 +273,8 @@ def button(text, w, h, color='royal', fsize=None, icon=None, disabled=False):
 
 # ------------------------------------------------------------------ 큰 글자 (팝업, 판정, 제목)
 def big_text(text, fsize, style='royal', w=None, h=None, outline=None, glow=True, fontname='jalnan'):
+    if _up():
+        return _u_big_text(text, fsize, style, w, h, outline)
     styles = {
         'royal': ((255, 255, 255), (104, 136, 255), (0, 2, 14), (30, 64, 230, 190)),
         'white': ((255, 255, 255), (186, 196, 222), (0, 2, 12), (40, 70, 200, 150)),
@@ -304,6 +310,8 @@ def big_text(text, fsize, style='royal', w=None, h=None, outline=None, glow=True
 
 # ------------------------------------------------------------------ 리본 배너
 def banner(text, w, h, color='royal', fsize=None):
+    if _up():
+        return _u_banner(text, w, h, color, fsize)
     path = _path('ui_banner2', text, w, h, color, fsize)
     if os.path.exists(path):
         return path
@@ -347,6 +355,8 @@ def banner(text, w, h, color='royal', fsize=None):
 
 # ------------------------------------------------------------------ 배지
 def badge(text, w, h, color='red', fsize=None):
+    if _up():
+        return _u_badge(text, w, h, color, fsize)
     path = _path('ui_badge2', text, w, h, color, fsize)
     if os.path.exists(path):
         return path
@@ -463,6 +473,8 @@ def icon_img(name, size):
 
 # ------------------------------------------------------------------ 막대 세트
 def bar_set(name, w, h, color, steps=41):
+    if _up():
+        return _u_bar_set(name, w, h, color, steps)
     top, bottom, edge, rim = _pal(color)
     out = []
     for i in range(steps):
@@ -486,7 +498,7 @@ def bar_set(name, w, h, color, steps=41):
                 hl.putalpha(hm)
                 im.alpha_composite(hl, (ins, ins))
             _finish(im, w, h, path)
-        out.append(('%02d' % i, path))
+        out.append(('b%02d' % i, path))     # 이름이 숫자면 엔트리가 '번호'와 섞어 써서 한 칸 건너뛴다
     return out
 
 
@@ -580,3 +592,204 @@ def preview_sheet(path):
     put(bars[28][1], 10, 200)
     put(sparkle(16), 300, 200)
     sheet.convert('RGB').save(path)
+
+
+# ================================================================== 업비트 테마 (밝은 판 + 남색 + 평평한 버튼)
+# THEME[0]: 'upbit' (기본: 업비트 그림 + 글자색 바꿈) / 'raw' (업비트 그림, 글자색은 그대로) / 'dark' (예전 어두운 그림)
+THEME = ['upbit']
+
+
+class theme:
+    """with theme('dark'): ... 그 안에서 만드는 그림·글자는 그 테마로."""
+    def __init__(self, name):
+        self.name = name
+
+    def __enter__(self):
+        self.prev = THEME[0]
+        THEME[0] = self.name
+
+    def __exit__(self, *a):
+        THEME[0] = self.prev
+
+
+def _up():
+    return THEME[0] in ('upbit', 'raw')
+
+
+UPC = {'royal': (9, 54, 135), 'navy': (9, 54, 135), 'gold': (9, 54, 135), 'blue': (18, 97, 196), 'cyan': (18, 97, 196),
+       'red': (200, 74, 49), 'green': (14, 140, 90), 'purple': (123, 75, 209), 'pink': (214, 51, 108),
+       'steel': (84, 99, 128), 'gray': (128, 134, 148), 'black': (31, 35, 41), 'silver': (233, 236, 241), 'white': (233, 236, 241)}
+UP_INK, UP_SUB, UP_LINE, UP_PAGE = (31, 35, 41), (107, 114, 128), (222, 225, 231), (244, 245, 248)
+
+
+def _up_fill(color):
+    return UPC.get(color, UPC['royal'])
+
+
+def _up_text_col(color):
+    return UP_INK if color in ('silver', 'white') else (255, 255, 255)
+
+
+def _fit_font(name, text, size, maxw):
+    f = font(name, int(size))
+    while _words_width(f, text) > maxw and size > 8:
+        size *= 0.92
+        f = font(name, int(size))
+    return f
+
+
+def _u_panel(w, h, kind, r, header):
+    path = _path('up_panel', w, h, kind, r, header)
+    if os.path.exists(path):
+        return path
+    im = _canvas(w, h)
+    W, H = im.size
+    s = R2 * SS
+    pad = 5 * s
+    box = (pad, pad, W - pad, H - pad - 2 * s)
+    rr = min(r, 7) * s
+    im.alpha_composite(_shadow(im.size, box, rr, 3 * s, 46, (0, 1.5 * s)))
+    if kind in ('navy', 'solid_navy'):
+        fill = UPC['navy'] + (250,)
+    elif kind == 'light':
+        fill = UP_PAGE + (255,)
+    else:
+        fill = (255, 255, 255, 252)
+    body = Image.new('RGBA', im.size, fill)
+    body.putalpha(_rr_mask(im.size, box, rr).point(lambda v: v * fill[3] // 255))
+    im.alpha_composite(body)
+    d = ImageDraw.Draw(im)
+    if header:
+        hb = (box[0], box[1], box[2], box[1] + 18 * s)
+        hm = _rr_mask(im.size, hb, rr)
+        cut = Image.new('L', im.size, 0)
+        ImageDraw.Draw(cut).rectangle((box[0], box[1] + 9 * s, box[2], hb[3]), fill=255)
+        hm = ImageChops.lighter(hm, ImageChops.multiply(cut, _rr_mask(im.size, box, rr)))
+        hl = Image.new('RGBA', im.size, _up_fill(header) + (255,))
+        hl.putalpha(hm)
+        im.alpha_composite(hl)
+    if kind in ('alert', 'navy_top'):
+        bar = Image.new('L', im.size, 0)
+        ImageDraw.Draw(bar).rectangle((box[0], box[1], box[2], box[1] + 4 * s), fill=255)
+        am = ImageChops.multiply(bar, _rr_mask(im.size, box, rr))
+        al = Image.new('RGBA', im.size, (UPC['red'] if kind == 'alert' else UPC['navy']) + (255,))
+        al.putalpha(am)
+        im.alpha_composite(al)
+    edge = {'glass_purple': UPC['purple'], 'alert': (232, 190, 182)}.get(kind, UP_LINE)
+    if kind not in ('navy', 'solid_navy'):
+        d.rounded_rectangle(box, rr, outline=edge + (255,), width=max(1, int(0.8 * s)))
+    return _finish(im, w, h, path)
+
+
+def _u_button(text, w, h, color, fsize, icon, disabled):
+    path = _path('up_btn', text, w, h, color, fsize, icon, disabled)
+    if os.path.exists(path):
+        return path
+    im = _canvas(w, h)
+    W, H = im.size
+    s = R2 * SS
+    pad = 2.5 * s
+    box = (pad, pad, W - pad, H - pad - 1.5 * s)
+    rr = 4 * s
+    fill = (200, 203, 210) if disabled else _up_fill(color)
+    im.alpha_composite(_shadow(im.size, box, rr, 1.5 * s, 50, (0, 1.2 * s)))
+    b = Image.new('RGBA', im.size, fill + (255,))
+    b.putalpha(_rr_mask(im.size, box, rr))
+    im.alpha_composite(b)
+    d = ImageDraw.Draw(im)
+    if color in ('silver', 'white'):
+        d.rounded_rectangle(box, rr, outline=UP_LINE + (255,), width=max(1, int(0.8 * s)))
+    tcol = _up_text_col(color)
+    fs = (fsize or (h * 0.46)) * s
+    avail = (box[2] - box[0]) - 12 * s - (h * 0.8 * s if icon else 0)
+    f = _fit_font('nsr', text, fs, avail)
+    tw = _words_width(f, text)
+    cx = W / 2 + (h * 0.36 * s if icon else 0)
+    cy = (box[1] + box[3]) / 2
+    if icon:
+        isz = int((box[3] - box[1]) * 0.62)
+        ic = Image.open(icon_img(icon, 64)).resize((isz, isz), Image.LANCZOS)
+        im.alpha_composite(ic, (int(cx - tw / 2 - isz - 3 * s), int(cy - isz / 2)))
+    _draw_line(d, cx, cy, text, f, tcol + (255,))
+    return _finish(im, w, h, path)
+
+
+def _u_banner(text, w, h, color, fsize):
+    path = _path('up_banner', text, w, h, color, fsize)
+    if os.path.exists(path):
+        return path
+    im = _canvas(w, h)
+    W, H = im.size
+    s = R2 * SS
+    box = (2 * s, H * 0.12, W - 2 * s, H * 0.86)
+    rr = 5 * s
+    im.alpha_composite(_shadow(im.size, box, rr, 2 * s, 60, (0, 1.5 * s)))
+    b = Image.new('RGBA', im.size, _up_fill(color) + (255,))
+    b.putalpha(_rr_mask(im.size, box, rr))
+    im.alpha_composite(b)
+    d = ImageDraw.Draw(im)
+    f = _fit_font('nsr', text, (fsize or h * 0.42) * s, (box[2] - box[0]) - 14 * s)
+    _draw_line(d, W / 2, (box[1] + box[3]) / 2, text, f, _up_text_col(color) + (255,))
+    return _finish(im, w, h, path)
+
+
+def _u_badge(text, w, h, color, fsize):
+    path = _path('up_badge', text, w, h, color, fsize)
+    if os.path.exists(path):
+        return path
+    im = _canvas(w, h)
+    W, H = im.size
+    s = R2 * SS
+    box = (0.8 * s, 0.8 * s, W - 0.8 * s, H - 1.4 * s)
+    b = Image.new('RGBA', im.size, _up_fill(color) + (255,))
+    b.putalpha(_rr_mask(im.size, box, 3 * s))
+    im.alpha_composite(b)
+    d = ImageDraw.Draw(im)
+    f = _fit_font('nsr', text, (fsize or h * 0.56) * s, (box[2] - box[0]) - 4 * s)
+    _draw_line(d, W / 2, (box[1] + box[3]) / 2, text, f, _up_text_col(color) + (255,))
+    return _finish(im, w, h, path)
+
+
+UP_BIG = {'royal': UPC['navy'], 'gold': UPC['navy'], 'cyan': UPC['blue'], 'white': UP_INK, 'red': UPC['red'],
+          'green': UPC['green'], 'pink': UPC['pink'], 'purple': UPC['purple'], 'gray': UP_SUB, 'black': UP_INK}
+
+
+def _u_big_text(text, fsize, style, w, h, outline):
+    path = _path('up_big', text, fsize, style, w, h, outline)
+    if os.path.exists(path):
+        return path
+    s = R2 * SS
+    f = font('nsr', int(fsize * s))
+    lines = text.split('\n')
+    tw = max(_words_width(f, ln) for ln in lines)
+    th = int(fsize * s * 1.18 * len(lines))
+    W = w * s if w else tw + fsize * s * 0.9
+    H = h * s if h else th + fsize * s * 0.9
+    im = Image.new('RGBA', (int(W), int(H)), (0, 0, 0, 0))
+    col = UP_BIG.get(style, UPC['navy'])
+    lay = _text_layer(im.size, (W / 2, H / 2), text, f, col, tuple(int(c * 0.82) for c in col), (255, 255, 255),
+                      max(2, fsize * 0.12) * s, glow=(0, 0, 0, 60), glow_r=fsize * 0.12 * s,
+                      shadow=(0, fsize * 0.05 * s, (0, 0, 0, 70)))
+    im.alpha_composite(lay)
+    return _finish(im, im.width / s, im.height / s, path)
+
+
+def _u_bar_set(name, w, h, color, steps):
+    out = []
+    fillc = _up_fill(color)
+    for i in range(steps):
+        path = os.path.join(ensure_out(), 'up_bar_%s_%s_%02d.png' % (name, _k(w, h, color, steps), i))
+        if not os.path.exists(path):
+            im = _canvas(w, h)
+            W, H = im.size
+            s = R2 * SS
+            rr = H // 2
+            d = ImageDraw.Draw(im)
+            d.rounded_rectangle((0, 0, W - 1, H - 1), rr, fill=(229, 231, 238, 255))
+            frac = i / (steps - 1)
+            if frac > 0:
+                fw = max(H, int(W * frac))
+                d.rounded_rectangle((0, 0, fw - 1, H - 1), rr, fill=fillc + (255,))
+            _finish(im, w, h, path)
+        out.append(('b%02d' % i, path))
+    return out

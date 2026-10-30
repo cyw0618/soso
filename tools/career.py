@@ -109,9 +109,27 @@ def _ring_img(r):
     im = Image.new('RGBA', (sz * k, sz * k), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
     c = sz * k / 2
-    d.ellipse((c - r * k, c - r * k, c + r * k, c + r * k), fill=(60, 110, 255, 46), outline=(130, 170, 255, 230), width=3 * k)
+    if K._up():     # 업비트 테마: 밝은 지도 위 남색 테두리
+        d.ellipse((c - r * k, c - r * k, c + r * k, c + r * k), fill=(9, 54, 135, 28), outline=(9, 54, 135, 220), width=3 * k)
+    else:
+        d.ellipse((c - r * k, c - r * k, c + r * k, c + r * k), fill=(60, 110, 255, 46), outline=(130, 170, 255, 230), width=3 * k)
     im = im.resize((sz * 2, sz * 2), Image.LANCZOS)
-    return save(im, 'map_dt_ring_%d' % r)
+    return save(im, 'map_dt_ring%s_%d' % ('_u' if K._up() else '', r))
+
+
+def light_map(path):
+    """업비트 테마 지도: 어두운 바탕 → 밝은 회청색, 밝은 길·물·글자 → 남색 (밝기에 따라 두 색 사이로)."""
+    import numpy as np
+    out = path[:-4] + '_upbit.png'
+    if os.path.exists(out) and os.path.getmtime(out) >= os.path.getmtime(path):
+        return out
+    a = np.asarray(Image.open(path).convert('RGB')).astype(float) / 255
+    L = 0.3 * a[..., 0] + 0.55 * a[..., 1] + 0.15 * a[..., 2]
+    t = np.clip((L - 0.12) / 0.75, 0, 1) ** 0.85
+    bg, ink = np.array([238, 242, 248]) / 255.0, np.array([9, 54, 135]) / 255.0
+    o = bg * (1 - t[..., None]) + ink * t[..., None]
+    Image.fromarray((o * 255).astype('uint8')).save(out)
+    return out
 
 
 def build_map(P, ctx, tier, sc, whole, dt, pins, dt_ids, ring, mode_names, ring_label):
@@ -121,6 +139,8 @@ def build_map(P, ctx, tier, sc, whole, dt, pins, dt_ids, ring, mode_names, ring_
     import empire as E
     import savegame as SG
     off = (tier - 1) * N
+    if K._up():
+        whole, dt = light_map(whole), light_map(dt)
     bgo = G.bg(P, sc, [('whole', whole), ('dt', dt)])
     bgo.on(on_scene(), ifelse(eq(V('지도모드'), 1), [shape('dt')], [shape('whole')]))
     bgo.on(on_msg('지도바꿈'), ifelse(eq(V('지도모드'), 1), [shape('dt')], [shape('whole')]))

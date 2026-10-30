@@ -1034,12 +1034,19 @@ class Project:
 
 
 # ---- 글상자/붓 보조
+COLOR_HOOK = [None]       # 테마(gui)가 글자·붓 색을 바꿀 때 쓰는 함수
+
+
+def _hc(hexcol):
+    return COLOR_HOOK[0](hexcol) if COLOR_HOOK[0] and isinstance(hexcol, str) else hexcol
+
+
 def text_color(hexcol):
-    return B('text_change_font_color', VALUE={'type': 'text_color', 'params': [hexcol]})
+    return B('text_change_font_color', VALUE={'type': 'text_color', 'params': [_hc(hexcol)]})
 
 
 def pen_color(hexcol):
-    return B('set_color', VALUE={'type': 'color', 'params': [hexcol]})
+    return B('set_color', VALUE={'type': 'color', 'params': [_hc(hexcol)]})
 
 
 def pen_size(n):

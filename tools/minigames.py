@@ -117,13 +117,15 @@ class MG:
             regrade_scene(P, sc, self.moved)
         multi = not (self.tier or self.moved or self.idx not in SHARED_GAMES)     # 단계마다 제목이 바뀌는 장면
         # 제목 띠 + HUD 판 → 배경 그림에
-        hud_panel = K.panel(152, 24, 'glass')
+        with K.theme('raw'):
+            hud_panel = K.panel(152, 24, 'solid_navy')
         clock = None
         bgo = next(o for o in P.objects if o.scene == sc)
         pics = []
         for t, pic in enumerate(bgo.pictures):
             ti = self.titles[t] if multi and t < len(self.titles) else self.titles[0]
-            top = _topbar(K.banner('%s · %s' % ti, 236, 30, 'royal'), hud_panel)
+            with K.theme('raw'):
+                top = _topbar(K.banner('%s · %s' % ti, 236, 30, 'royal'), hud_panel)
             pics.append(Picture(pic.name, _bake_top(pic.path, top, clock), scale=0.5))
         bgo.pictures = pics
         # 상태와 남은 시간은 글상자 하나에
@@ -136,6 +138,8 @@ class MG:
             st.on(on_scene(), *G.live_write(st, [], '미니표시', 0.08))
         # 소개 창: 어둡게·판·제목·종류·설명·조작 글·시작 버튼을 그림 한 장으로 (창 아무 데나 눌러도 시작)
         ctl = controls + '\n(SPACE 키로도 시작할 수 있어요)'
+        _th = K.theme('raw')
+        _th.__enter__()
         badge_ = K.badge(p['kind'], 74, 18, 'royal')
         btn = K.button('시작!', 110, 28, 'royal', icon='star')
         if not multi:
@@ -151,6 +155,7 @@ class MG:
         # 소개 창(모양 c1~c3) · 카운트다운 3·2·1·START!(1~4) · FINISH!(5)를 오브젝트 하나로
         cd = self.S('카운트', [(str(k + 1), K.big_text(lbl, 56 if k < 3 else 44, 'royal'))
                              for k, lbl in enumerate(['3', '2', '1', 'START!', 'FINISH!'])] + cards, 0, 0)
+        _th.__exit__()
         cd.sel = 5                          # 처음 모양 = 소개 창
         cpic = cd.pictures[5]
         cb = (cpic.w + cpic.h) * cpic.scale * cd.scale / 2.0
@@ -328,19 +333,20 @@ def _intro_card(key, title_path, badge_path, help_text, ctrl_text):
     from art_common import font, ensure_out
     R = 2
     h = hashlib.md5((key + help_text + ctrl_text + title_path + badge_path).encode()).hexdigest()[:10]
-    out = os.path.join(ensure_out(), 'mg_card_%s.png' % h)
+    out = os.path.join(ensure_out(), 'mg_card%s_%s.png' % ('u' if K._up() else '', h))
     if os.path.exists(out):
         return out
-    im = Image.new('RGBA', (480 * R, 270 * R), (2, 3, 12, 205))
+    im = Image.new('RGBA', (480 * R, 270 * R), (2, 3, 12, 205) if not K._up() else (16, 22, 36, 150))
 
     def paste(path, sx, sy):
         p = Image.open(path).convert('RGBA')
         im.alpha_composite(p, (int(240 * R + sx * R - p.width / 2), int(135 * R - sy * R - p.height / 2)))
-    paste(K.panel(320, 186, 'glass', header='royal'), 0, -4)
+    paste(K.panel(320, 186, 'navy_top') if K._up() else K.panel(320, 186, 'glass', header='royal'), 0, -4)
     paste(title_path, 0, 72)
     paste(badge_path, 0, 46)
     md = ImageDraw.Draw(im)
-    for txt, sy, size, col, top in ((help_text, 14, 11, (255, 255, 255, 255), 44), (ctrl_text, -26, 9, (125, 151, 255, 255), 34)):
+    ink = ((31, 35, 41, 255), (9, 54, 135, 255)) if K._up() else ((255, 255, 255, 255), (125, 151, 255, 255))
+    for txt, sy, size, col, top in ((help_text, 14, 11, ink[0], 44), (ctrl_text, -26, 9, ink[1], 34)):
         f = font('nsr', size * R)
         lines = _wrap(md, txt, f, 290 * R)
         lh = size * R * 1.35

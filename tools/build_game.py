@@ -124,7 +124,9 @@ place_art2.build_all()
 MAPS2 = make_maps2.build_all()
 ART = lambda n: os.path.join(OUT, n + '.png')
 BLACK = SP.plain(480, 270, (0, 0, 0, 255), 'black_full')
-DIM = SP.plain(480, 270, (4, 8, 24, 150), 'dim_full')
+DIM_DARK = SP.plain(480, 270, (4, 8, 24, 150), 'dim_full')
+DIM_UP = SP.plain(480, 270, (244, 245, 248, 222), 'veil_upbit')     # 업비트 테마: 사진 위 밝은 막
+DIM = DIM_UP
 PORT = {k: K.portrait_ring(SP.portrait_crop(COVER, k), 24, {'me': 'royal', 'gp': 'silver', 'u1': 'red', 'u2': 'purple'}[k], name=k)
         for k in ('me', 'gp', 'u1', 'u2')}
 PORT.update(cand_art.all_rings())
@@ -182,14 +184,14 @@ def scene_title():
     cont = button(P, sc, '버튼이어하기', '이어하기', 170, 74, 120, 32, 'red', icon='back', visible=False, first_scene=True,
                   actions=[if_(and_(eq(V('저장있음'), 1), eq(V('_시작중'), 0)), setv('_시작중', 1), hide(),
                                cast_wait('초기화'), *SG.load_blocks(), *GO_HOME())])
-    save_t = text(P, sc, '저장안내', '', 170, -76, 8, C_DIM, F_BODY, True, 0, w=150, h=24)
+    save_t = text(P, sc, '저장안내', '', 170, -76, 8, C_DIM, F_BODY, True, 0, w=150, h=24, bg=C_BOX)
     # 서버 점검: 실시간 리스트(짧은 글 · 긴 글 2000자)와 공유 리스트에 한 칸씩 써 본다.
     # 작품을 다시 열었을 때 칸 수가 남아 있으면 그 방식은 서버에 저장되는 것 (저장 문제 원인 찾기용)
     P.list('점검실시간', [], cloud='realtime', lid='rtck')
     P.list('점검실시간긴', [], cloud='realtime', lid='rtcl')
     P.list('점검공유', [], cloud='shared', lid='shck')
     P.var('_점검', '')
-    diag = text(P, sc, '서버점검글', '', -142, -114, 8, C_DIM, F_BODY, True, 1, w=176, h=24)
+    diag = text(P, sc, '서버점검글', '', -142, -114, 8, C_DIM, F_BODY, True, 1, w=176, h=24, bg=C_BOX)
     diag.on(on_run(), *G.live_write(diag, [setv('_점검', join('점검 실시간 ', LLEN('점검실시간'), '칸 · 긴 글 ', LLEN('점검실시간긴'),
                                                                  '칸\n공유 ', LLEN('점검공유'), '칸 (누르고 ■ → 다시 열기)'))], '_점검', 0.5))
     diag.on(on_scene(), *G.live_write(diag, [setv('_점검', join('점검 실시간 ', LLEN('점검실시간'), '칸 · 긴 글 ', LLEN('점검실시간긴'),
@@ -424,22 +426,29 @@ def scene_minigame_stub(idx):
 
 def build(dev_dir=None, out=None):
     import intro
-    intro.build(P, globals())
+    with K.theme('dark'):
+        intro.build(P, globals())
     scene_title()
     scene_story()
     scene_howto()
     scene_maps()
     CR.build_office(P, globals())
     import minigames
-    for i in range(1, N_PL + 1):
-        if not minigames.build_minigame(P, i, globals()):
-            scene_minigame_stub(i)
     import games2
-    games2.build_all(P, globals())
     import games3
-    games3.build_all(P, globals())
+    # 미니게임 놀이판은 어두운 테마 그대로 (게임 그림 위 흰 글자). 제목 띠·소개 창만 업비트 그림 (minigames.finish)
+    g = globals()
+    g['DIM'] = DIM_DARK
+    with K.theme('dark'):
+        for i in range(1, N_PL + 1):
+            if not minigames.build_minigame(P, i, g):
+                scene_minigame_stub(i)
+        games2.build_all(P, g)
+        games3.build_all(P, g)
+    g['DIM'] = DIM_UP
     scene_result()
-    ST.build(P, globals())
+    with K.theme('raw'):           # 거래소는 처음부터 업비트 색으로 만든 화면
+        ST.build(P, globals())
     E.build_group(P, globals())
     E.build_nego(P, globals())
     IV.build(P, globals())

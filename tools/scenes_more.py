@@ -7,7 +7,7 @@ from entrygen import *
 import ui_kit as K
 import gui as G
 from gui import text, sprite, panel, button, go, fmt_comma, fmt_money, round1, F_BODY, F_NUM
-from gui import C_WHITE, C_ACC, C_DIM, C_RED, C_BLUE, C_VIOLET, C_BOX
+from gui import C_WHITE, C_ACC, C_DIM, C_RED, C_BLUE, C_VIOLET, C_BOX, C_TRACK
 from art_common import save, ensure_out
 import data as D
 import scene_stock as ST
@@ -20,7 +20,9 @@ W, H = 960, 540
 
 
 # ------------------------------------------------------------------ 그림
-def _edge_glow(name, rgb, strength=200, inner=0.62):
+def _edge_glow(name, rgb, strength=200, inner=0.62, veil=True):
+    if K.THEME[0] == 'upbit':
+        return _u_edge(name, rgb, inner, veil)
     p = os.path.join(ensure_out(), name + '.png')
     if os.path.exists(p):
         return p
@@ -34,7 +36,29 @@ def _edge_glow(name, rgb, strength=200, inner=0.62):
     return p
 
 
+def _u_edge(name, rgb, inner, veil):
+    """업비트 테마: (veil 이면) 화면 전체 밝은 막 + 가장자리에 옅은 색 (어두운 배경 그림 위에서도 글자가 잘 보이게)."""
+    p = os.path.join(ensure_out(), name + ('_upbit.png' if veil else '_upbit_edge.png'))
+    if os.path.exists(p):
+        return p
+    col = (200, 74, 49) if rgb[0] > rgb[2] else (9, 54, 135)
+    m = Image.new('L', (W // 4, H // 4), 255)
+    ImageDraw.Draw(m).rounded_rectangle((W // 4 * (1 - inner) / 2, H // 4 * (1 - inner) / 2,
+                                         W // 4 * (1 + inner) / 2, H // 4 * (1 + inner) / 2), 30, fill=0)
+    m = m.resize((W, H), Image.BICUBIC).filter(ImageFilter.GaussianBlur(40)).point(lambda v: v * 70 // 255)
+    im = Image.new('RGBA', (W, H), (244, 245, 248, 222 if veil else 0))
+    edge = Image.new('RGBA', (W, H), col + (255,))
+    edge.putalpha(m)
+    im.alpha_composite(edge)
+    im.save(p)
+    return p
+
+
 def _tint(name, rgba):
+    if K.THEME[0] == 'upbit' and sum(rgba[:3]) < 150:
+        # 어둡게 덮는 막 → 밝은 막 (붉은 막은 연한 붉은색)
+        rgba = (251, 241, 239, 226) if rgba[0] > rgba[2] else (244, 245, 248, 222)
+        name += '_upbit'
     p = os.path.join(ensure_out(), name + '.png')
     if not os.path.exists(p):
         Image.new('RGBA', (W, H), rgba).save(p)
@@ -182,7 +206,7 @@ def scene_event(P, ctx):
     bg = G.bg(P, sc, ctx['PLACE_PICS'])
     bg.on(on_scene(), if_(lt(V('지역번호'), 1), setv('지역번호', 1)), shape(V('지역번호')))
     sprite(P, sc, '어둡게', ctx['DIM'], 0, 0)
-    vig = sprite(P, sc, '경보빛', _edge_glow('fx_alert_red_dim', (150, 10, 30), 150), 0, 0)
+    vig = sprite(P, sc, '경보빛', _edge_glow('fx_alert_red_dim', (150, 10, 30), 150, veil=False), 0, 0)
     vig.on(on_scene(), forever(rep(12, fx_add('transparency', 4), wait(0.03)), rep(12, fx_add('transparency', -4), wait(0.03))))
     ban = sprite(P, sc, '사건제목띠', K.banner('돌발상황!', 170, 36, 'red'), 0, 112)
     ban.on(on_scene(), rep(3, mvx(4), wait(0.03), mvx(-8), wait(0.03), mvx(4), wait(0.03)))
@@ -215,11 +239,19 @@ def scene_event(P, ctx):
             o.on(on_msg('사건결과'), hide())
         text(P, sc, '선택키%d' % k, '', -300, -300, 8, visible=False).on(on_key(48 + k), *pick)
         cards.append(c)
-    # 시간 막대
-    bars = K.bar_set('evt_time', 300, 7, 'red')
-    tb = sprite(P, sc, '결정시간', bars, 0, 8)
-    tb.on(on_scene(), show(), forever(shape(add(floor(mul(div(V('남은시간'), 12), 40)), 1)), wait(0.05)))
-    tb.on(on_msg('사건결과'), hide())
+    # 시간 막대 (붓으로 매끈하게) + 남은 초
+    BX0, BX1, BY = -150, 150, 8
+    tb = sprite(P, sc, '결정시간', K.icon_img('star', 2), 0, BY)
+    bar_draw = [pen_clear(), pen_size(6), pen_color(C_TRACK), xy(BX0, BY), pen_down(), xy(BX1, BY), pen_up(),
+                ifelse(gt(V('남은시간'), 4), [pen_color(C_ACC)], [pen_color(C_RED)]),
+                if_(gt(V('남은시간'), 0), xy(BX0, BY), pen_down(), xy(add(BX0, mul(div(V('남은시간'), 12), BX1 - BX0)), BY), pen_up()),
+                xy(-300, -300)]
+    tb.on(on_scene(), pen_up(), forever(*bar_draw, wait(0.05)))
+    tb.on(on_msg('사건결과'), pen_up(), pen_clear(), xy(-300, -300))
+    secs = text(P, sc, '남은초', '', BX1 + 30, BY, 9, C_WHITE, F_NUM, False, 0, w=48, h=14)
+    secs.on(on_scene(), show(), forever(write(join(ceil_(V('남은시간')), '초')),
+                                         ifelse(gt(V('남은시간'), 4), [text_color(C_WHITE)], [text_color(C_RED)]), wait(0.1)))
+    secs.on(on_msg('사건결과'), hide())
     hint = text(P, sc, '결정안내', '12초 안에 고르세요! (클릭 또는 1·2·3)  셋 중 하나는 반드시 안전해요. 어느 것일까?', 0, -98, 8,
                 C_DIM, F_BODY, True, 0, w=420, h=12)
     hint.on(on_msg('사건결과'), hide())
@@ -273,7 +305,7 @@ def scene_event(P, ctx):
            *shuffle_cards,
            cast('사건표시'),
            setv('남은시간', 12),
-           until(or_(le(V('남은시간'), 0), eq(V('결정됨'), 1)), wait(0.1), chg('남은시간', -0.1)),
+           until(or_(le(V('남은시간'), 0), eq(V('결정됨'), 1)), wait(0.083), chg('남은시간', -0.1)),
            if_(eq(V('결정됨'), 0), setv('결정됨', 1), setv('선택', 2), cast('사건선택')))
     sz = LGET('사건크기', V('이벤트'))
     liquidate = []

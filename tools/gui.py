@@ -16,6 +16,25 @@ C_RED = '#FF5C70'      # 오름(한국 증시 관례: 빨강)
 C_BLUE = '#5E8BFF'     # 내림(파랑)
 C_VIOLET = '#B094FF'
 C_BOX = '#0A0F24'      # 글상자 배경
+C_TRACK = '#20263F'    # 막대 바탕(붓)
+
+# 업비트 테마: 어두운 테마용 글자색을 밝은 판에 맞게 바꾼다 (ui_kit.THEME 이 'upbit' 일 때만)
+UPBIT_COLORS = {
+    '#ffffff': '#1F2329', '#aeb8d6': '#6B7280', '#7d97ff': '#093687', '#ff5c70': '#C84A31', '#5e8bff': '#1261C4',
+    '#b094ff': '#7B4BD1', '#0a0f24': '#FFFFFF', '#7cffb2': '#0E8C5A', '#20263f': '#E3E6EE', '#3d6bff': '#093687',
+    '#d42a46': '#C84A31', '#7a46e6': '#7B4BD1', '#ff3b55': '#C84A31', '#3f7bff': '#1261C4',
+}
+
+
+def tc(col):
+    """테마에 맞는 색 (업비트 테마면 어두운 테마 색을 밝은 판용으로)."""
+    if K.THEME[0] != 'upbit' or not isinstance(col, str):
+        return col
+    return UPBIT_COLORS.get(col.lower(), col)
+
+
+import entrygen as _eg
+_eg.COLOR_HOOK[0] = tc
 
 _names = {}
 
@@ -43,6 +62,7 @@ def text(P, scene, base, txt, x, y, size=12, color='#ffffff', font=F_BODY, bold=
          visible=True, bg=None):
     """글상자. w 를 주면 고정 폭(줄바꿈 모드), 주지 않으면 글자 길이에 맞춤."""
     fnt = '%dpx %s' % (size, font)
+    color, bg = tc(color), tc(bg)
     if w:
         return P.textbox(uname(scene, base), scene, txt, x=x, y=y, width=w, height=h or int(size * 1.6), bg=bg,
                          font=fnt, bold=bold, color=color, align=align, line_break=True, visible=visible)

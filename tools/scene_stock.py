@@ -60,7 +60,13 @@ REV_EMA = 0.01                  # 되돌림 기준선 = 주가의 느린 평균
 N_PICK = SPEC0 - 1              # 뉴스·급락이 고르는 종목 수 (지배 자본·특별주 빼고)
 N_COIN = SPEC0 - COIN0
 COIN_IDX = [i for i in range(1, N + 1) if KIND[i - 1] == 3]
-TABS = [('국내', 0, ND), ('해외', FOR0, len(D.FOREIGN)), ('코인', COIN0, len(D.COINS)), ('특별주', SPEC0, len(D2.SPECIALS))]
+# 화면 순서: 종목 번호(저장 칸)는 그대로 두고, 특별주만 시장 단계(특별주1) → 대통령 단계(특별주2) 순으로 보여 준다
+SPEC1 = [SPEC0 + j for j, (_, _, t) in enumerate(D2.SPECIALS, 1) if t == 2]
+SPEC2 = [SPEC0 + j for j, (_, _, t) in enumerate(D2.SPECIALS, 1) if t == 3]
+ORDER = list(range(1, SPEC0 + 1)) + SPEC1 + SPEC2
+# (이름, 표시 순서의 시작 위치, 개수, 열리는 단계)
+TABS = [('국내', 0, ND, 1), ('해외', FOR0, len(D.FOREIGN), 1), ('코인', COIN0, len(D.COINS), 1),
+        ('특별주1', SPEC0, len(SPEC1), 2), ('특별주2', SPEC0 + len(SPEC1), len(SPEC2), 3)]
 BTC = COIN0 + 1                 # 비트코인
 # 종목 성격 (market_data.TRAITS): 지배 자본·특별주는 비워 둔다
 TR = [MD.TRAITS.get(nm) if KIND[i] in (1, 2, 3) else None for i, nm in enumerate(NAMES)]
@@ -791,15 +797,20 @@ def build(P, ctx):
     note.on(on_msg('체결'), write(V('체결글')), to_front(), show(), wait(1.3), hide())
     P.list('단위', ['주', '주', '주', '개'])     # ifelse_kind: 1 국내/지배, 2 해외, 3 국내, 4 코인
 
-    # ---- 오른쪽: 탭 (국내 / 해외 / 코인 / 특별주)
+    # ---- 오른쪽: 탭 (국내 / 해외 / 코인 / 특별주1(시장 유세부터) / 특별주2(대통령 유세부터, 더 크게 출렁임))
     r0, r1 = L['right'][0], L['right'][1]
-    for k, (lbl, base, cnt) in enumerate(TABS, 1):
-        tb = sprite(P, sc, '탭%d' % k, SA.u_tab(lbl), r0 + 22.5 + (k - 1) * 45, L['tabs_y'])
-        locked = and_(eq(k, 4), lt(V('단계'), 2))
-        tb.on(on_msg('시세갱신'), ifelse(locked, [shape('lock')], [ifelse(eq(V('탭'), k), [shape('on')], [shape('off')])]))
-        act = [setv('탭', k), setv('탭기준', base), setv('탭개수', cnt), setv('선택종목', base + 1), cast('시세갱신')]
-        if k == 4:
-            act = [ifelse(lt(V('단계'), 2), [setv('체결글', '특별주는 세종시장 선거부터 열려요'), setv('체결성공', 0), cast('체결')], act)]
+    tw = (r1 - r0) / float(len(TABS))
+    P.list('표시순서', ORDER)
+    for k, (lbl, base, cnt, need) in enumerate(TABS, 1):
+        tb = sprite(P, sc, '탭%d' % k, SA.u_tab(lbl, int(tw) - 1), r0 + tw / 2 + (k - 1) * tw, L['tabs_y'])
+        act = [setv('탭', k), setv('탭기준', base), setv('탭개수', cnt), setv('선택종목', ORDER[base]), cast('시세갱신')]
+        if need > 1:
+            locked = lt(V('단계'), need)
+            tb.on(on_msg('시세갱신'), ifelse(locked, [shape('lock')], [ifelse(eq(V('탭'), k), [shape('on')], [shape('off')])]))
+            act = [ifelse(locked, [setv('체결글', '%s는 %s 선거부터 열려요' % (lbl, '세종시장' if need == 2 else '대통령')),
+                                   setv('체결성공', 0), cast('체결')], act)]
+        else:
+            tb.on(on_msg('시세갱신'), ifelse(eq(V('탭'), k), [shape('on')], [shape('off')]))
         tb.on(on_click(), *act)
 
     # ---- 조치원 지배 자본 띠 (게임 목표: 지분 50%)
@@ -833,7 +844,7 @@ def build(P, ctx):
     # ---- 종목 목록 (탭에 따라 바뀜, 최대 15줄): 줄 바탕 · 이름 · 현재가 · 전일대비 · 거래대금
     j = V('_rj')
     yj = sub(L['row0'], mul(sub(j, 1), L['row_h']))
-    idx = add(V('탭기준'), j)
+    idx = LGET('표시순서', add(V('탭기준'), j))
     on_tab = le(j, V('탭개수'))
     tile = sprite(P, sc, '시세칸', SA.u_row_set(), -300, -300, visible=False)
     tile.local('_lp', 0)
