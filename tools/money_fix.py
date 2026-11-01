@@ -12,6 +12,7 @@
      마지막 장면이 타이틀 로고와 같은 자리라서 덮개가 걷히면 그대로 타이틀로 이어진다.
   3) rawslim 으로 같은 코드 → 함수, 값만 다른 코드 → 매개변수 함수 …
 """
+import collections
 import hashlib
 import io
 import json
@@ -422,10 +423,158 @@ def compact_candles(proj):
     return saved
 
 
+# ------------------------------------------------------------------ 차트: 고가·저가 기록 대신 계산
+def _label_of(f):
+    h = f.get('raw_head') or {}
+    try:
+        return h['params'][0]['params'][0]
+    except (KeyError, IndexError, TypeError):
+        return None
+
+
+def chart_wicks(RP, proj):
+    """봉고가·봉저가 1~7 (종목 413개 × 80일, 리스트 14개 · 약 1.2MB) 를 없애고,
+    차트 봉 계산 때 앞날 종가·오늘 종가와 종목 변동성으로 꼬리 길이를 정한다
+    (원래도 '변동성 × 0.6 × 0~1 사이 무작위'였음 → 칸·종목마다 정해진 0~1 값으로)."""
+    from entrygen import floor, div, mod, LGET, lst_set
+    V_ = {v['name']: v for v in proj['variables']}
+    hl = {V_['봉%s가%d' % (k, c)]['id'] for k in ('고', '저') for c in range(1, 8)}
+    f = next(f for f in RP.functions if _label_of(f) == '차트 봉 계산')
+    body = [setv('_crc', floor(div(sub(V('선택'), 1), 62))),
+            setv('_crb', mul(mod(sub(V('선택'), 1), 62), 80)),
+            setv('_crs', LGET('봉배율', V('선택'))),
+            setv('_crw', mul(LGET('일변동성', V('선택')), 0.6))]
+    for c in range(7):
+        unit = []
+        for _ in range(20):
+            unit += [lst_set('차트링C', V('_crj'), mul(LGET('봉종가%d' % (c + 1), add(V('_crb'), V('_crj'))), V('_crs'))),
+                     chg('_crj', 1)]
+        body.append(if_(eq(V('_crc'), c), setv('_crj', 1), rep(4, *unit)))
+    unit = []
+    for _ in range(20):
+        unit += [setv('_crq', LGET('차트링C', V('_crj'))),
+                 setv('_crp', LGET('차트링C', add(mod(add(V('_crj'), 78), 80), 1))),
+                 setv('_crh', V('_crq')), if_(gt(V('_crp'), V('_crh')), setv('_crh', V('_crp'))),
+                 setv('_crl', V('_crq')), if_(lt(V('_crp'), V('_crl')), setv('_crl', V('_crp'))),
+                 lst_set('차트링H', V('_crj'), mul(V('_crh'), add(1, mul(div(mod(add(mul(V('_crj'), 37), mul(V('선택'), 101)), 100), 100), V('_crw'))))),
+                 lst_set('차트링L', V('_crj'), mul(V('_crl'), sub(1, mul(div(mod(add(mul(V('_crj'), 53), mul(V('선택'), 67)), 100), 100), V('_crw'))))),
+                 chg('_crj', 1)]
+    body += [setv('_crj', 1), rep(4, *unit)]
+    f['body'] = body
+    # 매일 갱신 코드의 고가·저가 기록 쓰기 빼기
+    removed = [0]
+
+    def strip(lst):
+        keep = []
+        for b in lst:
+            if isinstance(b, dict) and b.get('type') in ('change_value_list_index', 'add_value_to_list',
+                                                          'insert_value_to_list', 'remove_value_from_list') \
+                    and any(isinstance(q, str) and q in hl for q in b.get('params') or []):
+                removed[0] += 1
+                continue
+            if isinstance(b, dict):
+                for st in b.get('statements') or []:
+                    st[:] = strip(st)
+            keep.append(b)
+        return keep
+    for o in RP.objects:
+        for sc in o.scripts:
+            sc[1:] = strip(sc[1:])
+    for g in RP.functions:
+        if g is not f and g.get('body'):
+            g['body'][:] = strip(g['body'])
+    left = json.dumps([o.scripts for o in RP.objects] + [g.get('body') for g in RP.functions], ensure_ascii=False, default=str)
+    assert not any(('"%s"' % i) in left for i in hl), '고가·저가 기록이 아직 쓰임'
+    proj['variables'][:] = [v for v in proj['variables'] if v['id'] not in hl]
+    return removed[0]
+
+
+def dead_stores(RP, proj, log=print):
+    """어디서도 읽지 않는 변수: 그 변수에 값을 넣는 블록(부작용 없는 계산일 때)과 변수 자체를 지운다."""
+    import varparam
+    varparam.resolve_refs(RP)
+    keepv = {v['id'] for v in proj['variables'] if v.get('isRealTime') or v.get('isCloud') or v.get('visible')}
+    scal = {v['id'] for v in proj['variables'] if v.get('variableType') == 'variable' and not v.get('object')}
+    scal |= {vid for vid, _ in RP.new_vars.values()}
+    total = 0
+    while True:
+        cnt = collections.Counter()
+        writes = collections.Counter()
+
+        def count(b):
+            ps = b.get('params') or []
+            for i, q in enumerate(ps):
+                if isinstance(q, str) and q in scal:
+                    if i == 0 and b.get('type') in ('set_variable', 'change_variable'):
+                        writes[q] += 1
+                    else:
+                        cnt[q] += 1
+        for o in RP.objects:
+            varparam._walk(o.scripts, count)
+        for g in RP.functions:
+            varparam._walk(g.get('body') or [], count)
+            if isinstance(g.get('value'), dict):
+                varparam._walk(g['value'], count)
+        dead = {v for v in scal if cnt[v] == 0 and v not in keepv}
+        n = [0]
+
+        def pure(b):
+            ok = [True]
+
+            def fn(x):
+                t = x.get('type', '')
+                if t.startswith('func_') or t in ('ask_and_wait', 'get_canvas_input_value'):
+                    ok[0] = False
+            varparam._walk(b, fn)
+            return ok[0]
+
+        def strip(lst):
+            keep = []
+            for b in lst:
+                if isinstance(b, dict):
+                    t = b.get('type')
+                    ps = b.get('params') or []
+                    if t in ('set_variable', 'change_variable') and ps and ps[0] in dead and pure(b):
+                        n[0] += 1
+                        continue
+                    for st in b.get('statements') or []:
+                        st[:] = strip(st)
+                    if t == '_if' and not any((b.get('statements') or [[]])) and pure(ps[0] if ps else None or {}):
+                        n[0] += 1
+                        continue
+                keep.append(b)
+            return keep
+        for o in RP.objects:
+            for sc in o.scripts:
+                sc[1:] = strip(sc[1:])
+        for g in RP.functions:
+            if g.get('body') is not None and g.get('value') != 'RAW':
+                g['body'][:] = strip(g['body'])
+        total += n[0]
+        if not n[0]:
+            break
+    # 아무 데도 안 나오는 변수 정의 지우기
+    every = json.dumps([o.scripts for o in RP.objects] + [g.get('body') for g in RP.functions] +
+                       [g.get('value') for g in RP.functions if isinstance(g.get('value'), dict)],
+                       ensure_ascii=False, default=str)
+    gone = [v for v in proj['variables'] if v['variableType'] == 'variable' and not v.get('object')
+            and v['id'] not in keepv and ('"%s"' % v['id']) not in every]
+    gid = {v['id'] for v in gone}
+    proj['variables'][:] = [v for v in proj['variables'] if v['id'] not in gid]
+    for nm in [k for k, (vid, _) in RP.new_vars.items() if ('"%s"' % vid) not in every]:
+        del RP.new_vars[nm]
+    log('· 읽히지 않는 변수에 넣는 블록 %d개, 변수 %d개 지움' % (total, len(gone)))
+    return total, len(gone)
+
+
 def main(src_temp, out_dir, do_slim=True):
     proj = json.load(open(os.path.join(src_temp, 'project.json'), encoding='utf-8'))
     before = rawslim.count_blocks(proj)
     RP = RawProject(proj)
+    if do_slim:
+        import clonemerge
+        rawslim.pictures_as_names(RP)
+        clonemerge.clone_merge(RP)
     add_vars(RP, proj, [('_인트로', '0'), ('_인트로y', '0'), ('_인트로v', '0'), ('_저장초', '0'),
                         ('랭킹요청', '0'), ('_내계정', '')])
     out_temp = os.path.join(out_dir, 'temp')
@@ -442,8 +591,16 @@ def main(src_temp, out_dir, do_slim=True):
     print('· 인트로 그림 %.1fKB' % (art_bytes / 1024))
     print('· 하루 진행 코드 수정', edit_functions(RP))
     print('· 저장 지킴이 붙인 장면 %d개' % len(add_save_guard(RP, proj)))
+    add_vars(RP, proj, [(n, '0') for n in ('_crw', '_crq', '_crp', '_crh', '_crl')])
+    print('· 차트 고가·저가 기록 리스트 14개 → 계산 (쓰기 블록 %d개 뺌)' % chart_wicks(RP, proj))
+    dead_stores(RP, proj)
     if do_slim:
+        import varparam
         rawslim.run_slim(RP)
+        varparam.run(RP)
+        varparam.tidy_params(RP)
+        rawslim.run_slim(RP, rounds=2)
+        varparam.tidy_params(RP)
     out = RP.to_json()
     print('· 차트 기록 숫자 줄임 %.0fKB' % (compact_candles(out) / 1024))
     print('블록: %d → %d' % (before, rawslim.count_blocks(out)))
