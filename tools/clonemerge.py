@@ -52,7 +52,7 @@ class Shape:
         parts = []
         for i, q in enumerate(ps):
             if i == 0 and t in VW and isinstance(q, str) and q in self.scal:
-                cb('write', b, 0, b)
+                cb('write' if t == 'set_variable' else 'rw', parent, idx, b)
                 parts.append('V')
             elif isinstance(q, dict):
                 parts.append(self.sig(q, cb, ps, i, st))
@@ -181,18 +181,16 @@ def clone_merge(RP, min_gain=1500, log=print):
             is_private = all(var_objs[v] == {m['id']} and v not in var_in_func for v, m in zip(vals, members))
             if is_private:
                 private.append((js, vals))
-            elif roles == {'read'}:
-                shared.append((js, vals))
             else:
-                ok = False
-                break
+                shared.append((js, vals, roles))
         if not ok:
             continue
         # 이득 어림: 지워지는 오브젝트(그림 목록 포함) + 코드 한 벌 − 복제 블록·리스트·고르기 함수
         obj_bytes = sum(len(json.dumps(dict(m, script=''), ensure_ascii=False)) for m in members[1:])
         nblocks = sum(EG_count(robj[id(m)].scripts) for m in members[1:])
         spawn_cost = 10 if N > 4 else 3 * (N - 1) + 2
-        cost = 200 * (spawn_cost + 8 + 6 * N * len(shared) + 2 * len(lit_vary)) + 20 * N * (len(lit_vary) + 5)
+        n_disp = sum(1 + (1 if (r & {'write', 'rw'}) else 0) for _, _, r in shared)
+        cost = 200 * (spawn_cost + 8 + 6 * N * n_disp + 2 * len(lit_vary)) + 20 * N * (len(lit_vary) + 5)
         gain = obj_bytes - cost          # 코드는 줄이기 단계에서 이미 짧아지므로 오브젝트 몫만 셈
         if gain < min_gain * (N - 1):
             continue
@@ -226,7 +224,18 @@ def clone_merge(RP, min_gain=1500, log=print):
             for j in js:
                 loc[j] = nid
         disp = {}
-        for n, (js, vals) in enumerate(shared):
+        setter = {}
+        for n, (js, vals, roles) in enumerate(shared):
+            if roles & {'write', 'rw'}:
+                sid = EG.new_id()
+                pk, pv = 'stringParam_' + EG.new_id(), 'stringParam_' + EG.new_id()
+                sbody = [{'type': '_if', 'params': [{'type': 'boolean_basic_operator', 'params': [
+                            {'type': pk, 'params': []}, 'EQUAL', {'type': 'number', 'params': [str(i + 1)]}]}, None],
+                          'statements': [[{'type': 'set_variable', 'params': [v, {'type': pv, 'params': []}, None],
+                                           'statements': []}]]} for i, v in enumerate(vals)]
+                RP.functions.append(dict(id=sid, name='칸넣기_%s_%d' % (tag, n), body=sbody, params=[pk, pv]))
+                for j in js:
+                    setter[j] = sid
             fid = EG.new_id()
             pt = 'stringParam_' + EG.new_id()
             tmp = EG.new_id()
@@ -259,7 +268,15 @@ def clone_merge(RP, min_gain=1500, log=print):
             blk['params'][0] = nid
         for j, fid in disp.items():
             kind, cont, i, blk = pos[j]
-            cont[i] = {'type': 'func_' + fid, 'params': [copy.deepcopy(kget)]}
+            if kind == 'read':
+                cont[i] = {'type': 'func_' + fid, 'params': [copy.deepcopy(kget)]}
+            else:
+                # 값 넣기 → '칸넣기(칸, 값)' (바꾸기는 '칸고르기(칸) + 값')
+                val = blk['params'][1]
+                if kind == 'rw':
+                    val = {'type': 'calc_basic', 'params': [{'type': 'func_' + fid, 'params': [copy.deepcopy(kget)]},
+                                                            'PLUS', val]}
+                cont[i] = {'type': 'func_' + setter[j], 'params': [copy.deepcopy(kget), val, None], 'statements': []}
         # 칸마다 다른 위치·모양·보이기
         props = []
         es = [m['entity'] for m in members]
@@ -362,5 +379,4 @@ def _overlap(a, b):
     """두 오브젝트의 처음 자리 상자가 겹치나 (조금 여유를 둠)."""
     x1, x2, y1, y2 = _bbox(a)
     u1, u2, v1, v2 = _bbox(b)
-    pad = 2
-    return not (x2 + pad <= u1 or u2 + pad <= x1 or y2 + pad <= v1 or v2 + pad <= y1)
+    return not (x2 <= u1 or u2 <= x1 or y2 <= v1 or v2 <= y1)

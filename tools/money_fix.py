@@ -411,6 +411,26 @@ def short_num(x, sig=4):
     return s if len(s) < len(str(x)) else str(x)
 
 
+def numeric_lists(proj):
+    """리스트 칸의 숫자 글자('1724', '0', '0.9755')를 숫자로 저장 (따옴표 두 개씩 덜 씀). 실시간 리스트는 그대로.
+    값을 그대로 다시 쓸 수 있는 꼴(앞자리 0·끝자리 0 없음)만 바꾼다."""
+    import re
+    pat = re.compile(r'^-?(0|[1-9][0-9]{0,14})(\.[0-9]{0,9}[1-9])?$')
+    n = 0
+    for v in proj['variables']:
+        if v.get('variableType') != 'list' or v.get('isRealTime') or v.get('isCloud'):
+            continue
+        for it in v.get('array') or []:
+            d = it.get('data')
+            if isinstance(d, str) and pat.match(d):
+                it['data'] = int(d) if '.' not in d else float(d)
+                if isinstance(it['data'], float) and repr(it['data']) != d:
+                    it['data'] = d
+                    continue
+                n += 1
+    return n
+
+
 def compact_candles(proj):
     """봉고가·봉저가·봉종가 N (종목별 80일 차트 기록, 약 10만 칸): 그림 그리기에만 쓰이므로 유효숫자 4자리로."""
     saved = 0
@@ -567,7 +587,100 @@ def dead_stores(RP, proj, log=print):
     return total, len(gone)
 
 
-def main(src_temp, out_dir, do_slim=True):
+# ------------------------------------------------------------------ CYW GAMES 제작사 인트로 (군수집과 같은 영상)
+def _canon(b):
+    """id·위치를 뺀 블록 모양 (같은 코드인지 비교용)."""
+    if isinstance(b, dict):
+        return '%s(%s){%s}' % (b.get('type'), ','.join(_canon(x) for x in b.get('params') or []),
+                               ';'.join(','.join(_canon(s) for s in st) for st in b.get('statements') or []))
+    if isinstance(b, list):
+        return '[' + ','.join(_canon(x) for x in b) + ']'
+    return repr(b)
+
+
+def add_cyw_intro(RP, proj, out_temp):
+    """군수집에 넣었던 'CYW GAMES' 제작사 영상(200장 + 소리, 클릭·스페이스로 건너뛰기)을 맨 앞 장면으로 넣는다.
+    영상이 끝나면 타이틀 장면으로 가고, 타이틀에서는 money game 로고 인트로가 이어진다.
+    엔트리의 '시작하기를 클릭했을 때'는 첫 장면 오브젝트에서만 실행되므로 타이틀의 그 코드는
+      - 같은 내용의 '장면이 시작되었을 때' 코드가 이미 있으면 지우고 (두 번 돌지 않게)
+      - 없으면 '장면이 시작되었을 때 + 처음 한 번만'으로 옮긴다."""
+    import add_intro as AI
+    iproj, ifiles = AI._intro_project()
+    tgt = next(s['id'] for s in iproj['scenes'] if s['name'] == AI.TARGET)
+    isid = next(s['id'] for s in iproj['scenes'] if s['name'] == '인트로')
+    title = proj['scenes'][0]['id']
+    assert proj['scenes'][0]['name'] == '타이틀'
+    names = {v['name'] for v in proj['variables']} | set(RP.new_vars)
+    for v in iproj['variables']:
+        if v['variableType'] in ('timer', 'answer'):
+            continue
+        assert v['name'] not in names, '변수 이름 겹침: ' + v['name']
+        proj['variables'].append(v)
+    have = {m['id'] for m in proj['messages']}
+    for m in iproj.get('messages', []):
+        if m['id'] not in have:
+            proj['messages'].append(m)
+    objs = []
+    for o in iproj['objects']:
+        if o['scene'] != isid:
+            continue
+        o = dict(o)
+        sc = o['script'] if isinstance(o['script'], str) else json.dumps(o['script'], ensure_ascii=False)
+        o['script'] = sc.replace('"%s"' % tgt, '"%s"' % title)
+        objs.append(o)
+    # 타이틀의 시작 버튼 코드 정리
+    dropped = moved = 0
+    flag = EG.new_id()
+    first_obj = None
+    for ro in RP.objects:
+        if ro.raw['scene'] != title:
+            continue
+        first_obj = first_obj or ro
+        starts = {_canon(th[1:]) for th in ro.scripts if th and th[0].get('type') == 'when_scene_start'}
+        new = []
+        for th in ro.scripts:
+            if th and th[0].get('type') == 'when_run_button_click':
+                if _canon(th[1:]) in starts:
+                    dropped += 1
+                    continue
+                cond = {'type': 'boolean_basic_operator', 'params': [
+                    {'type': 'get_variable', 'params': [flag, None]}, 'EQUAL', {'type': 'number', 'params': ['0']}]}
+                th = [{'type': 'when_scene_start', 'params': [None]},
+                      {'type': '_if', 'params': [cond, None], 'statements': [th[1:]]}]
+                moved += 1
+            new.append(th)
+        ro.scripts = new
+    proj['variables'].append(dict(name='_첫타이틀끝', id=flag, visible=False, value=0, variableType='variable',
+                                  isCloud=False, isRealTime=False, cloudDate=False, object=None, x=0, y=0, array=[]))
+    # 타이틀에 처음 들어오고 0.2초 뒤 '처음' 표시를 끈다 (설정에서 돌아올 때는 다시 안 함)
+    first_obj.scripts.append([{'type': 'when_scene_start', 'params': [None]},
+                              {'type': 'wait_second', 'params': [{'type': 'number', 'params': ['0.2']}, None]},
+                              {'type': 'set_variable', 'params': [flag, {'type': 'number', 'params': ['1']}, None]}])
+    proj['scenes'].insert(0, next(s for s in iproj['scenes'] if s['id'] == isid))
+    proj['objects'][0:0] = objs
+    for o in objs:
+        RP.objects.append(RObj(o, '인트로'))
+    # 영상 그림·소리 파일 (원본 폴더와 앞 두 글자가 같으면 연결 대신 실제 폴더로 바꾼 뒤 넣는다)
+    nbytes = 0
+    for path, data in ifiles.items():
+        if path == 'temp/project.json':
+            continue
+        rel = os.path.relpath(path, 'temp')
+        top = os.path.join(out_temp, rel.split(os.sep)[0])
+        if os.path.islink(top):
+            real = os.readlink(top)
+            os.unlink(top)
+            shutil.copytree(real, top)
+        dst = os.path.join(out_temp, rel)
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        with open(dst, 'wb') as fp:
+            fp.write(data)
+        nbytes += len(data)
+    print('· CYW GAMES 인트로 장면 추가 (파일 %.1fMB) · 시작 버튼 코드: 겹쳐서 지움 %d, 처음 한 번으로 옮김 %d'
+          % (nbytes / 1e6, dropped, moved))
+
+
+def main(src_temp, out_dir, do_slim=True, cyw=True):
     proj = json.load(open(os.path.join(src_temp, 'project.json'), encoding='utf-8'))
     before = rawslim.count_blocks(proj)
     RP = RawProject(proj)
@@ -594,15 +707,23 @@ def main(src_temp, out_dir, do_slim=True):
     add_vars(RP, proj, [(n, '0') for n in ('_crw', '_crq', '_crp', '_crh', '_crl')])
     print('· 차트 고가·저가 기록 리스트 14개 → 계산 (쓰기 블록 %d개 뺌)' % chart_wicks(RP, proj))
     dead_stores(RP, proj)
+    if cyw:
+        add_cyw_intro(RP, proj, out_temp)
     if do_slim:
         import varparam
+        rawslim.MIN_STMT, rawslim.MIN_SEQ = 3, 4
         rawslim.run_slim(RP)
+        os.environ.setdefault('VP_W', '12')
         varparam.run(RP)
         varparam.tidy_params(RP)
         rawslim.run_slim(RP, rounds=2)
         varparam.tidy_params(RP)
+        varparam.inline_small(RP)
+        rawslim.run_slim(RP, rounds=1)
+        varparam.tidy_params(RP)
     out = RP.to_json()
     print('· 차트 기록 숫자 줄임 %.0fKB' % (compact_candles(out) / 1024))
+    print('· 리스트 숫자 칸 %d개 → 숫자로' % numeric_lists(out))
     print('블록: %d → %d' % (before, rawslim.count_blocks(out)))
     # 새 그림을 temp 아래로 (같은 앞 두 글자 폴더가 원본에 있으면 그 안에 넣어야 하므로 실제 폴더로 풀어 둔다)
     for d in os.listdir(new_art):
@@ -624,4 +745,4 @@ def main(src_temp, out_dir, do_slim=True):
 
 if __name__ == '__main__':
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
-    main(args[0], args[1], do_slim='--no-slim' not in sys.argv)
+    main(args[0], args[1], do_slim='--no-slim' not in sys.argv, cyw='--no-cyw' not in sys.argv)

@@ -231,22 +231,33 @@ class VarParam:
                 for w in range(1, self.max_w + 1):
                     if i + w > n:
                         break
-                    sig, sl, bad, cl, sz, tm = self.stmt_info(L[i + w - 1])
-                    if bad or sig is None or (tm and tm != {owner}):
+                    b = L[i + w - 1]
+                    sig, sl, bad, cl, sz, tm = self.stmt_info(b)
+                    tail = False
+                    if bad and w > 1 and self._tail_wait(b):
+                        tail = True          # 맨 끝의 '기다리기(숫자)'는 함수 안으로 넣어도 같다 (바꾸는 변수 없을 때만)
+                    elif bad or sig is None or (tm and tm != {owner}):
                         break
                     sigs.append(sig)
                     slots.extend(sl)
                     calls |= cl
                     tot += sz
-                    if tot < 4:
-                        continue
-                    vs = [s[1] for s in slots if s[0] == 'var']
-                    if not vs:
-                        continue
-                    pat = tuple(vs.index(v) for v in vs)
-                    groups[('|'.join(sigs), pat)].append((L, i, w, tot, tuple(slots), frozenset(calls),
-                                                         tuple(L[i:i + w])))
+                    if tot >= 4:
+                        vs = [s[1] for s in slots if s[0] == 'var']
+                        if vs:
+                            pat = tuple(vs.index(v) for v in vs)
+                            groups[('|'.join(sigs), pat, tail)].append((L, i, w, tot, tuple(slots), frozenset(calls),
+                                                                       tuple(L[i:i + w])))
+                    if tail:
+                        break
         return groups
+
+    @staticmethod
+    def _tail_wait(b):
+        if not isinstance(b, dict) or b.get('type') != 'wait_second':
+            return False
+        a = (b.get('params') or [None])[0]
+        return isinstance(a, dict) and a.get('type') in ('number', 'text') and not isinstance((a.get('params') or [None])[0], dict)
 
     # ---- 한 묶음 평가
     def plan(self, key, occ):
@@ -341,7 +352,7 @@ class VarParam:
                 continue
             lit_vary, vary_cls, wcls, rcls, ok = pl
             form = self.form_of(wcls)
-            if form is None or len(ok) < 2:
+            if form is None or len(ok) < 2 or (key[2] and form != 'plain'):
                 continue
             g = self.cost(ok[0][3], len(ok), len(lit_vary), len(rcls), len(wcls), form)
             if g >= self.min_gain:
@@ -374,7 +385,7 @@ class VarParam:
                 continue
             lit_vary, vary_cls, wcls, rcls, live = pl
             form = self.form_of(wcls)
-            if form is None or len(live) < 2:
+            if form is None or len(live) < 2 or (key[2] and form != 'plain'):
                 continue
             if len(lit_vary) + len(rcls) + len(wcls) > self.max_params:
                 continue
@@ -506,8 +517,9 @@ class VarParam:
 
 
 def run(RP, rounds=6, log=print):
+    import os
     resolve_refs(RP)
-    vp = VarParam(RP)
+    vp = VarParam(RP, max_w=int(os.environ.get('VP_W', '8')))
     for r in range(rounds):
         made, gain = vp.run_round()
         log('· 변수까지 매개변수로: 함수 %d개 (약 %d블록)' % (made, gain))
@@ -629,3 +641,124 @@ def tidy_params(RP, log=print):
             c['params'] = [c['params'][j] for j in keep] + tail
     log('· 늘 같은 값끼리 넘기는 매개변수 %d개 합침, 늘 같은 값인 매개변수 %d개 없앰' % (merged, consts))
     return merged, consts
+
+
+def inline_small(RP, log=print, rounds=6):
+    """함수로 두는 것보다 부르는 자리에 풀어 넣는 쪽이 블록이 적으면 풀어 넣는다.
+    넘기는 값이 숫자·글자·(부른 함수의) 매개변수이거나, 함수 안에서 바꾸지 않는 변수 읽기일 때만
+    (그 함수에 기다림이 없을 때) — 그래야 '부를 때 계산한 값'과 '풀어 넣은 자리에서 읽은 값'이 같다."""
+    total = made = 0
+    for _ in range(rounds):
+        vp = VarParam(RP)
+        vp.func_info()
+        NOINL = {'stop_repeat', 'continue_repeat', 'stop_object', 'stop_run', 'restart_project'}
+
+        def plain_ok(f):
+            hit = [False]
+            _walk(f.get('body') or [], lambda x: hit.__setitem__(0, True) if x.get('type') in NOINL else None)
+            return not hit[0]
+        funcs = {f['id']: f for f in RP.functions
+                 if f.get('value') in (None, 'USER') and f.get('body') is not None and plain_ok(f)}
+        sites = {fid: [] for fid in funcs}
+
+        def scan(stmts, owner):
+            for i, b in enumerate(stmts):
+                if isinstance(b, dict):
+                    t = str(b.get('type', ''))
+                    if t.startswith('func_') and t[5:] in sites:
+                        sites[t[5:]].append((stmts, b, owner))
+                    for st in b.get('statements') or []:
+                        scan(st, owner)
+
+        def scan_expr(x, owner, bad):
+            # 값 자리에서 부르는 것(값 함수 아님)이 있으면 풀 수 없음 표시
+            if isinstance(x, dict):
+                t = str(x.get('type', ''))
+                if t.startswith('func_') and t[5:] in sites:
+                    bad.add(t[5:])
+                for q in x.get('params') or []:
+                    scan_expr(q, owner, bad)
+                for st in x.get('statements') or []:
+                    for s in st:
+                        for q in s.get('params') or []:
+                            scan_expr(q, owner, bad)
+        bad_expr = set()
+        for o in RP.objects:
+            for sc in o.scripts:
+                scan(sc, None)
+                for b in sc:
+                    if isinstance(b, dict):
+                        for q in b.get('params') or []:
+                            scan_expr(q, None, bad_expr)
+        for f in RP.functions:
+            scan(f.get('body') or [], f['id'])
+        n_round = 0
+        removed = set()
+        touched = set()
+        for fid, f in funcs.items():
+            cs = sites[fid]
+            if not cs or fid in bad_expr or fid in touched:
+                continue
+            if any(owner == fid or owner in removed for _, _, owner in cs):
+                continue
+            ptypes = list(f.get('params') or [])
+            m = len(ptypes)
+            info = vp.info.get(fid)
+            if info is None:
+                continue
+            fr, fw, fy, _ = info
+            uses = collections.Counter()
+            _walk(f['body'], lambda x: uses.__setitem__(x['type'], uses[x['type']] + 1) if x.get('type') in ptypes else None)
+
+            def safe(a):
+                if not isinstance(a, dict):
+                    return a is None
+                t = a.get('type', '')
+                if t in ('number', 'text') and not isinstance((a.get('params') or [None])[0], dict):
+                    return True
+                if t.startswith(('stringParam_', 'booleanParam_')):
+                    return True
+                if t == 'get_variable' and not fy:
+                    v = (a.get('params') or [None])[0]
+                    return isinstance(v, str) and v not in fw and not v.startswith(TMP)
+                return False
+            ok = all(len(c.get('params') or []) >= m and all(safe(a) for a in c['params'][:m]) for _, c, _ in cs)
+            if not ok:
+                continue
+            B = _size(f['body'])
+            cur = (2 + 2 * m) + B + sum(1 + sum(_size(a) for a in c['params'][:m]) for _, c, _ in cs)
+            inl = sum(B + sum(uses[pt] * (_size(c['params'][j]) - 1) for j, pt in enumerate(ptypes)) for _, c, _ in cs)
+            if inl >= cur:
+                continue
+            for stmts, c, owner in cs:
+                args = {pt: c['params'][j] for j, pt in enumerate(ptypes)}
+                body = copy.deepcopy(f['body'])
+
+                def sub(x):
+                    if isinstance(x, dict):
+                        ps = x.get('params') or []
+                        for i, q in enumerate(ps):
+                            if isinstance(q, dict) and q.get('type') in args:
+                                ps[i] = copy.deepcopy(args[q['type']])
+                            else:
+                                sub(q)
+                        for st in x.get('statements') or []:
+                            for y in st:
+                                sub(y)
+                for b in body:
+                    sub(b)
+                i0 = next((k for k, x in enumerate(stmts) if x is c), None)
+                if i0 is None:
+                    continue
+                stmts[i0:i0 + 1] = body
+                touched.add(owner)
+            removed.add(fid)
+            touched.add(fid)
+            total += cur - inl
+            n_round += 1
+        if not n_round:
+            break
+        RP.functions[:] = [f for f in RP.functions if f['id'] not in removed]
+        made += n_round
+    log('· 부르는 자리에 풀어 넣은 함수 %d개 (약 %d블록)' % (made, total))
+    return made, total
