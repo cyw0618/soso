@@ -32,7 +32,11 @@ from entrygen import (B, V, t, setv, chg, wait, rep, forever, if_, ifelse, eq, n
 import rawslim  # noqa: E402
 from rawslim import RawProject, RObj  # noqa: E402
 
-LOGO_FILE = '7d35382406daa4bd4ff4f3e5ec7be7a2'      # 타이틀로고 그림 (720x192, 무대 (0,78) 0.5배)
+LOGO_FILE = '7d35382406daa4bd4ff4f3e5ec7be7a2'
+# 원본 작품 함수 id (작품을 다시 만들면 id 가 바뀌므로 main 에서 이름표로 다시 찾는다)
+FID = {'g16v': 'g16v', '5fgy': '5fgy', 'gbq9': 'gbq9', 'lmmy': 'lmmy', 'i7z0': 'i7z0', '9j92': '9j92'}
+FLABEL = {'g16v': '부가 경제 하루 갱신', '5fgy': '새로 시작하기', 'gbq9': '이어하기', 'lmmy': '실시간 저장',
+          'i7z0': '저장 슬롯 찾기', '9j92': '랭킹 값 올리기'}      # 타이틀로고 그림 (720x192, 무대 (0,78) 0.5배)
 
 
 def stage_of(px, py):
@@ -314,10 +318,10 @@ def save_guard():
             ifelse(eq(V('저장요청'), 1),
                    [setv('_저장초', 0),
                     # 처음 시작할 때 서버가 느려 저장 칸을 못 받았으면 다시 찾는다 (내 계정 키일 때만)
-                    if_(and_(eq(V('저장슬롯'), 0), eq(V('계정키'), V('_내계정'))), func('i7z0')),
-                    ifelse(gt(V('저장슬롯'), 0), [func('lmmy'), verify],
+                    if_(and_(eq(V('저장슬롯'), 0), eq(V('계정키'), V('_내계정'))), func(FID['i7z0'])),
+                    ifelse(gt(V('저장슬롯'), 0), [func(FID['lmmy']), verify],
                            [setv('저장상태', '⚠ 저장 칸을 찾는 중… (인터넷 연결 확인)'), wait(2)])],
-                   [if_(eq(V('랭킹요청'), 1), setv('랭킹요청', 0), func('9j92'))])))]
+                   [if_(eq(V('랭킹요청'), 1), setv('랭킹요청', 0), func(FID['9j92']))])))]
 
 
 def walk_lists(blocks, fn):
@@ -339,15 +343,15 @@ def edit_functions(RP):
         i = 0
         while i < len(lst):
             b = lst[i]
-            if isinstance(b, dict) and b.get('type') == 'func_lmmy':
+            if isinstance(b, dict) and b.get('type') == 'func_' + FID['lmmy']:
                 del lst[i]
                 cnt['lmmy'] += 1
                 continue
-            if isinstance(b, dict) and b.get('type') == 'func_9j92':
+            if isinstance(b, dict) and b.get('type') == 'func_' + FID['9j92']:
                 lst[i] = setv('랭킹요청', 1)
                 cnt['9j92'] += 1
             i += 1
-    walk_lists(F['g16v']['body'], day)
+    walk_lists(F[FID['g16v']]['body'], day)
 
     # 새로 시작하기(5fgy)·이어하기(gbq9): 로그인 성공 순간의 계정 키를 기억
     def login(lst):
@@ -361,8 +365,8 @@ def edit_functions(RP):
                     cnt['login'] += 1
                     i += 1
             i += 1
-    walk_lists(F['5fgy']['body'], login)
-    walk_lists(F['gbq9']['body'], login)
+    walk_lists(F[FID['5fgy']]['body'], login)
+    walk_lists(F[FID['gbq9']]['body'], login)
     assert cnt == {'lmmy': 1, '9j92': 1, 'login': 2}, cnt
     return cnt
 
@@ -684,6 +688,9 @@ def main(src_temp, out_dir, do_slim=True, cyw=True):
     proj = json.load(open(os.path.join(src_temp, 'project.json'), encoding='utf-8'))
     before = rawslim.count_blocks(proj)
     RP = RawProject(proj)
+    lab = {_label_of(f): f['id'] for f in RP.functions if _label_of(f)}
+    for k, name in FLABEL.items():
+        FID[k] = lab[name]
     if do_slim:
         import clonemerge
         rawslim.pictures_as_names(RP)
