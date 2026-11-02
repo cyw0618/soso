@@ -684,7 +684,7 @@ def add_cyw_intro(RP, proj, out_temp):
           % (nbytes / 1e6, dropped, moved))
 
 
-def main(src_temp, out_dir, do_slim=True, cyw=True):
+def main(src_temp, out_dir, do_slim=True, cyw=True, clone=False):
     proj = json.load(open(os.path.join(src_temp, 'project.json'), encoding='utf-8'))
     before = rawslim.count_blocks(proj)
     RP = RawProject(proj)
@@ -692,8 +692,9 @@ def main(src_temp, out_dir, do_slim=True, cyw=True):
     for k, name in FLABEL.items():
         FID[k] = lab[name]
     if do_slim:
-        import clonemerge
         rawslim.pictures_as_names(RP)
+    if do_slim and clone:      # 오브젝트를 복제본으로 합치기: 카드 게임의 딜·클릭이 어긋나서 기본은 끔 (--clone 으로 켬)
+        import clonemerge
         clonemerge.clone_merge(RP)
     add_vars(RP, proj, [('_인트로', '0'), ('_인트로y', '0'), ('_인트로v', '0'), ('_저장초', '0'),
                         ('랭킹요청', '0'), ('_내계정', '')])
@@ -752,4 +753,4 @@ def main(src_temp, out_dir, do_slim=True, cyw=True):
 
 if __name__ == '__main__':
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
-    main(args[0], args[1], do_slim='--no-slim' not in sys.argv, cyw='--no-cyw' not in sys.argv)
+    main(args[0], args[1], do_slim='--no-slim' not in sys.argv, cyw='--no-cyw' not in sys.argv, clone='--clone' in sys.argv)

@@ -61,6 +61,12 @@ def main(out_dir, dst):
     kp = os.path.join(base, 'original_files.txt')
     if os.path.exists(kp):
         keep = set(open(kp, encoding='utf-8').read().split())
+    for o in proj['objects']:      # 가로 900px 이상 그림(장면 배경)은 원본 그대로
+        for pc in o['sprite'].get('pictures', []):
+            if pc.get('dimension', {}).get('width', 0) >= 900:
+                keep.add(pc['fileurl'])
+                if pc.get('thumbUrl'):
+                    keep.add(pc['thumbUrl'])
     raw = io.BytesIO()
     before = after = 0
     dirs = set()
