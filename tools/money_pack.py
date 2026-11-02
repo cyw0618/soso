@@ -57,6 +57,10 @@ def main(out_dir, dst):
                 files.add(p['thumbUrl'])
         for s in o['sprite'].get('sounds', []):
             files.add(s['fileurl'])
+    keep = set()          # 원본 그대로 넣을 파일 (money_bg.py 가 남긴 목록)
+    kp = os.path.join(base, 'original_files.txt')
+    if os.path.exists(kp):
+        keep = set(open(kp, encoding='utf-8').read().split())
     raw = io.BytesIO()
     before = after = 0
     dirs = set()
@@ -84,7 +88,9 @@ def main(out_dir, dst):
         for f in sorted(files):
             data = open(os.path.join(base, f), 'rb').read()
             before += len(data)
-            if '/thumb/' in f and f.endswith('.png'):
+            if f in keep:
+                pass
+            elif '/thumb/' in f and f.endswith('.png'):
                 data = png_small(data, 64)
             elif f.endswith('.png'):
                 data = png_small(data, 256)
