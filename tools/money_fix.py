@@ -26,7 +26,7 @@ sys.path.insert(0, HERE)
 from PIL import Image, ImageDraw, ImageFilter  # noqa: E402
 
 import entrygen as EG  # noqa: E402
-from entrygen import (B, V, t, setv, chg, wait, rep, forever, if_, ifelse, eq, ne, gt, lt, ge, le, and_, add, sub,  # noqa: E402
+from entrygen import (or_, B, V, t, setv, chg, wait, rep, forever, if_, ifelse, eq, ne, gt, lt, ge, le, and_, add, sub,  # noqa: E402
                       mul, rnd, LGET, LLEN, show, hide, xy, lx, ly, cast, on_run, on_msg, on_clone, fx, fx_add,
                       size, grow, next_shape, obj_x, obj_y, clone_self, del_clone)
 import rawslim  # noqa: E402
@@ -314,9 +314,10 @@ def save_guard():
         wait(0.5),
         if_(eq(V('로그인완료'), 1),
             chg('_저장초', 0.5),
-            if_(and_(eq(V('자동저장'), 1), ge(V('_저장초'), 20)), setv('저장요청', 1)),
+            if_(and_(eq(V('자동저장'), 1), or_(ge(V('_저장초'), 20), and_(ne(V('돈'), V('_저장돈')), ge(V('_저장초'), 5)))),
+                setv('저장요청', 1)),
             ifelse(eq(V('저장요청'), 1),
-                   [setv('_저장초', 0),
+                   [setv('_저장초', 0), setv('_저장돈', V('돈')),
                     # 처음 시작할 때 서버가 느려 저장 칸을 못 받았으면 다시 찾는다 (내 계정 키일 때만)
                     if_(and_(eq(V('저장슬롯'), 0), eq(V('계정키'), V('_내계정'))), func(FID['i7z0'])),
                     ifelse(gt(V('저장슬롯'), 0), [func(FID['lmmy']), verify],
@@ -715,6 +716,11 @@ def main(src_temp, out_dir, do_slim=True, cyw=True, clone=False):
     add_vars(RP, proj, [(n, '0') for n in ('_crw', '_crq', '_crp', '_crh', '_crl')])
     print('· 차트 고가·저가 기록 리스트 14개 → 계산 (쓰기 블록 %d개 뺌)' % chart_wicks(RP, proj))
     dead_stores(RP, proj)
+    import money_click
+    money_click.forward_bg_clicks(RP, proj)
+    import money_save
+    fw, fs, fr = money_save.build(RP, proj, lab, add_vars)
+    print('· 저장 강화:', money_save.patch(RP, proj, lab, fw, fs, fr))
     if cyw:
         add_cyw_intro(RP, proj, out_temp)
     if do_slim:

@@ -106,6 +106,9 @@ class RawProject:
 
     def list(self, name, items=(), **kw):
         self.new_lists[name] = (EG.new_id(), list(items))
+        if not hasattr(self, 'list_cloud'):
+            self.list_cloud = {}
+        self.list_cloud[name] = kw.get('cloud')
 
     def var(self, name, value=0, **kw):
         self.new_vars[name] = (EG.new_id(), value)
@@ -179,8 +182,10 @@ class RawProject:
             funcs.append(dict(meta, content=json.dumps([blocks], ensure_ascii=False, separators=(',', ':'))))
         proj['functions'] = funcs
         for name, (lid, items) in self.new_lists.items():
-            proj['variables'].append(dict(name=name, id=lid, visible=False, value=0, variableType='list', isCloud=False,
-                                          isRealTime=False, cloudDate=False, object=None, x=0, y=0, width=100, height=120,
+            cl = getattr(self, 'list_cloud', {}).get(name)
+            proj['variables'].append(dict(name=name, id=lid, visible=False, value=0, variableType='list',
+                                          isCloud=(cl == 'shared'), isRealTime=(cl in (True, 'realtime')),
+                                          cloudDate=False, object=None, x=0, y=0, width=100, height=120,
                                           array=[dict(data=str(i)) for i in items]))
         for name, (vid, val) in self.new_vars.items():
             proj['variables'].append(dict(name=name, id=vid, visible=False, value=val, variableType='variable',
