@@ -4,7 +4,7 @@
     python3 -I tools/money_pack.py 결과폴더 출력.ent
 
   - PNG: libimagequant 256색(디더링) + oxipng, 더 작아질 때만
-  - JPG: 품질 82 로 다시 저장, 더 작아질 때만
+  - JPG: 원본 그대로 (다시 저장한 JPG 는 엔트리 사이트에서 배경이 사라졌음)
   - 미리보기(thumb): 64색
 """
 import gzip
@@ -89,7 +89,7 @@ def main(out_dir, dst):
             elif f.endswith('.png'):
                 data = png_small(data, 256)
             elif f.endswith('.jpg') or f.endswith('.jpeg'):
-                data = jpg_small(data)
+                pass        # JPG(장면 배경)는 원본 그대로: 다시 저장(프로그레시브)하면 엔트리에 올렸을 때 배경이 안 나왔음
             after += len(data)
             add(f, data)
     with open(dst, 'wb') as fp:
