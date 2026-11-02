@@ -685,6 +685,45 @@ def add_cyw_intro(RP, proj, out_temp):
           % (nbytes / 1e6, dropped, moved))
 
 
+def tax_year(RP, lab, days=365):
+    """종합소득세 정산이 Day 360 에 돌던 것을 1년(365일)로: 정산을 부르는 _if 의 조건 속 360 을 days 로."""
+    fid = lab['종합소득세 정산']
+    n = [0]
+
+    def has_call(lst):
+        for b in lst:
+            if isinstance(b, dict):
+                if b.get('type') == 'func_' + fid:
+                    return True
+                if any(has_call(st) for st in (b.get('statements') or [])):
+                    return True
+        return False
+
+    def fix_cond(x):
+        if isinstance(x, dict):
+            if x.get('type') == 'number' and x.get('params') and str(x['params'][0]) == '360':
+                x['params'][0] = str(days)
+                n[0] += 1
+            for q in x.get('params') or []:
+                fix_cond(q)
+
+    def walk(lst):
+        for b in lst:
+            if isinstance(b, dict):
+                if b.get('type') == '_if' and (b.get('statements') or [[]]) and has_call(b['statements'][0]):
+                    fix_cond((b.get('params') or [None])[0])
+                for st in b.get('statements') or []:
+                    walk(st)
+    for o in RP.objects:
+        for sc in o.scripts:
+            walk(sc)
+    for f in RP.functions:
+        if f.get('body'):
+            walk(f['body'])
+    assert n[0] == 1, n
+    return n[0]
+
+
 def main(src_temp, out_dir, do_slim=True, cyw=True, clone=False):
     proj = json.load(open(os.path.join(src_temp, 'project.json'), encoding='utf-8'))
     before = rawslim.count_blocks(proj)
@@ -716,6 +755,7 @@ def main(src_temp, out_dir, do_slim=True, cyw=True, clone=False):
     add_vars(RP, proj, [(n, '0') for n in ('_crw', '_crq', '_crp', '_crh', '_crl')])
     print('· 차트 고가·저가 기록 리스트 14개 → 계산 (쓰기 블록 %d개 뺌)' % chart_wicks(RP, proj))
     dead_stores(RP, proj)
+    print('· 세금 정산 주기 360 → 365일:', tax_year(RP, lab))
     import money_click
     money_click.forward_bg_clicks(RP, proj)
     import money_save
